@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "qalprit"
-version = "0.1.0"
+version = "0.1.1"
 description = "Mobile QA. Bugs caught with proof. Deterministic Markdown/YAML mobile UI test automation powered by Appium 2."
 readme = "README.md"
 license = "MIT"
@@ -44,10 +44,11 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/vattitude-me/QAlprit"
+Homepage = "https://qalprit.vattitude.ca"
 Repository = "https://github.com/vattitude-me/QAlprit"
 Issues = "https://github.com/vattitude-me/QAlprit/issues"
 Documentation = "https://github.com/vattitude-me/QAlprit#readme"
+Demo = "https://qalprit.vattitude.ca/sample-report"
 
 [project.scripts]
 qalprit = "qalprit.cli:main"

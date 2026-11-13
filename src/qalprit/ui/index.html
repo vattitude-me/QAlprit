@@ -84,6 +84,10 @@
     th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
     th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
     .empty { background: var(--surface); border: 1px dashed var(--border); border-radius: 10px; padding: 28px; text-align: center; color: var(--muted); }
+    footer { border-top: 1px solid var(--border); padding: 18px 28px 32px; font-size: 12.5px; color: var(--muted); }
+    footer a { color: var(--accent); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+    .foot-row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
   </style>
 </head>
 <body>
@@ -118,6 +122,13 @@
     <div id="panel-specs" role="tabpanel" aria-labelledby="tab-specs" hidden></div>
     <div id="panel-screens" role="tabpanel" aria-labelledby="tab-screens" hidden></div>
   </main>
+
+  <footer>
+    <div class="wrap foot-row">
+      <span><strong>QAlprit</strong> — Mobile QA. Bugs caught with proof.</span>
+      <span><a href="https://qalprit.vattitude.ca" target="_blank" rel="noopener">qalprit.vattitude.ca</a> · Managed by <a href="https://vattitude.ca" target="_blank" rel="noopener">vattitude.ca</a></span>
+    </div>
+  </footer>
 
   <script>
     const tabs = [
