@@ -5,6 +5,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from qalprit.config_loader import DeviceProfile, EnvironmentConfig
+from qalprit.devices import DiscoveredDevice
 from qalprit.driver_factory import AppiumDriverAdapter, create_appium_driver
 
 
@@ -104,3 +105,67 @@ def test_create_appium_driver_sets_ios_simulator_keyboard_options(monkeypatch) -
     caps = captured["options"].to_capabilities()
     assert caps["appium:connectHardwareKeyboard"] is True
     assert caps["appium:forceSimulatorSoftwareKeyboardPresence"] is False
+
+
+def test_create_appium_driver_skips_unavailable_avd_when_emulator_is_booted(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        "appium.webdriver.Remote",
+        lambda url, *, options: captured.update({"url": url, "options": options}) or SimpleNamespace(),
+    )
+    monkeypatch.setattr(
+        "qalprit.driver_factory.list_android_devices",
+        lambda: (
+            [
+                DiscoveredDevice("android", "emulator-5554", "emulator-5554", "device", "emulator"),
+                DiscoveredDevice("android", "mbtest", "avd:mbtest", "available (AVD)", "emulator"),
+            ],
+            None,
+        ),
+    )
+
+    profile = DeviceProfile(
+        name="android_emulator",
+        platform="android",
+        target_type="simulator",
+        device_name="Android Emulator",
+        avd="Pixel_8_API_35",
+        automation_name="UiAutomator2",
+    )
+    env_cfg = EnvironmentConfig(name="mda", android_package="com.saucelabs.mydemoapp.android")
+
+    create_appium_driver("http://127.0.0.1:4723", profile, env_cfg)
+
+    caps = captured["options"].to_capabilities()
+    assert "appium:avd" not in caps
+
+
+def test_create_appium_driver_autopicks_first_avd_when_none_booted(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        "appium.webdriver.Remote",
+        lambda url, *, options: captured.update({"url": url, "options": options}) or SimpleNamespace(),
+    )
+    monkeypatch.setattr(
+        "qalprit.driver_factory.list_android_devices",
+        lambda: (
+            [DiscoveredDevice("android", "mbtest", "avd:mbtest", "available (AVD)", "emulator")],
+            None,
+        ),
+    )
+
+    profile = DeviceProfile(
+        name="android_emulator",
+        platform="android",
+        target_type="simulator",
+        device_name="Android Emulator",
+        automation_name="UiAutomator2",
+    )
+    env_cfg = EnvironmentConfig(name="mda", android_package="com.saucelabs.mydemoapp.android")
+
+    create_appium_driver("http://127.0.0.1:4723", profile, env_cfg)
+
+    caps = captured["options"].to_capabilities()
+    assert caps["appium:avd"] == "mbtest"

@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
 from qalprit.config_loader import DeviceProfile, EnvironmentConfig
+from qalprit.devices import list_android_devices
 
 
 @runtime_checkable
@@ -174,6 +175,22 @@ class AppiumDriverAdapter:
         self._driver.quit()
 
 
+def _resolve_android_avd(profile: DeviceProfile) -> str | None:
+    """Resolve Android AVD name without blocking on a stale name when an emulator is already running."""
+    if profile.target_type != "simulator" or profile.udid:
+        return profile.avd
+    devices, _ = list_android_devices()
+    online_emulators = [d for d in devices if d.kind == "emulator" and d.state == "device"]
+    available_avds = [d.name for d in devices if d.identifier.startswith("avd:")]
+    if profile.avd:
+        if profile.avd in available_avds or not online_emulators:
+            return profile.avd
+        return None
+    if not online_emulators and available_avds:
+        return available_avds[0]
+    return None
+
+
 def create_appium_driver(
     appium_url: str,
     profile: DeviceProfile,
@@ -199,8 +216,9 @@ def create_appium_driver(
             opts.platform_version = profile.platform_version
         if profile.udid:
             opts.udid = profile.udid
-        if profile.avd:
-            opts.avd = profile.avd
+        resolved_avd = _resolve_android_avd(profile)
+        if resolved_avd:
+            opts.avd = resolved_avd
             opts.set_capability("appium:avdLaunchTimeout", 120000)
             opts.set_capability("appium:avdReadyTimeout", 120000)
         if app_path is not None:
