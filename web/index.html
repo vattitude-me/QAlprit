@@ -78,12 +78,12 @@
 <span class="t-ok">[ OK ]</span> Android adb                  1.0.41
 
 <span class="t-dim">$</span> qalprit validate --suite mda --env mda
-Validation PASSED: 5 spec(s), 3 flow(s), 0 warning(s).
+Validation PASSED: 5 spec(s), 2 flow(s), 0 warning(s).
 
 <span class="t-dim">$</span> qalprit run --platform android --device android_emulator \
-    --app apps/mda-demo.apk --env mda --suite mda --retries 1
+    --app apps/mda-2.3.0-27.apk --env mda --suite mda
 Starting QAlprit run 20261113_135128_android_mda (5 spec(s))...
-<span class="t-ok">Run complete: 4 passed, 1 failed, 0 skipped, 1 flaky</span>
+<span class="t-ok">Run complete: 5 passed, 0 failed, 0 skipped, 0 flaky</span>
 Report HTML : results/20261113_135128_android_mda/report.html</code></pre>
         </div>
       </div>
@@ -123,35 +123,38 @@ Report HTML : results/20261113_135128_android_mda/report.html</code></pre>
           </div>
           <div class="run-meta-pill">
             <span>Run: <code>20261113_135128_android_mda</code></span>
-            <span><a href="sample-report.html">Open Full Real 5/5 MDA Report</a></span>
+            <span><a href="sample-report.html">Open Full 5/5 MDA Report (104 steps)</a></span>
           </div>
         </div>
 
         <div class="kpi-grid" aria-label="Sample run metrics">
-          <div class="kpi"><span class="kpi-label">Pass Rate</span><strong class="kpi-val">80%</strong></div>
+          <div class="kpi"><span class="kpi-label">Pass Rate</span><strong class="kpi-val">100%</strong></div>
           <div class="kpi"><span class="kpi-label">Total Specs</span><strong class="kpi-val">5</strong></div>
-          <div class="kpi kpi-pass"><span class="kpi-label">Passed</span><strong class="kpi-val">4</strong></div>
-          <div class="kpi kpi-fail"><span class="kpi-label">Failed</span><strong class="kpi-val">1</strong></div>
-          <div class="kpi kpi-warn"><span class="kpi-label">Flaky</span><strong class="kpi-val">1</strong></div>
-          <div class="kpi"><span class="kpi-label">Redacted Boxes</span><strong class="kpi-val">6</strong></div>
+          <div class="kpi kpi-pass"><span class="kpi-label">Passed</span><strong class="kpi-val">5</strong></div>
+          <div class="kpi kpi-fail"><span class="kpi-label">Failed</span><strong class="kpi-val">0</strong></div>
+          <div class="kpi kpi-warn"><span class="kpi-label">Flaky</span><strong class="kpi-val">0</strong></div>
+          <div class="kpi"><span class="kpi-label">Duration</span><strong class="kpi-val">2m 20.0s</strong></div>
         </div>
 
         <div class="toolbar" role="region" aria-label="Report filters">
           <div class="filter-group" id="statusFilters">
             <button type="button" class="btn-filter active" data-status="all" aria-pressed="true">All (5)</button>
-            <button type="button" class="btn-filter" data-status="passed" aria-pressed="false">Passed (4)</button>
-            <button type="button" class="btn-filter" data-status="failed" aria-pressed="false">Failed (1)</button>
-            <button type="button" class="btn-filter" data-status="flaky" aria-pressed="false">Flaky (1)</button>
+            <button type="button" class="btn-filter" data-status="passed" aria-pressed="false">Passed (5)</button>
+            <button type="button" class="btn-filter" data-status="failed" aria-pressed="false">Failed (0)</button>
+            <button type="button" class="btn-filter" data-status="flaky" aria-pressed="false">Flaky (0)</button>
           </div>
           <div class="filter-controls">
             <label class="visually-hidden" for="tagFilter">Filter by tag</label>
             <select id="tagFilter" class="input-ctrl">
               <option value="all">All tags</option>
+              <option value="mda">mda</option>
               <option value="auth">auth</option>
-              <option value="checkout">checkout</option>
-              <option value="catalog">catalog</option>
+              <option value="smoke">smoke</option>
               <option value="negative">negative</option>
-              <option value="webview">webview</option>
+              <option value="catalog">catalog</option>
+              <option value="checkout">checkout</option>
+              <option value="e2e">e2e</option>
+              <option value="cart">cart</option>
             </select>
             <label class="visually-hidden" for="searchBox">Search tests</label>
             <input id="searchBox" class="input-ctrl" type="search" placeholder="Search test ID or title..." />

@@ -488,7 +488,8 @@ h2 {
   background: #0f172a;
   cursor: zoom-in;
 }
-.thumb-btn svg { display: block; width: 76px; height: auto; border-radius: 5px; }
+.thumb-btn svg,
+.thumb-btn img { display: block; width: 76px; height: auto; border-radius: 5px; object-fit: cover; }
 
 .xml-box {
   background: #0b1120;
@@ -607,5 +608,6 @@ dialog#proofLightbox::backdrop {
   cursor: pointer;
 }
 .lb-media { display: flex; justify-content: center; }
-.lb-media svg { width: 100%; max-width: 300px; height: auto; border-radius: 14px; }
+.lb-media svg,
+.lb-media img { width: 100%; max-width: 300px; height: auto; border-radius: 14px; }
 .lb-caption { margin: 12px 0 0; font-size: 13px; color: #94a3b8; }

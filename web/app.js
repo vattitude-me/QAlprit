@@ -1,5 +1,5 @@
 (function () {
-  // Demo sanitized run illustrating QAlprit's Proof Report & Pillow in-memory redaction
+  // Mirrors real run 20261113_135128_android_mda from examples/mda-sample-run/results.json
   const DEMO_TESTS = [
     {
       id: "MDA-001",
@@ -7,79 +7,26 @@
       status: "passed",
       flaky: false,
       tags: ["mda", "auth", "smoke"],
-      duration: "6.42s",
-      expected: "User signs in cleanly with secret masking/redaction and session shows Log Out.",
+      duration: "23.82s",
+      expected: "User signs in cleanly with secret masking/redaction, session shows Log Out in drawer, and teardown signs out.",
       steps: [
         {
-          idx: 1,
+          idx: 7,
           status: "passed",
           action: "type",
           flow: "mda/login",
-          duration: "1.12s",
+          duration: "1.34s",
           desc: "Type password into mda_login.password_field (secret: true)",
           redacted: 1,
           screen: "login",
         },
         {
-          idx: 2,
-          status: "passed",
-          action: "tap",
-          flow: "mda/login",
-          duration: "0.94s",
-          desc: "Tap mda_login.login_button -> verify mda_catalog.title",
-          redacted: 0,
-          screen: "catalog",
-        },
-      ],
-    },
-    {
-      id: "MDA-004",
-      title: "End-to-end authenticated purchase checkout with card & CVV redaction",
-      status: "passed",
-      flaky: false,
-      tags: ["mda", "checkout", "auth"],
-      duration: "14.80s",
-      expected: "Card number and CVV bounding boxes are black-filled in memory before PNG write.",
-      steps: [
-        {
-          idx: 1,
-          status: "passed",
-          action: "type",
-          flow: null,
-          duration: "1.45s",
-          desc: "Type card & security code into mda_payment (sensitive: true)",
-          redacted: 2,
-          screen: "payment",
-        },
-        {
-          idx: 2,
+          idx: 13,
           status: "passed",
           action: "assert_visible",
           flow: null,
           duration: "0.78s",
-          desc: "Assert visible mda_complete.thank_you -> screenshot mda_order_complete",
-          redacted: 0,
-          screen: "complete",
-        },
-      ],
-    },
-    {
-      id: "MDA-003",
-      title: "Sort catalog by price descending and scroll to item",
-      status: "passed",
-      flaky: true,
-      attempts: 2,
-      tags: ["mda", "catalog"],
-      duration: "9.15s",
-      expected: "Passed on retry #2 after catalog animation settled; flagged flaky.",
-      steps: [
-        {
-          idx: 1,
-          status: "passed",
-          action: "scroll_until_visible",
-          flow: null,
-          duration: "2.31s",
-          desc: "Scroll down until mda_catalog.product_by_title ('Sauce Labs Onesie') visible",
+          desc: "Assert visible mda_nav.menu_logout -> screenshot mda_logged_in_menu",
           redacted: 0,
           screen: "catalog",
         },
@@ -91,42 +38,93 @@
       status: "passed",
       flaky: false,
       tags: ["mda", "auth", "negative"],
-      duration: "5.21s",
-      expected: "Displays locked-out validation banner with password field redacted.",
+      duration: "14.87s",
+      expected: "Attempting to log in as a locked-out user remains on Login and displays the locked-out error message.",
       steps: [
         {
-          idx: 1,
+          idx: 11,
           status: "passed",
-          action: "assert_text",
+          action: "screenshot",
           flow: null,
-          duration: "0.86s",
-          desc: "Assert mda_login.error_banner contains 'locked out'",
+          duration: "0.91s",
+          desc: "Verify locked-out banner with password field black-filled in memory",
           redacted: 1,
+          imageSrc: "previews/mda_02_locked_out.jpg",
           screen: "locked",
         },
       ],
     },
     {
-      id: "SSO-009",
-      title: "Checkout 3DS challenge flags embedded WebView on failure",
-      status: "failed",
+      id: "MDA-003",
+      title: "Sort catalog by price descending, inspect top product, and scroll catalog",
+      status: "passed",
       flaky: false,
-      webview: true,
-      tags: ["checkout", "webview"],
-      duration: "12.90s",
-      failure: "Timeout waiting 12.0s for native locator 'checkout.confirm_btn'. Embedded android.webkit.WebView detected in page source.",
-      expected: "Native confirmation screen renders after payment submit.",
-      xmlPreview: "<hierarchy>\n  <android.webkit.WebView bounds=\"[0,120][1080,2240]\">\n    <android.widget.TextView text=\"3-D Secure Challenge\" />\n  </android.webkit.WebView>\n</hierarchy>",
+      tags: ["mda", "catalog", "navigation"],
+      duration: "25.83s",
+      expected: "Sorting reorders highest-priced item first, tapping opens Fleece Jacket detail, back returns to catalog, and scrolling locates Sauce Labs Onesie.",
       steps: [
         {
-          idx: 1,
-          status: "failed",
-          action: "wait_for_visible",
+          idx: 13,
+          status: "passed",
+          action: "scroll_until_visible",
           flow: null,
-          duration: "12.04s",
-          desc: "Wait for visible checkout.confirm_btn (timeout 12s)",
+          duration: "4.12s",
+          desc: "Scroll down until mda_catalog.product_by_title ('Sauce Labs Onesie') visible",
+          redacted: 0,
+          screen: "catalog",
+        },
+      ],
+    },
+    {
+      id: "MDA-004",
+      title: "End-to-end authenticated purchase checkout with sensitive data redaction",
+      status: "passed",
+      flaky: false,
+      tags: ["mda", "checkout", "e2e", "regression"],
+      duration: "59.00s",
+      expected: "Complete login, item selection, cart review, shipping, redacted payment entry, order review, and checkout completion succeed.",
+      steps: [
+        {
+          idx: 36,
+          status: "passed",
+          action: "screenshot",
+          flow: "mda/login",
+          duration: "1.18s",
+          desc: "Verify payment form with Card Number & Security Code (sensitive: true) redacted",
           redacted: 2,
-          screen: "webview_fail",
+          imageSrc: "previews/mda_04_payment_redacted.jpg",
+          screen: "payment",
+        },
+        {
+          idx: 42,
+          status: "passed",
+          action: "assert_visible",
+          flow: null,
+          duration: "0.84s",
+          desc: "Assert visible mda_complete.thank_you -> screenshot mda_order_complete",
+          redacted: 0,
+          screen: "complete",
+        },
+      ],
+    },
+    {
+      id: "MDA-005",
+      title: "Cart quantity update and item removal",
+      status: "passed",
+      flaky: false,
+      tags: ["mda", "cart", "smoke"],
+      duration: "16.30s",
+      expected: "Adding a product updates the cart badge, cart reflects price and count, and removing the item empties the cart.",
+      steps: [
+        {
+          idx: 11,
+          status: "passed",
+          action: "assert_visible",
+          flow: null,
+          duration: "0.72s",
+          desc: "Remove item -> verify mda_cart.empty_title ('No Items')",
+          redacted: 0,
+          screen: "complete",
         },
       ],
     },
@@ -237,8 +235,8 @@
                   </div>
                   ${t.xmlPreview && s.status === "failed" ? `<pre class="xml-box">${t.xmlPreview.replace(/</g, "&lt;")}</pre>` : ""}
                 </div>
-                <button type="button" class="thumb-btn" data-screen="${s.screen}" data-title="${t.id} · Step ${s.idx}" data-caption="${s.desc}" aria-label="Enlarge screenshot for ${t.id} step ${s.idx}">
-                  ${renderPhoneSvg(s.screen)}
+                <button type="button" class="thumb-btn" data-screen="${s.screen}" data-img="${s.imageSrc || ""}" data-title="${t.id} · Step ${s.idx}" data-caption="${s.desc}" aria-label="Enlarge screenshot for ${t.id} step ${s.idx}">
+                  ${s.imageSrc ? `<img src="${s.imageSrc}" alt="${t.id} step ${s.idx} redacted screenshot" width="76" loading="lazy" />` : renderPhoneSvg(s.screen)}
                 </button>
               </div>`).join("")}
           </div>
@@ -249,7 +247,11 @@
     container.querySelectorAll(".thumb-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
         lbTitle.textContent = btn.dataset.title || "Step Proof";
-        lbMedia.innerHTML = renderPhoneSvg(btn.dataset.screen);
+        if (btn.dataset.img) {
+          lbMedia.innerHTML = `<img src="${btn.dataset.img}" alt="${btn.dataset.caption || "Step screenshot"}" />`;
+        } else {
+          lbMedia.innerHTML = renderPhoneSvg(btn.dataset.screen);
+        }
         lbCaption.textContent = btn.dataset.caption || "";
         lightbox.showModal();
       });

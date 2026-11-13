@@ -3,27 +3,64 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light dark" />
   <title>QAlprit Report — {{ run.run_id }}</title>
   <style>
     :root {
-      --bg: #f4f6f9;
+      color-scheme: light dark;
+      --bg: #f3f6f9;
       --surface: #ffffff;
-      --surface-alt: #f8fafc;
-      --border: #e2e8f0;
+      --surface-alt: #e8eef5;
+      --border: #cbd5e1;
       --text: #0f172a;
       --muted: #475569;
       --header-bg: #0f172a;
       --header-text: #f8fafc;
+      --nav-bg: color-mix(in srgb, var(--surface) 88%, transparent);
+      --accent: #0f766e;
+      --accent-ink: #ffffff;
+      --accent-bg: #ccfbf1;
       --pass: #15803d;
       --pass-bg: #dcfce7;
       --fail: #b91c1c;
       --fail-bg: #fee2e2;
+      --fail-border: #fca5a5;
       --skip: #475569;
       --skip-bg: #e2e8f0;
       --warn: #b45309;
       --warn-bg: #fef3c7;
-      --accent: #2563eb;
-      --accent-bg: #dbeafe;
+      --warn-border: #fcd34d;
+      --flow-bg: #ede9fe;
+      --flow-text: #5b21b6;
+      --redact-bg: #0f172a;
+      --redact-text: #f8fafc;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #090e1a;
+        --surface: #111827;
+        --surface-alt: #0f172a;
+        --border: #273549;
+        --text: #f1f5f9;
+        --muted: #94a3b8;
+        --accent: #2dd4bf;
+        --accent-ink: #042f2e;
+        --accent-bg: #134e4a;
+        --pass: #4ade80;
+        --pass-bg: #052e16;
+        --fail: #f87171;
+        --fail-bg: #450a0a;
+        --fail-border: #991b1b;
+        --skip: #94a3b8;
+        --skip-bg: #1e293b;
+        --warn: #fbbf24;
+        --warn-bg: #451a03;
+        --warn-border: #92400e;
+        --flow-bg: #2e1065;
+        --flow-text: #ddd6fe;
+        --redact-bg: #1e293b;
+        --redact-text: #f1f5f9;
+      }
     }
     * { box-sizing: border-box; }
     body {
@@ -33,7 +70,75 @@
       color: var(--text);
       line-height: 1.5;
     }
-    header {
+    .site-nav {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      backdrop-filter: blur(12px);
+      background: var(--nav-bg);
+      border-bottom: 1px solid var(--border);
+    }
+    .site-nav-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .site-nav-brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--text);
+      font-weight: 700;
+      font-size: 16px;
+      text-decoration: none;
+    }
+    .site-nav-brand svg {
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      display: block;
+    }
+    .site-nav-links {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 16px;
+      font-size: 13.5px;
+    }
+    .site-nav-links a {
+      color: var(--muted);
+      font-weight: 500;
+      text-decoration: none;
+    }
+    .site-nav-links a:hover,
+    .site-nav-links a.active {
+      color: var(--accent);
+    }
+    .back-home-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: 1px solid #334155;
+      background: #1e293b;
+      color: #f8fafc;
+      font-size: 13px;
+      font-weight: 600;
+      text-decoration: none;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .back-home-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    header.report-header {
       background: var(--header-bg);
       color: var(--header-text);
       padding: 24px 32px;
@@ -82,8 +187,8 @@
 
     .banner-warn {
       background: var(--warn-bg);
-      border: 1px solid #fcd34d;
-      color: #78350f;
+      border: 1px solid var(--warn-border);
+      color: var(--warn);
       padding: 12px 16px;
       border-radius: 8px;
       margin-bottom: 18px;
@@ -114,12 +219,14 @@
       cursor: pointer;
     }
     .btn-filter.active {
-      background: var(--text);
-      color: #ffffff;
-      border-color: var(--text);
+      background: var(--accent);
+      color: var(--accent-ink);
+      border-color: var(--accent);
     }
     .search-box {
       padding: 6px 10px;
+      background: var(--surface-alt);
+      color: var(--text);
       border: 1px solid var(--border);
       border-radius: 6px;
       font-size: 13px;
@@ -162,10 +269,10 @@
     .badge-failed { background: var(--fail-bg); color: var(--fail); }
     .badge-skipped { background: var(--skip-bg); color: var(--skip); }
     .badge-flaky { background: var(--warn-bg); color: var(--warn); }
-    .badge-webview { background: #fef3c7; color: #92400e; }
+    .badge-webview { background: var(--warn-bg); color: var(--warn); }
     .badge-tag { background: var(--accent-bg); color: var(--accent); text-transform: none; font-weight: 600; }
-    .badge-flow { background: #ede9fe; color: #5b21b6; text-transform: none; }
-    .badge-redact { background: #0f172a; color: #f8fafc; text-transform: none; }
+    .badge-flow { background: var(--flow-bg); color: var(--flow-text); text-transform: none; }
+    .badge-redact { background: var(--redact-bg); color: var(--redact-text); text-transform: none; }
 
     .test-body {
       border-top: 1px solid var(--border);
@@ -179,8 +286,8 @@
     }
     .error-box {
       background: var(--fail-bg);
-      border: 1px solid #fca5a5;
-      color: #7f1d1d;
+      border: 1px solid var(--fail-border);
+      color: var(--fail);
       padding: 10px 12px;
       border-radius: 8px;
       font-size: 13px;
@@ -286,7 +393,43 @@
   </style>
 </head>
 <body>
-  <header>
+  {% if home_url %}
+  <nav class="site-nav" aria-label="Site navigation">
+    <div class="site-nav-inner">
+      <a class="site-nav-brand" href="{{ home_url }}">
+        <svg viewBox="158 21 272 272" width="30" height="30" aria-hidden="true">
+          <rect x="158" y="21" width="272" height="272" rx="56" fill="#FFFFFF"/>
+          <rect x="196" y="36" width="120" height="214" rx="26" fill="#1B1464"/>
+          <rect x="206" y="52" width="100" height="182" rx="14" fill="#5B3DF5"/>
+          <circle cx="224" cy="78" r="9" fill="#00C2FF"/>
+          <rect x="240" y="73" width="48" height="10" rx="5" fill="#A99BFF"/>
+          <rect x="216" y="104" width="80" height="10" rx="5" fill="#A99BFF"/>
+          <line x1="334" y1="214" x2="384" y2="264" stroke="#FF9F1C" stroke-width="22" stroke-linecap="round"/>
+          <circle cx="290" cy="170" r="62" fill="#FFF1A8" stroke="#00C2FF" stroke-width="14"/>
+          <path d="M250 152 A44 44 0 0 1 272 126" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round"/>
+          <g stroke="#FF3D71" stroke-width="4" stroke-linecap="round" fill="none">
+            <path d="M277 172 L262 163"/><path d="M276 180 L259 180"/><path d="M277 189 L262 199"/>
+            <path d="M303 172 L318 163"/><path d="M304 180 L321 180"/><path d="M303 189 L318 199"/>
+            <path d="M286 147 L279 134"/><path d="M294 147 L301 134"/>
+          </g>
+          <ellipse cx="290" cy="180" rx="15" ry="19" fill="#FF3D71"/>
+          <circle cx="290" cy="155" r="9" fill="#FF3D71"/>
+          <rect x="288.5" y="162" width="3" height="34" rx="1.5" fill="#FFF1A8"/>
+        </svg>
+        <span>QAlprit</span>
+      </a>
+      <div class="site-nav-links">
+        <a href="{{ home_url }}">← Back to Home</a>
+        <a href="{{ home_url }}#proof-viewer">Proof Viewer</a>
+        <a href="{{ home_url }}#spec-studio">Spec Studio</a>
+        <a href="{{ home_url }}#architecture">Architecture</a>
+        <a class="active" href="#top">Sample Report</a>
+        <a href="https://github.com/vattitude-me/QAlprit" target="_blank" rel="noopener">GitHub</a>
+      </div>
+    </div>
+  </nav>
+  {% endif %}
+  <header class="report-header" id="top">
     <div class="header-top">
       <div>
         <div class="brand-header">
@@ -323,6 +466,9 @@
           <span>Tool: <strong>qalprit v{{ run.tool_version }}</strong></span>
         </div>
       </div>
+      {% if home_url %}
+      <a class="back-home-btn" href="{{ home_url }}">← Back to Home</a>
+      {% endif %}
     </div>
   </header>
 
@@ -473,7 +619,7 @@
   <footer class="report-footer">
     <div class="wrap">
       <span><strong>QAlprit</strong> — Mobile QA. Bugs caught with proof.</span>
-      <span><a href="https://qalprit.vattitude.ca" target="_blank" rel="noopener">qalprit.vattitude.ca</a> · Managed by <a href="https://vattitude.ca" target="_blank" rel="noopener">vattitude.ca</a></span>
+      <span>{% if home_url %}<a href="{{ home_url }}">← Back to Home</a> · {% endif %}<a href="https://qalprit.vattitude.ca" target="_blank" rel="noopener">qalprit.vattitude.ca</a> · Managed by <a href="https://vattitude.ca" target="_blank" rel="noopener">vattitude.ca</a></span>
     </div>
   </footer>
 
