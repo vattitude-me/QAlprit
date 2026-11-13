@@ -19,8 +19,8 @@ profiles:
   ios_simulator:
     platform: ios
     target_type: simulator
-    device_name: iPhone 16
-    platform_version: "18.0"
+    device_name: iPhone 17
+    platform_version: "26.5"
     automation_name: XCUITest
     auto_accept_alerts: true
 

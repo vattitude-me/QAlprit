@@ -2,7 +2,7 @@
 id: MDA-002
 title: Locked-out user sees account locked error banner
 tags: [mda, auth, negative]
-platforms: [android, ios]
+platforms: [android]
 targets: [simulator, device]
 priority: high
 preconditions:

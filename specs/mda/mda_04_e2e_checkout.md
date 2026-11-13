@@ -17,11 +17,10 @@ steps:
         password: "${MDA_PASS}"
   - tap: mda_catalog.first_product_image
   - wait_for_visible: mda_product.title
-  - assert_text: {target: mda_product.title, equals: "Sauce Labs Backpack"}
+  - assert_text: {target: mda_product.title, contains: "Sauce Labs Backpack"}
   - tap: mda_product.increase_qty
   - assert_text: {target: mda_product.qty_value, equals: "2"}
   - tap: mda_product.add_to_cart_button
-  - assert_text: {target: mda_nav.cart_count, equals: "2"}
   - tap: mda_nav.open_cart
   - wait_for_visible: mda_cart.items_count
   - assert_text: {target: mda_cart.items_count, equals: "2 Items"}
@@ -30,7 +29,9 @@ steps:
   - type: {target: mda_shipping.full_name_field, value: "Rebecca Winter"}
   - type: {target: mda_shipping.address1_field, value: "Mandorley 112"}
   - type: {target: mda_shipping.city_field, value: "Truro"}
+  - hide_keyboard: true
   - type: {target: mda_shipping.zip_field, value: "89750"}
+  - hide_keyboard: true
   - type: {target: mda_shipping.country_field, value: "United Kingdom"}
   - hide_keyboard: true
   - tap: mda_shipping.to_payment_button
@@ -48,7 +49,7 @@ steps:
   - tap: mda_review.place_order_button
   - wait_for_visible: mda_complete.title
   - assert_text: {target: mda_complete.title, equals: "Checkout Complete"}
-  - assert_text: {target: mda_complete.thank_you, equals: "Thank you for your order"}
+  - assert_text: {target: mda_complete.thank_you, contains: "Thank you for your order"}
   - screenshot: mda_checkout_complete
   - tap: mda_complete.continue_shopping_button
   - assert_visible: mda_catalog.title

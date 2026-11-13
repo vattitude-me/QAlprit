@@ -31,21 +31,29 @@ accounts:
 nav:
   logout_button: {accessibility_id: logout_button}
 
-# --- Sauce Labs My Demo App (Android v2.3.0) locators ---
+# --- Sauce Labs My Demo App (Android & iOS v2.3.0) locators ---
 mda_nav:
-  open_menu: {accessibility_id: "View menu"}
-  open_cart: {accessibility_id: "View cart"}
+  open_menu:
+    android: {accessibility_id: "View menu"}
+    ios: {accessibility_id: "More-tab-item"}
+  open_cart:
+    android: {accessibility_id: "View cart"}
+    ios: {accessibility_id: "Cart-tab-item"}
   cart_count:
     android: {id: "com.saucelabs.mydemoapp.android:id/cartTV"}
-    ios: {accessibility_id: "cartTV"}
-  menu_login: {accessibility_id: "Login Menu Item"}
-  menu_logout: {accessibility_id: "Logout Menu Item"}
+    ios: {xpath: '//XCUIElementTypeButton[@name="Cart-tab-item"]/following-sibling::XCUIElementTypeOther/XCUIElementTypeStaticText'}
+  menu_login:
+    android: {accessibility_id: "Login Menu Item"}
+    ios: {accessibility_id: "Login Button"}
+  menu_logout:
+    android: {accessibility_id: "Logout Menu Item"}
+    ios: {accessibility_id: "LogOut-menu-item"}
   menu_catalog:
     android: {text: "Catalog"}
-    ios: {accessibility_id: "Catalog"}
+    ios: {accessibility_id: "Catalog-tab-item"}
   menu_reset_app:
     android: {text: "Reset App State"}
-    ios: {accessibility_id: "Reset App State"}
+    ios: {accessibility_id: "ResetAppState-menu-item"}
   logout_confirm_btn:
     android: {id: "android:id/button1"}
     ios: {accessibility_id: "Log Out"}
@@ -53,64 +61,88 @@ mda_nav:
 mda_login:
   title:
     android: {id: "com.saucelabs.mydemoapp.android:id/loginTV"}
-    ios: {accessibility_id: "Login"}
+    ios: {ios_predicate: "name == 'Login' AND type == 'XCUIElementTypeStaticText'"}
   username_field:
     android: {id: "com.saucelabs.mydemoapp.android:id/nameET"}
-    ios: {accessibility_id: "nameET"}
+    ios: {class_name: "XCUIElementTypeTextField"}
   password_field:
     android: {id: "com.saucelabs.mydemoapp.android:id/passwordET", sensitive: true}
-    ios: {accessibility_id: "passwordET", sensitive: true}
-  login_button: {accessibility_id: "Tap to login with given credentials"}
+    ios: {class_name: "XCUIElementTypeSecureTextField", sensitive: true}
+  login_button:
+    android: {accessibility_id: "Tap to login with given credentials"}
+    ios: {ios_predicate: "name == 'Login' AND type == 'XCUIElementTypeButton'"}
   error_banner:
     android: {id: "com.saucelabs.mydemoapp.android:id/passwordErrorTV"}
-    ios: {accessibility_id: "passwordErrorTV"}
+    ios: {accessibility_id: "Validation Error!"}
   autofill_standard_user:
     android: {id: "com.saucelabs.mydemoapp.android:id/username1TV"}
-    ios: {accessibility_id: "username1TV"}
+    ios: {accessibility_id: "bob@example.com"}
   autofill_locked_user:
     android: {id: "com.saucelabs.mydemoapp.android:id/username2TV"}
-    ios: {accessibility_id: "username2TV"}
+    ios: {accessibility_id: "alice@example.com"}
 
 mda_catalog:
   title: {accessibility_id: "title"}
-  sort_button: {accessibility_id: "Shows current sorting order and displays available sorting options"}
-  sort_name_asc: {accessibility_id: "Ascending order by name"}
-  sort_name_desc: {accessibility_id: "Descending order by name"}
-  sort_price_asc: {accessibility_id: "Ascending order by price"}
-  sort_price_desc: {accessibility_id: "Descending order by price"}
+  sort_button:
+    android: {accessibility_id: "Shows current sorting order and displays available sorting options"}
+    ios: {ios_predicate: "name == 'Button' AND type == 'XCUIElementTypeButton'"}
+  sort_name_asc:
+    android: {accessibility_id: "Ascending order by name"}
+    ios: {ios_predicate: "name == 'Name - Ascending' AND type == 'XCUIElementTypeButton'"}
+  sort_name_desc:
+    android: {accessibility_id: "Descending order by name"}
+    ios: {ios_predicate: "name == 'Name - Descending' AND type == 'XCUIElementTypeButton'"}
+  sort_price_asc:
+    android: {accessibility_id: "Ascending order by price"}
+    ios: {ios_predicate: "name == 'Price - Ascending' AND type == 'XCUIElementTypeButton'"}
+  sort_price_desc:
+    android: {accessibility_id: "Descending order by price"}
+    ios: {ios_predicate: "name == 'Price - Descending' AND type == 'XCUIElementTypeButton'"}
   first_product_image: {accessibility_id: "Product Image"}
-  first_product_title: {accessibility_id: "Product Title"}
+  first_product_title:
+    android: {accessibility_id: "Product Title"}
+    ios: {accessibility_id: "Product Name"}
   first_product_price: {accessibility_id: "Product Price"}
   product_by_title:
     android: {text: "{title}"}
-    ios: {accessibility_id: "{title}"}
+    ios: {ios_predicate: "name == 'Product Name' AND label == '{title}'"}
   product_image_by_title:
     android: {xpath: '//*[@text="{title}"]/preceding-sibling::android.widget.ImageView[@content-desc="Product Image"]'}
-    ios: {accessibility_id: "{title}"}
+    ios: {xpath: '//XCUIElementTypeStaticText[@name="Product Name" and @label="{title}"]/preceding-sibling::XCUIElementTypeImage[@name="Product Image"]'}
 
 mda_product:
   title:
     android: {id: "com.saucelabs.mydemoapp.android:id/productTV"}
-    ios: {accessibility_id: "productTV"}
+    ios: {xpath: '//XCUIElementTypeStaticText[@name="Products"]/following::XCUIElementTypeStaticText[1]'}
   price:
     android: {id: "com.saucelabs.mydemoapp.android:id/priceTV"}
-    ios: {accessibility_id: "priceTV"}
-  increase_qty: {accessibility_id: "Increase item quantity"}
-  decrease_qty: {accessibility_id: "Decrease item quantity"}
+    ios: {accessibility_id: "Price"}
+  increase_qty:
+    android: {accessibility_id: "Increase item quantity"}
+    ios: {accessibility_id: "AddPlus Icons"}
+  decrease_qty:
+    android: {accessibility_id: "Decrease item quantity"}
+    ios: {accessibility_id: "SubtractMinus Icons"}
   qty_value:
     android: {id: "com.saucelabs.mydemoapp.android:id/noTV"}
-    ios: {accessibility_id: "noTV"}
-  add_to_cart_button: {accessibility_id: "Tap to add product to cart"}
+    ios: {accessibility_id: "Amount"}
+  add_to_cart_button:
+    android: {accessibility_id: "Tap to add product to cart"}
+    ios: {accessibility_id: "AddToCart"}
 
 mda_cart:
   items_count:
     android: {id: "com.saucelabs.mydemoapp.android:id/itemsTV"}
-    ios: {accessibility_id: "itemsTV"}
+    ios: {ios_predicate: "name ENDSWITH 'Items'"}
   total_price:
     android: {id: "com.saucelabs.mydemoapp.android:id/totalPriceTV"}
-    ios: {accessibility_id: "totalPriceTV"}
-  remove_item_button: {accessibility_id: "Removes product from cart"}
-  checkout_button: {accessibility_id: "Confirms products for checkout"}
+    ios: {xpath: '//XCUIElementTypeStaticText[@name="Total:"]/following::XCUIElementTypeStaticText[starts-with(@name, "$")][1]'}
+  remove_item_button:
+    android: {accessibility_id: "Removes product from cart"}
+    ios: {ios_predicate: "name == 'Remove Item' AND type == 'XCUIElementTypeButton'"}
+  checkout_button:
+    android: {accessibility_id: "Confirms products for checkout"}
+    ios: {accessibility_id: "ProceedToCheckout"}
 
 mda_shipping:
   title:
@@ -118,20 +150,22 @@ mda_shipping:
     ios: {accessibility_id: "Checkout"}
   full_name_field:
     android: {id: "com.saucelabs.mydemoapp.android:id/fullNameET"}
-    ios: {accessibility_id: "fullNameET"}
+    ios: {xpath: '//XCUIElementTypeStaticText[@name="Full Name*"]/following::XCUIElementTypeTextField[1]'}
   address1_field:
     android: {id: "com.saucelabs.mydemoapp.android:id/address1ET"}
-    ios: {accessibility_id: "address1ET"}
+    ios: {xpath: '//XCUIElementTypeStaticText[@name="Address Line 1*"]/following::XCUIElementTypeTextField[1]'}
   city_field:
     android: {id: "com.saucelabs.mydemoapp.android:id/cityET"}
-    ios: {accessibility_id: "cityET"}
+    ios: {xpath: '//XCUIElementTypeStaticText[@name="City*"]/following::XCUIElementTypeTextField[1]'}
   zip_field:
     android: {id: "com.saucelabs.mydemoapp.android:id/zipET"}
-    ios: {accessibility_id: "zipET"}
+    ios: {xpath: '//XCUIElementTypeStaticText[@name="Zip Code*"]/following::XCUIElementTypeTextField[1]'}
   country_field:
     android: {id: "com.saucelabs.mydemoapp.android:id/countryET"}
-    ios: {accessibility_id: "countryET"}
-  to_payment_button: {accessibility_id: "Saves user info for checkout"}
+    ios: {xpath: '//XCUIElementTypeStaticText[@name="Country*"]/following::XCUIElementTypeTextField[1]'}
+  to_payment_button:
+    android: {accessibility_id: "Saves user info for checkout"}
+    ios: {accessibility_id: "To Payment"}
 
 mda_payment:
   title:
@@ -139,17 +173,19 @@ mda_payment:
     ios: {accessibility_id: "Enter a payment method"}
   cardholder_name_field:
     android: {id: "com.saucelabs.mydemoapp.android:id/nameET"}
-    ios: {accessibility_id: "nameET"}
+    ios: {xpath: '//XCUIElementTypeStaticText[@name="Full Name*"]/following::XCUIElementTypeTextField[1]'}
   card_number_field:
     android: {id: "com.saucelabs.mydemoapp.android:id/cardNumberET", sensitive: true}
-    ios: {accessibility_id: "cardNumberET", sensitive: true}
+    ios: {xpath: '//XCUIElementTypeStaticText[@name="Card Number*"]/following::XCUIElementTypeTextField[1]', sensitive: true}
   expiration_date_field:
     android: {id: "com.saucelabs.mydemoapp.android:id/expirationDateET"}
-    ios: {accessibility_id: "expirationDateET"}
+    ios: {xpath: '//XCUIElementTypeStaticText[@name="Expiration Date*"]/following::XCUIElementTypeTextField[1]'}
   security_code_field:
     android: {id: "com.saucelabs.mydemoapp.android:id/securityCodeET", sensitive: true}
-    ios: {accessibility_id: "securityCodeET", sensitive: true}
-  review_order_button: {accessibility_id: "Saves payment info and launches screen to review checkout data"}
+    ios: {xpath: '//XCUIElementTypeStaticText[@name="Security Code*"]/following::XCUIElementTypeTextField[1]', sensitive: true}
+  review_order_button:
+    android: {accessibility_id: "Saves payment info and launches screen to review checkout data"}
+    ios: {accessibility_id: "Review Order"}
 
 mda_review:
   title:
@@ -157,8 +193,10 @@ mda_review:
     ios: {accessibility_id: "Review your order"}
   total_amount:
     android: {id: "com.saucelabs.mydemoapp.android:id/totalAmountTV"}
-    ios: {accessibility_id: "totalAmountTV"}
-  place_order_button: {accessibility_id: "Completes the process of checkout"}
+    ios: {xpath: '//XCUIElementTypeStaticText[@name="Total:"]/following::XCUIElementTypeStaticText[starts-with(@name, "$")][1]'}
+  place_order_button:
+    android: {accessibility_id: "Completes the process of checkout"}
+    ios: {accessibility_id: "Place Order"}
 
 mda_complete:
   title:
@@ -166,5 +204,7 @@ mda_complete:
     ios: {accessibility_id: "Checkout Complete"}
   thank_you:
     android: {id: "com.saucelabs.mydemoapp.android:id/thankYouTV"}
-    ios: {accessibility_id: "Thank you for your order"}
-  continue_shopping_button: {accessibility_id: "Tap to open catalog"}
+    ios: {ios_predicate: "name BEGINSWITH 'Thank you for your order'"}
+  continue_shopping_button:
+    android: {accessibility_id: "Tap to open catalog"}
+    ios: {accessibility_id: "ContinueShopping"}

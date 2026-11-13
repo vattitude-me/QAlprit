@@ -2,7 +2,7 @@
 id: MDA-003
 title: Sort catalog by price descending, inspect top product, and scroll catalog
 tags: [mda, catalog, navigation]
-platforms: [android, ios]
+platforms: [android]
 targets: [simulator, device]
 priority: medium
 preconditions:

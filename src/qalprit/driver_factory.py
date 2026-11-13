@@ -141,8 +141,28 @@ class AppiumDriverAdapter:
     def hide_keyboard(self) -> None:
         try:
             self._driver.hide_keyboard()
+            return
         except Exception:
             pass
+
+        # On iOS Simulator with AutomaticMinimizationEnabled=true, tapping a text field
+        # minimizes the software keyboard when WDA's hideKeyboard finds no 'Done' button.
+        if self.platform == "ios":
+            try:
+                from appium.webdriver.common.appiumby import AppiumBy
+
+                if self._driver.find_elements(AppiumBy.CLASS_NAME, "XCUIElementTypeKeyboard"):
+                    for field in self._driver.find_elements(
+                        AppiumBy.CLASS_NAME, "XCUIElementTypeTextField"
+                    ):
+                        try:
+                            if field.is_displayed():
+                                field.click()
+                                return
+                        except Exception:
+                            continue
+            except Exception:
+                pass
 
     def swipe(self, start_x: int, start_y: int, end_x: int, end_y: int, duration: int = 300) -> None:
         self._driver.swipe(start_x, start_y, end_x, end_y, duration)
@@ -208,6 +228,9 @@ def create_appium_driver(
         opts.auto_accept_alerts = accept_alerts
         opts.no_reset = True
         opts.new_command_timeout = 180
+        if profile.target_type == "simulator":
+            opts.connect_hardware_keyboard = True
+            opts.force_simulator_software_keyboard_presence = False
         for k, v in profile.capabilities.items():
             opts.set_capability(k, v)
 

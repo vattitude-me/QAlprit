@@ -15,7 +15,8 @@ steps:
       params:
         username: "${MDA_USER}"
         password: "${MDA_PASS}"
-  - assert_text: {target: mda_catalog.title, equals: "Products"}
+  - assert_visible: mda_catalog.sort_button
+  - assert_text: {target: mda_catalog.first_product_title, contains: "Sauce Labs Backpack"}
   - tap: mda_nav.open_menu
   - assert_visible: mda_nav.menu_logout
   - screenshot: mda_logged_in_menu
