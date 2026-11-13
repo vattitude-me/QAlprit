@@ -58,6 +58,14 @@ pip install -e ".[dev]"
 
 ## How to Run
 
+### Option A: Let an AI Agent Run It (Recommended)
+
+You do not have to run every command or debug screen XML by hand. Put your app in `apps/` (`cp config/env.example .env`), open your AI coding assistant (Antigravity, Claude Code, Codex, Cursor, or Copilot), and paste:
+
+> Follow [Agent Instructions](https://github.com/vattitude-me/QAlprit/blob/main/docs/agent-instructions.md) to run QAlprit against `apps/<your-app.apk-or-.app>` on `<android|ios>`. Fix any broken locators or keyboard issues without hiding real app bugs, and open my final `report.html`.
+
+### Option B: Run Manually from the Terminal
+
 1. **Copy the sample secrets file** (stays local, ignored by git):
    ```bash
    cp config/env.example .env
@@ -144,6 +152,7 @@ See all 5 passing Android tests in the [Live Sample Report](https://qalprit.vatt
 
 ### More Docs
 
+- [AI Agent Instructions](https://github.com/vattitude-me/QAlprit/blob/main/docs/agent-instructions.md) — Prompt and runbook so an AI coding agent can run & maintain QAlprit for you
 - [Authoring Guide](https://github.com/vattitude-me/QAlprit/blob/main/docs/authoring-guide.md) — Step vocabulary, reusable flows, and iOS reset tips
 - [Editable Diagram (Draw.io)](https://github.com/vattitude-me/QAlprit/blob/main/docs/architecture.drawio)
 - [Contributing](https://github.com/vattitude-me/QAlprit/blob/main/CONTRIBUTING.md) · [Security](https://github.com/vattitude-me/QAlprit/blob/main/SECURITY.md) · [MIT License](https://github.com/vattitude-me/QAlprit/blob/main/LICENSE)

@@ -47,3 +47,10 @@ These project rules govern git workflow, versioning, PyPI publishing, website/Ve
 - **Concise Docs & Architecture Flow**: Keep `README.md` clear and accessible (prerequisites, install, run, output, and simple animated architecture flow). Maintain a single canonical SVG at `web/architecture.svg` (served by Vercel and referenced via GitHub raw URL in `README.md`).
 - **Secrets & Ignored Artifacts**: Never commit `.env`, tokens/credentials, `.apk`/`.ipa` binaries (`apps/*`), raw test runs (`results/*`), `.agents/`, `PLAN.md`, `docs/PLAN.md`, `flows/hark/`, `specs/smoke/`, or unredacted screenshots.
 - **Destructive Actions**: Always ask the user for explicit confirmation before deleting files or directories. Use `tempfile.TemporaryDirectory()` for temporary build/report-generation links instead of creating files that require deletion.
+
+## 6. AI Test Execution & Spec Evolution Rules
+
+- **Verify tools & suite before device runs**: Run `qalprit doctor`, `qalprit devices`, and `qalprit validate --suite <suite> --env <env> --platform <platform>` before executing `qalprit run`.
+- **Inspect before editing locators**: Never guess element IDs or XPaths. Inspect live screens with `qalprit inspect` or failure dumps (`results/<run-id>/page_sources/*/attempt_*/*_FAIL.xml`). Keep `android:` and `ios:` overrides independent in `screens/screens.yaml`.
+- **Do not mask real app bugs**: When `results/<run-id>/screenshots/*/attempt_*/*_FAIL.png` shows an actual product regression or wrong app behavior, report the failure with proof instead of loosening assertions to make tests green. Scope genuinely missing platform features explicitly (`platforms: [android]` or `[ios]`).
+- **Protect secrets & redaction**: Keep `secret: true` on credential/PII `type` steps and `sensitive: true` on sensitive locators in `screens/screens.yaml`. Never run destructive `xcrun simctl erase` or delete files without explicit user confirmation.
