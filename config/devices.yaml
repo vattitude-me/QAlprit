@@ -3,7 +3,7 @@ profiles:
     platform: android
     target_type: simulator
     device_name: Android Emulator
-    avd: Pixel_8_API_35
+    # avd: Pixel_8_API_35  # optional; auto-attaches to running emulator or first available AVD
     automation_name: UiAutomator2
     auto_accept_alerts: true
     capabilities:
