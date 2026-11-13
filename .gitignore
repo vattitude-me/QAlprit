@@ -19,5 +19,12 @@ apps/*
 results/*
 !results/.gitkeep
 
+# Local planning, skills & private specs
+.agents/
+PLAN.md
+docs/PLAN.md
+flows/hark/
+specs/smoke/
+
 # OS
 .DS_Store
