@@ -57,6 +57,11 @@ def test_ui_server_serves_overview_and_blocks_traversal(tmp_path: Path) -> None:
             assert resp.status == 200
             assert b"QAlprit Workbench" in resp.read()
 
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/qalprit-icon.svg") as resp:
+            assert resp.status == 200
+            assert "image/svg+xml" in resp.headers.get("Content-Type", "")
+            assert b"QAlprit icon" in resp.read()
+
         with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/overview") as resp:
             payload = json.loads(resp.read().decode("utf-8"))
             assert payload["runs"][0]["run_id"] == "20261113_demo"

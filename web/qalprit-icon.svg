@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="158 21 272 272" width="256" height="256" role="img" aria-labelledby="qalpritIconTitle">
+  <title id="qalpritIconTitle">QAlprit icon</title>
+  <defs>
+    <clipPath id="qalpritScreen">
+      <rect x="206" y="52" width="100" height="182" rx="14"/>
+    </clipPath>
+  </defs>
+
+  <rect x="158" y="21" width="272" height="272" rx="56" fill="#FFFFFF"/>
+
+  <!-- phone -->
+  <rect x="196" y="36" width="120" height="214" rx="26" fill="#1B1464"/>
+  <rect x="206" y="52" width="100" height="182" rx="14" fill="#5B3DF5"/>
+  <rect x="236" y="42" width="40" height="5" rx="2.5" fill="#5B3DF5"/>
+  <!-- screen UI -->
+  <circle cx="224" cy="78" r="9" fill="#00C2FF"/>
+  <rect x="240" y="73" width="48" height="10" rx="5" fill="#A99BFF"/>
+  <rect x="216" y="104" width="80" height="10" rx="5" fill="#A99BFF"/>
+  <rect x="216" y="124" width="56" height="10" rx="5" fill="#8B78FF"/>
+  <rect x="216" y="204" width="80" height="20" rx="10" fill="#8B78FF"/>
+  <!-- hover shadow on screen -->
+  <g clip-path="url(#qalpritScreen)">
+    <circle cx="304" cy="188" r="62" fill="#1B1464" opacity="0.22"/>
+  </g>
+
+  <!-- magnifier handle -->
+  <line x1="334" y1="214" x2="384" y2="264" stroke="#FF9F1C" stroke-width="22" stroke-linecap="round"/>
+  <!-- lens -->
+  <circle cx="290" cy="170" r="62" fill="#FFF1A8"/>
+  <circle cx="290" cy="170" r="62" fill="none" stroke="#00C2FF" stroke-width="14"/>
+  <path d="M250 152 A44 44 0 0 1 272 126" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round"/>
+
+  <!-- bug -->
+  <g stroke="#FF3D71" stroke-width="4" stroke-linecap="round" fill="none">
+    <path d="M277 172 L262 163"/>
+    <path d="M276 180 L259 180"/>
+    <path d="M277 189 L262 199"/>
+    <path d="M303 172 L318 163"/>
+    <path d="M304 180 L321 180"/>
+    <path d="M303 189 L318 199"/>
+    <path d="M286 147 L279 134"/>
+    <path d="M294 147 L301 134"/>
+  </g>
+  <circle cx="278" cy="132" r="3.5" fill="#FF3D71"/>
+  <circle cx="302" cy="132" r="3.5" fill="#FF3D71"/>
+  <ellipse cx="290" cy="180" rx="15" ry="19" fill="#FF3D71"/>
+  <circle cx="290" cy="155" r="9" fill="#FF3D71"/>
+  <rect x="288.5" y="162" width="3" height="34" rx="1.5" fill="#FFF1A8"/>
+  <rect x="280" y="172" width="6" height="6" rx="1.5" fill="#1B1464"/>
+  <rect x="294" y="184" width="6" height="6" rx="1.5" fill="#1B1464"/>
+</svg>

@@ -263,14 +263,41 @@
     .lb-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 8px; font-size: 13px; }
     .lb-close { background: #334155; color: #fff; border: none; border-radius: 6px; padding: 6px 12px; cursor: pointer; }
     .brand-sub { font-size: 13px; color: #94a3b8; margin: 0 0 10px; }
+    .brand-header { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; }
+    .brand-header h1 { margin: 0 0 2px; }
+    .brand-header .brand-sub { margin: 0; }
+    .brand-badge { width: 46px; height: 46px; border-radius: 12px; background: #ffffff; flex-shrink: 0; display: block; }
   </style>
 </head>
 <body>
   <header>
     <div class="header-top">
       <div>
-        <h1>QAlprit Mobile Test Report</h1>
-        <p class="brand-sub">Mobile QA. Bugs caught with proof.</p>
+        <div class="brand-header">
+          <svg class="brand-badge" viewBox="158 21 272 272" width="46" height="46" aria-hidden="true">
+            <rect x="158" y="21" width="272" height="272" rx="56" fill="#FFFFFF"/>
+            <rect x="196" y="36" width="120" height="214" rx="26" fill="#1B1464"/>
+            <rect x="206" y="52" width="100" height="182" rx="14" fill="#5B3DF5"/>
+            <circle cx="224" cy="78" r="9" fill="#00C2FF"/>
+            <rect x="240" y="73" width="48" height="10" rx="5" fill="#A99BFF"/>
+            <rect x="216" y="104" width="80" height="10" rx="5" fill="#A99BFF"/>
+            <line x1="334" y1="214" x2="384" y2="264" stroke="#FF9F1C" stroke-width="22" stroke-linecap="round"/>
+            <circle cx="290" cy="170" r="62" fill="#FFF1A8" stroke="#00C2FF" stroke-width="14"/>
+            <path d="M250 152 A44 44 0 0 1 272 126" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round"/>
+            <g stroke="#FF3D71" stroke-width="4" stroke-linecap="round" fill="none">
+              <path d="M277 172 L262 163"/><path d="M276 180 L259 180"/><path d="M277 189 L262 199"/>
+              <path d="M303 172 L318 163"/><path d="M304 180 L321 180"/><path d="M303 189 L318 199"/>
+              <path d="M286 147 L279 134"/><path d="M294 147 L301 134"/>
+            </g>
+            <ellipse cx="290" cy="180" rx="15" ry="19" fill="#FF3D71"/>
+            <circle cx="290" cy="155" r="9" fill="#FF3D71"/>
+            <rect x="288.5" y="162" width="3" height="34" rx="1.5" fill="#FFF1A8"/>
+          </svg>
+          <div>
+            <h1>QAlprit Mobile Test Report</h1>
+            <p class="brand-sub">Mobile QA. Bugs caught with proof.</p>
+          </div>
+        </div>
         <div class="meta-grid">
           <span>Run ID: <strong>{{ run.run_id }}</strong></span>
           <span>Environment: <strong>{{ run.environment }}</strong></span>

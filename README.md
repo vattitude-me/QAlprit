@@ -1,11 +1,19 @@
-# QAlprit (`qalprit`)
+<p align="center">
+  <img src="docs/logo/qalprit-logo.png" alt="QAlprit — Mobile QA. Bugs caught with proof." width="200" />
+</p>
 
-> **Mobile QA. Bugs caught with proof.**
+<h1 align="center">QAlprit (<code>qalprit</code>)</h1>
 
-[![PyPI](https://img.shields.io/pypi/v/qalprit?color=0f766e&label=pypi)](https://pypi.org/project/qalprit/)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Powered by Appium 2](https://img.shields.io/badge/Appium-2.x-662d91.svg)](https://appium.io/)
+<p align="center">
+  <strong>Mobile QA. Bugs caught with proof.</strong>
+</p>
+
+<p align="center">
+  <a href="https://pypi.org/project/qalprit/"><img src="https://img.shields.io/pypi/v/qalprit?color=5B3DF5&label=pypi" alt="PyPI" /></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python 3.10+" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License: MIT" /></a>
+  <a href="https://appium.io/"><img src="https://img.shields.io/badge/Appium-2.x-662d91.svg" alt="Powered by Appium 2" /></a>
+</p>
 
 **QAlprit** is a deterministic, Markdown-driven mobile UI test automation framework for native **Android** and **iOS** applications powered by **Appium 2**.
 
@@ -125,7 +133,10 @@ QAlprit/
 │   ├── architecture.drawio         # Editable Draw.io architecture diagram
 │   ├── architecture.svg            # Exported architecture vector diagram
 │   ├── authoring-guide.md          # QA step vocabulary, worked examples & iOS Keychain note
-│   └── copilot-conversion-prompt.md
+│   ├── copilot-conversion-prompt.md
+│   └── logo/
+│       ├── qalprit-logo.png        # Raster brand logo (1024x1024 PNG)
+│       └── qalprit-logo.svg        # Vector brand logo SVG
 ├── flows/                          # 1-level reusable Markdown flows
 ├── screens/
 │   └── screens.yaml                # Logical locators & sensitive: true redaction markers

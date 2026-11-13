@@ -56,7 +56,7 @@ qalprit = "qalprit.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-qalprit = ["report/templates/*.j2", "ui/*.html"]
+qalprit = ["report/templates/*.j2", "ui/*.html", "ui/*.svg"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

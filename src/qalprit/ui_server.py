@@ -16,7 +16,9 @@ from qalprit.config_loader import load_screens
 from qalprit.results import load_results_json
 from qalprit.spec_loader import load_flows, load_specs
 
-_UI_HTML_PATH = Path(__file__).parent / "ui" / "index.html"
+_UI_DIR = Path(__file__).parent / "ui"
+_UI_HTML_PATH = _UI_DIR / "index.html"
+_UI_ICON_PATH = _UI_DIR / "qalprit-icon.svg"
 
 
 def collect_workspace_overview(
@@ -154,6 +156,13 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
                 self._send_bytes(b"UI template missing", "text/plain; charset=utf-8", HTTPStatus.NOT_FOUND)
                 return
             self._send_bytes(_UI_HTML_PATH.read_bytes(), "text/html; charset=utf-8")
+            return
+
+        if req_path in ("/qalprit-icon.svg", "/favicon.ico"):
+            if not _UI_ICON_PATH.exists():
+                self._send_bytes(b"Icon missing", "text/plain; charset=utf-8", HTTPStatus.NOT_FOUND)
+                return
+            self._send_bytes(_UI_ICON_PATH.read_bytes(), "image/svg+xml; charset=utf-8")
             return
 
         if req_path == "/api/overview":

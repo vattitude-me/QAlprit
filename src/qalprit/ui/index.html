@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="color-scheme" content="light dark" />
   <title>QAlprit Workbench — Mobile QA. Bugs caught with proof.</title>
+  <link rel="icon" type="image/svg+xml" href="/qalprit-icon.svg" />
   <style>
     :root {
       color-scheme: light dark;
@@ -48,6 +49,8 @@
     header { background: #0f172a; color: #f8fafc; padding: 20px 28px; border-bottom: 1px solid #1e293b; }
     .wrap { max-width: 1200px; margin: 0 auto; }
     .head-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 14px; }
+    .brand-row { display: flex; align-items: center; gap: 12px; }
+    .brand-icon { width: 42px; height: 42px; border-radius: 10px; background: #ffffff; border: 1px solid #334155; flex-shrink: 0; }
     h1 { margin: 0; font-size: 22px; letter-spacing: -0.02em; }
     .tagline { margin: 2px 0 0; font-size: 13px; color: #94a3b8; }
     .pill { font-family: var(--mono); font-size: 12px; padding: 4px 10px; border-radius: 999px; background: #1e293b; color: #38bdf8; border: 1px solid #334155; }
@@ -86,9 +89,12 @@
 <body>
   <header>
     <div class="wrap head-row">
-      <div>
-        <h1>QAlprit Workbench</h1>
-        <p class="tagline">Mobile QA. Bugs caught with proof.</p>
+      <div class="brand-row">
+        <img class="brand-icon" src="/qalprit-icon.svg" alt="" width="42" height="42" />
+        <div>
+          <h1>QAlprit Workbench</h1>
+          <p class="tagline">Mobile QA. Bugs caught with proof.</p>
+        </div>
       </div>
       <div class="pill" id="verPill">Loading workspace...</div>
     </div>
