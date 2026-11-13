@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://pypi.org/project/qalprit/"><img src="https://img.shields.io/pypi/v/qalprit?color=5B3DF5&label=pypi" alt="PyPI" /></a>
+  <a href="https://pypi.org/project/qalprit/"><img src="https://img.shields.io/pypi/v/qalprit?label=pypi&color=5B3DF5&cacheSeconds=3600" alt="PyPI" /></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python 3.10+" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License: MIT" /></a>
   <a href="https://appium.io/"><img src="https://img.shields.io/badge/Appium-2.x-662d91.svg" alt="Powered by Appium 2" /></a>
