@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/logo/qalprit-logo.png" alt="QAlprit — Mobile QA. Bugs caught with proof." width="200" />
+  <img src="https://raw.githubusercontent.com/vattitude-me/QAlprit/main/docs/logo/qalprit-logo.png" alt="QAlprit — Mobile QA. Bugs caught with proof." width="200" />
 </p>
 
 <h1 align="center">QAlprit (<code>qalprit</code>)</h1>
@@ -9,9 +9,10 @@
 </p>
 
 <p align="center">
+  <a href="https://qalprit.vattitude.ca"><img src="https://img.shields.io/badge/web-qalprit.vattitude.ca-0f766e" alt="Website" /></a>
   <a href="https://pypi.org/project/qalprit/"><img src="https://img.shields.io/pypi/v/qalprit?label=pypi&color=5B3DF5&cacheSeconds=3600" alt="PyPI" /></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python 3.10+" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License: MIT" /></a>
+  <a href="https://github.com/vattitude-me/QAlprit/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License: MIT" /></a>
   <a href="https://appium.io/"><img src="https://img.shields.io/badge/Appium-2.x-662d91.svg" alt="Powered by Appium 2" /></a>
 </p>
 
@@ -33,9 +34,9 @@ Every test run produces verifiable visual and structural proof—step-by-step sc
 
 ## Architecture
 
-Editable Draw.io source: [`docs/architecture.drawio`](docs/architecture.drawio)
+Editable Draw.io source: [`docs/architecture.drawio`](https://github.com/vattitude-me/QAlprit/blob/main/docs/architecture.drawio)
 
-![QAlprit System Architecture](docs/architecture.svg)
+![QAlprit System Architecture](https://raw.githubusercontent.com/vattitude-me/QAlprit/main/docs/architecture.svg)
 
 ### Layer-by-Layer Breakdown
 
@@ -103,16 +104,16 @@ qalprit ui
 
 Want to see what a real run produces before connecting a device? Explore the published sample run from the **Sauce Labs My Demo App** (`mda` suite, **5/5 passed** on Android 15):
 
-- **[Sample Proof Report Directory](examples/mda-sample-run/README.md)** — Contains [`summary.md`](examples/mda-sample-run/summary.md), sanitized [`results.json`](examples/mda-sample-run/results.json), and self-contained [`report.html`](examples/mda-sample-run/report.html) (download & open in any browser, or browse live at `/sample-report` on the Vercel site).
+- **[Sample Proof Report Directory](https://github.com/vattitude-me/QAlprit/blob/main/examples/mda-sample-run/README.md)** — Contains [`summary.md`](https://github.com/vattitude-me/QAlprit/blob/main/examples/mda-sample-run/summary.md), sanitized [`results.json`](https://github.com/vattitude-me/QAlprit/blob/main/examples/mda-sample-run/results.json), and self-contained [`report.html`](https://github.com/vattitude-me/QAlprit/blob/main/examples/mda-sample-run/report.html) (or browse the live interactive report at [qalprit.vattitude.ca/sample-report](https://qalprit.vattitude.ca/sample-report)).
 
 <table>
   <tr>
     <td align="center" width="50%">
-      <img src="examples/mda-sample-run/previews/mda_02_locked_out.jpg" alt="MDA-002 locked out user with redacted password field" width="260" /><br />
+      <img src="https://raw.githubusercontent.com/vattitude-me/QAlprit/main/examples/mda-sample-run/previews/mda_02_locked_out.jpg" alt="MDA-002 locked out user with redacted password field" width="260" /><br />
       <sub><strong>MDA-002</strong> — Password field black-filled in memory before save; locked-out banner verified.</sub>
     </td>
     <td align="center" width="50%">
-      <img src="examples/mda-sample-run/previews/mda_04_payment_redacted.jpg" alt="MDA-004 checkout payment form with card number and CVV redacted" width="260" /><br />
+      <img src="https://raw.githubusercontent.com/vattitude-me/QAlprit/main/examples/mda-sample-run/previews/mda_04_payment_redacted.jpg" alt="MDA-004 checkout payment form with card number and CVV redacted" width="260" /><br />
       <sub><strong>MDA-004</strong> — Card Number &amp; Security Code (<code>sensitive: true</code>) black-filled in memory; cardholder &amp; expiry kept readable.</sub>
     </td>
   </tr>
@@ -147,7 +148,7 @@ Want to see what a real run produces before connecting a device? Explore the pub
 
 1. **Self-Contained Proof Report (`report.html`)** — Generated per run in `results/<run-id>/report.html` with KPI cards, status/tag/text filters, expanded flow badges, failure XML inspection, and a modal screenshot lightbox.
 2. **Local Workbench (`qalprit ui`)** — Zero-dependency Python HTTP server for browsing historical runs, opening proof reports, and auditing `sensitive: true` screen locators.
-3. **Web Showcase & Interactive Demo (`web/`)** — Static web application configured via [`vercel.json`](vercel.json) for instant Vercel deployment with an interactive Proof Report Viewer and Spec Studio.
+3. **Web Showcase & Interactive Demo (`web/`)** — Static web application deployed at [qalprit.vattitude.ca](https://qalprit.vattitude.ca) via [`vercel.json`](https://github.com/vattitude-me/QAlprit/blob/main/vercel.json) with an interactive Proof Report Viewer, real [MDA Sample Report](https://qalprit.vattitude.ca/sample-report), and Spec Studio.
 
 ---
 
@@ -184,11 +185,12 @@ QAlprit/
 
 ## Documentation & Community
 
-- [QA Authoring Guide](docs/authoring-guide.md) — Complete step vocabulary, worked examples, locator strategy, and iOS Keychain reset caveat.
-- [Copilot Confluence Conversion Prompt](docs/copilot-conversion-prompt.md) — Prompt template and review checklist for converting manual test plans.
-- [Contributing Guide](CONTRIBUTING.md)
-- [Security Policy](SECURITY.md)
-- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Live Showcase & Sample Report](https://qalprit.vattitude.ca)
+- [QA Authoring Guide](https://github.com/vattitude-me/QAlprit/blob/main/docs/authoring-guide.md) — Complete step vocabulary, worked examples, locator strategy, and iOS Keychain reset caveat.
+- [Copilot Confluence Conversion Prompt](https://github.com/vattitude-me/QAlprit/blob/main/docs/copilot-conversion-prompt.md) — Prompt template and review checklist for converting manual test plans.
+- [Contributing Guide](https://github.com/vattitude-me/QAlprit/blob/main/CONTRIBUTING.md)
+- [Security Policy](https://github.com/vattitude-me/QAlprit/blob/main/SECURITY.md)
+- [Code of Conduct](https://github.com/vattitude-me/QAlprit/blob/main/CODE_OF_CONDUCT.md)
 
 ## Running Tests
 
@@ -198,4 +200,8 @@ pytest -v
 
 ## License
 
-Released under the [MIT License](LICENSE).
+Released under the [MIT License](https://github.com/vattitude-me/QAlprit/blob/main/LICENSE).
+
+---
+
+<sub><strong>QAlprit</strong> (<a href="https://qalprit.vattitude.ca">qalprit.vattitude.ca</a>) — Managed by <a href="https://vattitude.ca">vattitude.ca</a></sub>
