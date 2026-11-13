@@ -291,13 +291,71 @@ h2 {
 .terminal-bar {
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 10px 14px;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 14px;
   background: #111827;
   border-bottom: 1px solid #1e293b;
 }
-.dot { width: 10px; height: 10px; border-radius: 50%; background: #334155; }
-.terminal-title { margin-left: 6px; font-family: var(--mono); font-size: 12px; color: #94a3b8; }
+.terminal-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+.dot { width: 10px; height: 10px; border-radius: 50%; background: #334155; flex-shrink: 0; }
+.terminal-title { margin-left: 6px; font-family: var(--mono); font-size: 12px; color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.terminal-tabs {
+  display: flex;
+  flex-shrink: 0;
+  gap: 4px;
+}
+.terminal-tabs [role="tab"] {
+  position: relative;
+  flex: none;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  padding: 4px 10px 7px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.terminal-tabs [role="tab"][aria-selected="true"] { color: #f8fafc; }
+.terminal-tabs [role="tab"][aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  border-block-end: 3px solid var(--accent-dark);
+}
+.platform-tablist {
+  display: inline-flex;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  margin-bottom: 18px;
+}
+.platform-tablist [role="tab"] {
+  position: relative;
+  flex: none;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  padding: 9px 16px 12px;
+  font-family: var(--sans);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.platform-tablist [role="tab"][aria-selected="true"] { color: var(--text); }
+.platform-tablist [role="tab"][aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  border-block-end: 3px solid var(--accent);
+}
 .terminal-card pre {
   margin: 0;
   padding: 16px 18px;

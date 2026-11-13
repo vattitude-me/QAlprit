@@ -61,30 +61,55 @@
               <button type="button" class="copy-btn" data-copy="pip install qalprit" aria-label="Copy pip install command">Copy</button>
             </div>
             <a class="btn-primary" href="#proof-viewer">Inspect Interactive Demo</a>
-            <a class="btn-secondary" href="sample-report.html">Real 5/5 MDA Report</a>
+            <a class="btn-secondary" href="sample-report.html">Android Report (5/5)</a>
+            <a class="btn-secondary" href="sample-report-ios.html">iOS Report (3/3)</a>
             <a class="btn-secondary" href="https://github.com/vattitude-me/QAlprit" target="_blank" rel="noopener">View Source</a>
           </div>
         </div>
 
         <div class="terminal-card" aria-label="QAlprit CLI workflow preview">
           <div class="terminal-bar">
-            <span class="dot"></span><span class="dot"></span><span class="dot"></span>
-            <span class="terminal-title">qalprit-cli · zsh</span>
+            <div class="terminal-bar-left">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+              <span class="terminal-title">qalprit-cli · zsh</span>
+            </div>
+            <div class="terminal-tabs" role="tablist" aria-label="CLI preview platform">
+              <button type="button" role="tab" id="cli-tab-android" aria-selected="true">Android</button>
+              <button type="button" role="tab" id="cli-tab-ios" aria-selected="false">iOS</button>
+            </div>
           </div>
-          <pre><code><span class="t-dim">$</span> qalprit doctor
+          <div role="tabpanel" id="cli-panel-android" aria-labelledby="cli-tab-android" tabindex="0">
+            <pre><code><span class="t-dim">$</span> qalprit doctor
 <span class="t-ok">[ OK ]</span> Python                       3.11.15
 <span class="t-ok">[ OK ]</span> Appium                       v2.11.3
 <span class="t-ok">[ OK ]</span> Appium driver: uiautomator2  Installed
 <span class="t-ok">[ OK ]</span> Android adb                  1.0.41
 
-<span class="t-dim">$</span> qalprit validate --suite mda --env mda
-Validation PASSED: 5 spec(s), 2 flow(s), 0 warning(s).
+<span class="t-dim">$</span> qalprit validate --suite mda --env mda --platform android
+Validation PASSED: 5 spec(s), 3 flow(s), 0 warning(s).
 
 <span class="t-dim">$</span> qalprit run --platform android --device android_emulator \
     --app apps/mda-2.3.0-27.apk --env mda --suite mda
 Starting QAlprit run 20261113_135128_android_mda (5 spec(s))...
 <span class="t-ok">Run complete: 5 passed, 0 failed, 0 skipped, 0 flaky</span>
 Report HTML : results/20261113_135128_android_mda/report.html</code></pre>
+          </div>
+          <div role="tabpanel" id="cli-panel-ios" aria-labelledby="cli-tab-ios" hidden="until-found">
+            <pre><code><span class="t-dim">$</span> qalprit doctor
+<span class="t-ok">[ OK ]</span> Python                       3.11.15
+<span class="t-ok">[ OK ]</span> Appium                       v2.11.3
+<span class="t-ok">[ OK ]</span> Appium driver: xcuitest      Installed
+<span class="t-ok">[ OK ]</span> Xcode                        27.2 (iOS 26.5 Simulator)
+
+<span class="t-dim">$</span> qalprit validate --suite mda --env mda --platform ios
+Validation PASSED: 3 spec(s), 3 flow(s), 0 warning(s).
+
+<span class="t-dim">$</span> qalprit run --platform ios --device ios_simulator \
+    --app "apps/My Demo App.app" --env mda --suite mda
+Starting QAlprit run 20261113_172847_ios_mda (3 spec(s))...
+<span class="t-ok">Run complete: 3 passed, 0 failed, 0 skipped, 0 flaky</span>
+Report HTML : results/20261113_172847_ios_mda/report.html</code></pre>
+          </div>
         </div>
       </div>
     </section>
@@ -117,23 +142,28 @@ Report HTML : results/20261113_135128_android_mda/report.html</code></pre>
             <p class="eyebrow">Interactive Evidence Demo</p>
             <h2>Live Proof Report Viewer</h2>
             <p class="section-desc">
-              Explore a sanitized QAlprit run. Filter by outcome or tag, inspect expanded flow steps,
-              and click any step screenshot to verify in-memory Pillow secret redaction.
+              Explore real sanitized QAlprit runs on Android and iOS Simulator. Switch platforms,
+              filter by outcome or tag, and click any screenshot to inspect in-memory Pillow secret redaction.
             </p>
           </div>
           <div class="run-meta-pill">
-            <span>Run: <code>20261113_135128_android_mda</code></span>
-            <span><a href="sample-report.html">Open Full 5/5 MDA Report (104 steps)</a></span>
+            <span>Run: <code id="runIdCode">20261113_135128_android_mda</code></span>
+            <span><a id="runFullLink" href="sample-report.html">Open Full 5/5 Android Report (104 steps)</a></span>
           </div>
         </div>
 
+        <div class="platform-tablist" role="tablist" aria-label="Sample run platform">
+          <button type="button" role="tab" id="pv-tab-android" data-platform="android" aria-selected="true">Android · Pixel 8 (5/5)</button>
+          <button type="button" role="tab" id="pv-tab-ios" data-platform="ios" aria-selected="false">iOS · iPhone 17 (3/3)</button>
+        </div>
+
         <div class="kpi-grid" aria-label="Sample run metrics">
-          <div class="kpi"><span class="kpi-label">Pass Rate</span><strong class="kpi-val">100%</strong></div>
-          <div class="kpi"><span class="kpi-label">Total Specs</span><strong class="kpi-val">5</strong></div>
-          <div class="kpi kpi-pass"><span class="kpi-label">Passed</span><strong class="kpi-val">5</strong></div>
-          <div class="kpi kpi-fail"><span class="kpi-label">Failed</span><strong class="kpi-val">0</strong></div>
-          <div class="kpi kpi-warn"><span class="kpi-label">Flaky</span><strong class="kpi-val">0</strong></div>
-          <div class="kpi"><span class="kpi-label">Duration</span><strong class="kpi-val">2m 20.0s</strong></div>
+          <div class="kpi"><span class="kpi-label">Pass Rate</span><strong class="kpi-val" id="kpiRate">100%</strong></div>
+          <div class="kpi"><span class="kpi-label">Total Specs</span><strong class="kpi-val" id="kpiTotal">5</strong></div>
+          <div class="kpi kpi-pass"><span class="kpi-label">Passed</span><strong class="kpi-val" id="kpiPassed">5</strong></div>
+          <div class="kpi kpi-fail"><span class="kpi-label">Failed</span><strong class="kpi-val" id="kpiFailed">0</strong></div>
+          <div class="kpi kpi-warn"><span class="kpi-label">Flaky</span><strong class="kpi-val" id="kpiFlaky">0</strong></div>
+          <div class="kpi"><span class="kpi-label">Duration</span><strong class="kpi-val" id="kpiDuration">2m 20.0s</strong></div>
         </div>
 
         <div class="toolbar" role="region" aria-label="Report filters">
@@ -207,6 +237,10 @@ steps:
   - tap: mda_product.add_to_cart_button
   - tap: mda_nav.open_cart
   - tap: mda_cart.checkout_button
+  - type: {target: mda_shipping.city_field, value: "Truro"}
+  - hide_keyboard: true
+  - type: {target: mda_shipping.zip_field, value: "89750"}
+  - hide_keyboard: true
   - type: {target: mda_payment.card_number_field, value: "${MDA_CARD_NUMBER}", secret: true}
   - type: {target: mda_payment.security_code_field, value: "${MDA_CARD_CVV}", secret: true}
   - tap: mda_review.place_order_button
@@ -252,13 +286,18 @@ steps:
     ios: {accessibility_id: "passwordET", sensitive: true}
   login_button: {accessibility_id: "Tap to login with given credentials"}
 
+mda_shipping:
+  zip_field:
+    android: {id: "com.saucelabs.mydemoapp.android:id/zipET"}
+    ios: {xpath: '//XCUIElementTypeStaticText[@name="Zip Code*"]/following::XCUIElementTypeTextField[1]'}
+
 mda_payment:
   card_number_field:
     android: {id: "com.saucelabs.mydemoapp.android:id/cardNumberET", sensitive: true}
-    ios: {accessibility_id: "cardNumberET", sensitive: true}
+    ios: {xpath: '//XCUIElementTypeStaticText[@name="Card Number*"]/following::XCUIElementTypeTextField[1]', sensitive: true}
   security_code_field:
     android: {id: "com.saucelabs.mydemoapp.android:id/securityCodeET", sensitive: true}
-    ios: {accessibility_id: "securityCodeET", sensitive: true}</code></pre>
+    ios: {xpath: '//XCUIElementTypeStaticText[@name="Security Code*"]/following::XCUIElementTypeTextField[1]', sensitive: true}</code></pre>
               </div>
             </div>
 
@@ -273,7 +312,7 @@ mda_payment:
       ENV_LABEL: QA
   mda:
     android_package: com.saucelabs.mydemoapp.android
-    ios_bundle_id: com.saucelabs.mydemoapp.ios
+    ios_bundle_id: com.saucelabs.mydemo.app.ios
     default_timeout: 12
     variables:
       ENV_LABEL: DEMO</code></pre>
@@ -314,6 +353,7 @@ mda_payment:
         <a href="https://qalprit.vattitude.ca" target="_blank" rel="noopener">qalprit.vattitude.ca</a> ·
         <a href="https://github.com/vattitude-me/QAlprit" target="_blank" rel="noopener">GitHub</a> ·
         <a href="https://pypi.org/project/qalprit/" target="_blank" rel="noopener">PyPI (<code>qalprit</code>)</a> ·
+        <a href="https://github.com/vattitude-me/QAlprit/blob/main/docs/agent-instructions.md" target="_blank" rel="noopener">AI Agent Instructions</a> ·
         <a href="https://github.com/vattitude-me/QAlprit/blob/main/docs/authoring-guide.md" target="_blank" rel="noopener">Authoring Guide</a>
       </p>
     </div>
