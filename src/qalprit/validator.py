@@ -344,23 +344,6 @@ def validate_project(
     for err in flow_parse_errors:
         result.issues.append(ValidationIssue("error", flows_dir, "parse", err))
 
-    for flow_name, flow in flows.items():
-        declared_params = set(flow.params)
-        for idx, step in enumerate(flow.steps, start=1):
-            loc = f"flow:{flow_name}.steps[{idx}]"
-            _validate_step_shape(step, flow.source_path, loc, result.issues, allow_run_flow=False)
-            _validate_locator_and_env(
-                step,
-                ["android", "ios"],
-                result.screens,
-                result.env_ctx,
-                extra_env_vars,
-                declared_params,
-                flow.source_path,
-                loc,
-                result.issues,
-            )
-
     all_specs, spec_parse_errors = load_specs(specs_dir)
     for err in spec_parse_errors:
         result.issues.append(ValidationIssue("error", specs_dir, "parse", err))
@@ -390,6 +373,38 @@ def validate_project(
             continue
         selected_specs.append(spec)
     result.specs = selected_specs
+
+    if suite is None and tags is None:
+        flows_to_validate = list(flows.values())
+    else:
+        referenced_flow_names = {
+            step.params.get("flow")
+            for spec in selected_specs
+            for phase_steps in (spec.steps, spec.teardown)
+            for step in phase_steps
+            if step.type == "run_flow" and step.params.get("flow")
+        }
+        flows_to_validate = [
+            flows[name] for name in sorted(referenced_flow_names) if name in flows
+        ]
+
+    flow_platforms = [platform] if platform else ["android", "ios"]
+    for flow in flows_to_validate:
+        declared_params = set(flow.params)
+        for idx, step in enumerate(flow.steps, start=1):
+            loc = f"flow:{flow.name}.steps[{idx}]"
+            _validate_step_shape(step, flow.source_path, loc, result.issues, allow_run_flow=False)
+            _validate_locator_and_env(
+                step,
+                flow_platforms,
+                result.screens,
+                result.env_ctx,
+                extra_env_vars,
+                declared_params,
+                flow.source_path,
+                loc,
+                result.issues,
+            )
 
     for spec in selected_specs:
         spec_platforms = [platform] if platform else list(spec.platforms)

@@ -121,3 +121,32 @@ steps:
     assert any("missing template param(s): name" in m for m in msgs)
     assert any("UNDEFINED_VAR" in m for m in msgs)
     assert any("Unknown flow 'auth/missing_flow'" in m for m in msgs)
+
+
+def test_suite_filter_ignores_unreferenced_broken_flows(tmp_path: Path) -> None:
+    _write_minimal_project(tmp_path)
+    (tmp_path / "flows" / "other").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "flows" / "other" / "broken.md").write_text(
+        "---\nname: other/broken\nsteps:\n  - tap: unknown.button\n---\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "specs" / "smoke" / "ok.md").write_text(
+        """---
+id: SMOKE-001
+title: Valid spec
+platforms: [android, ios]
+steps:
+  - run_flow:
+      flow: auth/login
+      params:
+        username: "${QA_USER}"
+        password: "${QA_PASS}"
+---
+""",
+        encoding="utf-8",
+    )
+    res_scoped = validate_project(tmp_path, env_name="qa", suite="smoke")
+    assert res_scoped.ok, [i.format() for i in res_scoped.errors]
+
+    res_all = validate_project(tmp_path, env_name="qa")
+    assert not res_all.ok

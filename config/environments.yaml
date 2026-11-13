@@ -7,7 +7,7 @@ environments:
       ENV_LABEL: QA
   mda:
     android_package: com.saucelabs.mydemoapp.android
-    ios_bundle_id: com.saucelabs.mydemoapp.ios
+    ios_bundle_id: com.saucelabs.mydemo.app.ios
     default_timeout: 12
     variables:
       ENV_LABEL: DEMO
