@@ -1,116 +1,70 @@
-<mxfile host="app.diagrams.net" modified="2026-11-13T10:00:00.000Z" agent="QAlprit" version="24.7.17" type="device">
-  <diagram id="qalprit-arch" name="QAlprit Architecture">
-    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1160" pageHeight="720" math="0" shadow="0">
-      <root>
-        <mxCell id="0" />
-        <mxCell id="1" parent="0" />
+<mxfile host="65bd71144e">
+    <diagram id="qalprit-arch" name="QAlprit Flow">
+        <mxGraphModel dx="1100" dy="760" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1000" pageHeight="540" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
 
-        <!-- Layer 1: Authoring & Config -->
-        <mxCell id="l1_group" value="1. Authoring &amp; Configuration (Zero Runtime LLM Calls)" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=12;spacingTop=8;fontStyle=1;fontSize=13;fillColor=#eef2ff;strokeColor=#6366f1;fontColor=#1e1b4b;" vertex="1" parent="1">
-          <mxGeometry x="30" y="30" width="1100" height="130" as="geometry" />
-        </mxCell>
-        <mxCell id="c_specs" value="&lt;b&gt;specs/**/*.md&lt;/b&gt;&lt;br&gt;YAML front matter + Markdown&lt;br&gt;steps, teardown, targets, reset" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#818cf8;fontSize=11;fontColor=#0f172a;" vertex="1" parent="1">
-          <mxGeometry x="50" y="70" width="240" height="70" as="geometry" />
-        </mxCell>
-        <mxCell id="c_flows" value="&lt;b&gt;flows/**/*.md&lt;/b&gt;&lt;br&gt;1-level reusable flows&lt;br&gt;run_flow + ${param} expansion" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#818cf8;fontSize=11;fontColor=#0f172a;" vertex="1" parent="1">
-          <mxGeometry x="320" y="70" width="240" height="70" as="geometry" />
-        </mxCell>
-        <mxCell id="c_screens" value="&lt;b&gt;screens/screens.yaml&lt;/b&gt;&lt;br&gt;Logical locators &amp;amp; overrides&lt;br&gt;sensitive: true flags" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#818cf8;fontSize=11;fontColor=#0f172a;" vertex="1" parent="1">
-          <mxGeometry x="590" y="70" width="240" height="70" as="geometry" />
-        </mxCell>
-        <mxCell id="c_env" value="&lt;b&gt;config/ + .env&lt;/b&gt;&lt;br&gt;devices.yaml, environments.yaml&lt;br&gt;Stdlib .env + RFC 6238 ${TOTP:VAR}" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#818cf8;fontSize=11;fontColor=#0f172a;" vertex="1" parent="1">
-          <mxGeometry x="860" y="70" width="250" height="70" as="geometry" />
-        </mxCell>
+                <!-- Title -->
+                <mxCell id="title" value="&lt;b&gt;QAlprit Flow&lt;/b&gt;&amp;nbsp;—&amp;nbsp;Build, Author, Validate, Run, Mask, Report" style="text;html=1;align=left;verticalAlign=middle;fontSize=15;fontColor=#0f172a;strokeColor=none;fillColor=none;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="20" width="600" height="30" as="geometry"/>
+                </mxCell>
 
-        <!-- Layer 2: Deterministic Core -->
-        <mxCell id="l2_group" value="2. Deterministic Execution Core (src/qalprit/)" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=12;spacingTop=8;fontStyle=1;fontSize=13;fillColor=#ecfeff;strokeColor=#0891b2;fontColor=#083344;" vertex="1" parent="1">
-          <mxGeometry x="30" y="190" width="1100" height="150" as="geometry" />
-        </mxCell>
-        <mxCell id="c_cli" value="&lt;b&gt;qalprit CLI&lt;/b&gt;&lt;br&gt;doctor · devices · inspect&lt;br&gt;validate · run · report · ui" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#06b6d4;fontSize=11;fontColor=#0f172a;" vertex="1" parent="1">
-          <mxGeometry x="50" y="235" width="220" height="85" as="geometry" />
-        </mxCell>
-        <mxCell id="c_validator" value="&lt;b&gt;Fail-Fast Validator&lt;/b&gt;&lt;br&gt;Schema, 1-level flow, locator,&lt;br&gt;template param &amp;amp; env checks" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#06b6d4;fontSize=11;fontColor=#0f172a;" vertex="1" parent="1">
-          <mxGeometry x="300" y="235" width="250" height="85" as="geometry" />
-        </mxCell>
-        <mxCell id="c_runner" value="&lt;b&gt;TestRunner &amp;amp; Step Engine&lt;/b&gt;&lt;br&gt;Session reuse, reset modes,&lt;br&gt;auto-wait, guaranteed teardown" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#06b6d4;fontSize=11;fontColor=#0f172a;" vertex="1" parent="1">
-          <mxGeometry x="580" y="235" width="270" height="85" as="geometry" />
-        </mxCell>
-        <mxCell id="c_appium_mgr" value="&lt;b&gt;AppiumManager&lt;/b&gt;&lt;br&gt;Managed Appium 2 lifecycle&lt;br&gt;or --appium-url attach" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#06b6d4;fontSize=11;fontColor=#0f172a;" vertex="1" parent="1">
-          <mxGeometry x="880" y="235" width="230" height="85" as="geometry" />
-        </mxCell>
+                <!-- 1. App Build -->
+                <mxCell id="step1" value="&lt;b&gt;1. App Build&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 11px; color: #475569;&quot;&gt;.apk / .app / .ipa&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#eef2ff;strokeColor=#6366f1;fontColor=#1e1b4b;fontSize=13;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="80" width="240" height="80" as="geometry"/>
+                </mxCell>
 
-        <!-- Layer 3: Appium 2 & Device Targets -->
-        <mxCell id="l3_group" value="3. Appium 2 &amp; Native Mobile Targets" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=12;spacingTop=8;fontStyle=1;fontSize=13;fillColor=#f0fdf4;strokeColor=#16a34a;fontColor=#052e16;" vertex="1" parent="1">
-          <mxGeometry x="30" y="370" width="1100" height="125" as="geometry" />
-        </mxCell>
-        <mxCell id="c_appium" value="&lt;b&gt;Appium 2 Server&lt;/b&gt;&lt;br&gt;UiAutomator2 + XCUITest drivers · appium.log" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#22c55e;fontSize=11;fontColor=#0f172a;" vertex="1" parent="1">
-          <mxGeometry x="50" y="410" width="330" height="65" as="geometry" />
-        </mxCell>
-        <mxCell id="c_android" value="&lt;b&gt;Android Targets&lt;/b&gt;&lt;br&gt;Emulator (AVD) &amp;amp; Real Devices (.apk, adb pm clear)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#22c55e;fontSize=11;fontColor=#0f172a;" vertex="1" parent="1">
-          <mxGeometry x="410" y="410" width="340" height="65" as="geometry" />
-        </mxCell>
-        <mxCell id="c_ios" value="&lt;b&gt;iOS Targets (macOS)&lt;/b&gt;&lt;br&gt;Simulator (.app) &amp;amp; Real Devices (.ipa, simctl)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#22c55e;fontSize=11;fontColor=#0f172a;" vertex="1" parent="1">
-          <mxGeometry x="780" y="410" width="330" height="65" as="geometry" />
-        </mxCell>
+                <!-- 2. AI Authoring -->
+                <mxCell id="step2" value="&lt;b&gt;2. AI Authoring&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 11px; color: #475569;&quot;&gt;Screens, Flows &amp;amp; Specs&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#ecfeff;strokeColor=#0891b2;fontColor=#164e63;fontSize=13;" parent="1" vertex="1">
+                    <mxGeometry x="370" y="80" width="240" height="80" as="geometry"/>
+                </mxCell>
 
-        <!-- Layer 4: Security Evidence & Reporting -->
-        <mxCell id="l4_group" value="4. Security-First Evidence, Redaction &amp; Reporting" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=12;spacingTop=8;fontStyle=1;fontSize=13;fillColor=#fffbeb;strokeColor=#d97706;fontColor=#451a03;" vertex="1" parent="1">
-          <mxGeometry x="30" y="525" width="1100" height="145" as="geometry" />
-        </mxCell>
-        <mxCell id="c_evidence" value="&lt;b&gt;EvidenceCollector (In-Memory Pillow)&lt;/b&gt;&lt;br&gt;Retina-scaled black-box redaction before disk write&lt;br&gt;SecretMasker text masking + WebView detection" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#f59e0b;fontSize=11;fontColor=#0f172a;" vertex="1" parent="1">
-          <mxGeometry x="50" y="570" width="340" height="80" as="geometry" />
-        </mxCell>
-        <mxCell id="c_results" value="&lt;b&gt;Run Artifacts (results/&amp;lt;run-id&amp;gt;/)&lt;/b&gt;&lt;br&gt;results.json · redacted PNG screenshots&lt;br&gt;failure page_sources/*.xml · appium.log" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#f59e0b;fontSize=11;fontColor=#0f172a;" vertex="1" parent="1">
-          <mxGeometry x="420" y="570" width="330" height="80" as="geometry" />
-        </mxCell>
-        <mxCell id="c_reports" value="&lt;b&gt;Reports &amp;amp; Workbench UI&lt;/b&gt;&lt;br&gt;Self-contained report.html (WebP/JPEG) · summary.md&lt;br&gt;qalprit ui local server · Vercel Web Showcase" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#f59e0b;fontSize=11;fontColor=#0f172a;" vertex="1" parent="1">
-          <mxGeometry x="780" y="570" width="330" height="80" as="geometry" />
-        </mxCell>
+                <!-- 3. Validate -->
+                <mxCell id="step3" value="&lt;b&gt;3. Validate&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 11px; color: #475569;&quot;&gt;Human + qalprit validate&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#f0fdfa;strokeColor=#0f766e;fontColor=#134e4a;fontSize=13;" parent="1" vertex="1">
+                    <mxGeometry x="700" y="80" width="240" height="80" as="geometry"/>
+                </mxCell>
 
-        <!-- Edges -->
-        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#475569;strokeWidth=1.5;" edge="1" parent="1" source="c_specs" target="c_validator">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#475569;strokeWidth=1.5;" edge="1" parent="1" source="c_flows" target="c_validator">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#475569;strokeWidth=1.5;" edge="1" parent="1" source="c_screens" target="c_validator">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#475569;strokeWidth=1.5;" edge="1" parent="1" source="c_env" target="c_validator">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#0891b2;strokeWidth=1.5;" edge="1" parent="1" source="c_cli" target="c_validator">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#0891b2;strokeWidth=1.5;" edge="1" parent="1" source="c_validator" target="c_runner">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#0891b2;strokeWidth=1.5;" edge="1" parent="1" source="c_cli" target="c_appium_mgr">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e8" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#16a34a;strokeWidth=1.5;" edge="1" parent="1" source="c_appium_mgr" target="c_appium">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e9" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#16a34a;strokeWidth=1.5;" edge="1" parent="1" source="c_runner" target="c_appium">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e10" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#16a34a;strokeWidth=1.5;" edge="1" parent="1" source="c_appium" target="c_android">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e11" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#16a34a;strokeWidth=1.5;" edge="1" parent="1" source="c_appium" target="c_ios">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e12" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#d97706;strokeWidth=1.5;" edge="1" parent="1" source="c_runner" target="c_evidence">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e13" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#d97706;strokeWidth=1.5;" edge="1" parent="1" source="c_evidence" target="c_results">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e14" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#d97706;strokeWidth=1.5;" edge="1" parent="1" source="c_results" target="c_reports">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-      </root>
-    </mxGraphModel>
-  </diagram>
+                <!-- 4. Run Workflows -->
+                <mxCell id="step4" value="&lt;b&gt;4. Run Workflows&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 11px; color: #475569;&quot;&gt;qalprit run (Appium 2)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#f0fdf4;strokeColor=#16a34a;fontColor=#14532d;fontSize=13;" parent="1" vertex="1">
+                    <mxGeometry x="700" y="230" width="240" height="80" as="geometry"/>
+                </mxCell>
+
+                <!-- Target Device -->
+                <mxCell id="device" value="&lt;b&gt;Simulator / Real Device&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 11px; color: #475569;&quot;&gt;Android · iOS&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;dashed=1;fillColor=#ffffff;strokeColor=#16a34a;fontColor=#14532d;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="700" y="380" width="240" height="70" as="geometry"/>
+                </mxCell>
+
+                <!-- 5. Capture & Mask -->
+                <mxCell id="step5" value="&lt;b&gt;5. Capture &amp;amp; Mask&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 11px; color: #475569;&quot;&gt;Redact PII &amp;amp; secrets in RAM&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#fff1f2;strokeColor=#e11d48;fontColor=#881337;fontSize=13;" parent="1" vertex="1">
+                    <mxGeometry x="370" y="230" width="240" height="80" as="geometry"/>
+                </mxCell>
+
+                <!-- 6. Report & Dashboard -->
+                <mxCell id="step6" value="&lt;b&gt;6. Reports &amp;amp; Dashboard&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 11px; color: #475569;&quot;&gt;report.html · results.json · qalprit ui&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#fffbeb;strokeColor=#d97706;fontColor=#78350f;fontSize=13;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="230" width="240" height="80" as="geometry"/>
+                </mxCell>
+
+                <!-- Flow Arrows -->
+                <mxCell id="e1" value="target" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#6366f1;strokeWidth=1.8;fontSize=11;fontColor=#475569;" parent="1" source="step1" target="step2" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e2" value="review" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#0891b2;strokeWidth=1.8;fontSize=11;fontColor=#475569;" parent="1" source="step2" target="step3" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e3" value="execute" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#0f766e;strokeWidth=1.8;fontSize=11;fontColor=#475569;" parent="1" source="step3" target="step4" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e4" value="drive / screens" style="edgeStyle=orthogonalEdgeStyle;rounded=1;startArrow=classic;endArrow=classic;strokeColor=#16a34a;strokeWidth=1.8;fontSize=11;fontColor=#475569;" parent="1" source="step4" target="device" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e5" value="frames" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#e11d48;strokeWidth=1.8;fontSize=11;fontColor=#475569;" parent="1" source="step4" target="step5" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e6" value="save" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#d97706;strokeWidth=1.8;fontSize=11;fontColor=#475569;" parent="1" source="step5" target="step6" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
 </mxfile>
