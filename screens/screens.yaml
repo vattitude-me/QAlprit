@@ -1,0 +1,170 @@
+# Logical locator catalog: <screen>.<element> -> Appium locator
+# Default to accessibility_id across both platforms; override per-platform only when needed.
+
+# --- System / OS Alert Prompts ---
+android:
+  allow_notifications:
+    android: {id: "com.android.permissioncontroller:id/permission_allow_button"}
+    ios: {accessibility_id: "Allow"}
+
+# --- Reference Banking App locators (for regression examples) ---
+onboarding:
+  dismiss_banner: {accessibility_id: dismiss_banner}
+
+login:
+  username_field: {accessibility_id: username_field}
+  password_field: {accessibility_id: password_field, sensitive: true}
+  login_button: {accessibility_id: login_button}
+
+mfa:
+  totp_option: {accessibility_id: totp_option}
+  code_field: {accessibility_id: mfa_code_field, sensitive: true}
+
+accounts:
+  account_list:
+    android: {id: "${ANDROID_PACKAGE}:id/account_list"}
+    ios: {accessibility_id: account_list}
+  account_row:
+    android: {text: "{name}"}
+    ios: {accessibility_id: "account_row_{name}"}
+
+nav:
+  logout_button: {accessibility_id: logout_button}
+
+# --- Sauce Labs My Demo App (Android v2.3.0) locators ---
+mda_nav:
+  open_menu: {accessibility_id: "View menu"}
+  open_cart: {accessibility_id: "View cart"}
+  cart_count:
+    android: {id: "com.saucelabs.mydemoapp.android:id/cartTV"}
+    ios: {accessibility_id: "cartTV"}
+  menu_login: {accessibility_id: "Login Menu Item"}
+  menu_logout: {accessibility_id: "Logout Menu Item"}
+  menu_catalog:
+    android: {text: "Catalog"}
+    ios: {accessibility_id: "Catalog"}
+  menu_reset_app:
+    android: {text: "Reset App State"}
+    ios: {accessibility_id: "Reset App State"}
+  logout_confirm_btn:
+    android: {id: "android:id/button1"}
+    ios: {accessibility_id: "Log Out"}
+
+mda_login:
+  title:
+    android: {id: "com.saucelabs.mydemoapp.android:id/loginTV"}
+    ios: {accessibility_id: "Login"}
+  username_field:
+    android: {id: "com.saucelabs.mydemoapp.android:id/nameET"}
+    ios: {accessibility_id: "nameET"}
+  password_field:
+    android: {id: "com.saucelabs.mydemoapp.android:id/passwordET", sensitive: true}
+    ios: {accessibility_id: "passwordET", sensitive: true}
+  login_button: {accessibility_id: "Tap to login with given credentials"}
+  error_banner:
+    android: {id: "com.saucelabs.mydemoapp.android:id/passwordErrorTV"}
+    ios: {accessibility_id: "passwordErrorTV"}
+  autofill_standard_user:
+    android: {id: "com.saucelabs.mydemoapp.android:id/username1TV"}
+    ios: {accessibility_id: "username1TV"}
+  autofill_locked_user:
+    android: {id: "com.saucelabs.mydemoapp.android:id/username2TV"}
+    ios: {accessibility_id: "username2TV"}
+
+mda_catalog:
+  title: {accessibility_id: "title"}
+  sort_button: {accessibility_id: "Shows current sorting order and displays available sorting options"}
+  sort_name_asc: {accessibility_id: "Ascending order by name"}
+  sort_name_desc: {accessibility_id: "Descending order by name"}
+  sort_price_asc: {accessibility_id: "Ascending order by price"}
+  sort_price_desc: {accessibility_id: "Descending order by price"}
+  first_product_image: {accessibility_id: "Product Image"}
+  first_product_title: {accessibility_id: "Product Title"}
+  first_product_price: {accessibility_id: "Product Price"}
+  product_by_title:
+    android: {text: "{title}"}
+    ios: {accessibility_id: "{title}"}
+  product_image_by_title:
+    android: {xpath: '//*[@text="{title}"]/preceding-sibling::android.widget.ImageView[@content-desc="Product Image"]'}
+    ios: {accessibility_id: "{title}"}
+
+mda_product:
+  title:
+    android: {id: "com.saucelabs.mydemoapp.android:id/productTV"}
+    ios: {accessibility_id: "productTV"}
+  price:
+    android: {id: "com.saucelabs.mydemoapp.android:id/priceTV"}
+    ios: {accessibility_id: "priceTV"}
+  increase_qty: {accessibility_id: "Increase item quantity"}
+  decrease_qty: {accessibility_id: "Decrease item quantity"}
+  qty_value:
+    android: {id: "com.saucelabs.mydemoapp.android:id/noTV"}
+    ios: {accessibility_id: "noTV"}
+  add_to_cart_button: {accessibility_id: "Tap to add product to cart"}
+
+mda_cart:
+  items_count:
+    android: {id: "com.saucelabs.mydemoapp.android:id/itemsTV"}
+    ios: {accessibility_id: "itemsTV"}
+  total_price:
+    android: {id: "com.saucelabs.mydemoapp.android:id/totalPriceTV"}
+    ios: {accessibility_id: "totalPriceTV"}
+  remove_item_button: {accessibility_id: "Removes product from cart"}
+  checkout_button: {accessibility_id: "Confirms products for checkout"}
+
+mda_shipping:
+  title:
+    android: {id: "com.saucelabs.mydemoapp.android:id/checkoutTitleTV"}
+    ios: {accessibility_id: "Checkout"}
+  full_name_field:
+    android: {id: "com.saucelabs.mydemoapp.android:id/fullNameET"}
+    ios: {accessibility_id: "fullNameET"}
+  address1_field:
+    android: {id: "com.saucelabs.mydemoapp.android:id/address1ET"}
+    ios: {accessibility_id: "address1ET"}
+  city_field:
+    android: {id: "com.saucelabs.mydemoapp.android:id/cityET"}
+    ios: {accessibility_id: "cityET"}
+  zip_field:
+    android: {id: "com.saucelabs.mydemoapp.android:id/zipET"}
+    ios: {accessibility_id: "zipET"}
+  country_field:
+    android: {id: "com.saucelabs.mydemoapp.android:id/countryET"}
+    ios: {accessibility_id: "countryET"}
+  to_payment_button: {accessibility_id: "Saves user info for checkout"}
+
+mda_payment:
+  title:
+    android: {id: "com.saucelabs.mydemoapp.android:id/enterPaymentMethodTV"}
+    ios: {accessibility_id: "Enter a payment method"}
+  cardholder_name_field:
+    android: {id: "com.saucelabs.mydemoapp.android:id/nameET"}
+    ios: {accessibility_id: "nameET"}
+  card_number_field:
+    android: {id: "com.saucelabs.mydemoapp.android:id/cardNumberET", sensitive: true}
+    ios: {accessibility_id: "cardNumberET", sensitive: true}
+  expiration_date_field:
+    android: {id: "com.saucelabs.mydemoapp.android:id/expirationDateET"}
+    ios: {accessibility_id: "expirationDateET"}
+  security_code_field:
+    android: {id: "com.saucelabs.mydemoapp.android:id/securityCodeET", sensitive: true}
+    ios: {accessibility_id: "securityCodeET", sensitive: true}
+  review_order_button: {accessibility_id: "Saves payment info and launches screen to review checkout data"}
+
+mda_review:
+  title:
+    android: {id: "com.saucelabs.mydemoapp.android:id/enterShippingAddressTV"}
+    ios: {accessibility_id: "Review your order"}
+  total_amount:
+    android: {id: "com.saucelabs.mydemoapp.android:id/totalAmountTV"}
+    ios: {accessibility_id: "totalAmountTV"}
+  place_order_button: {accessibility_id: "Completes the process of checkout"}
+
+mda_complete:
+  title:
+    android: {id: "com.saucelabs.mydemoapp.android:id/completeTV"}
+    ios: {accessibility_id: "Checkout Complete"}
+  thank_you:
+    android: {id: "com.saucelabs.mydemoapp.android:id/thankYouTV"}
+    ios: {accessibility_id: "Thank you for your order"}
+  continue_shopping_button: {accessibility_id: "Tap to open catalog"}

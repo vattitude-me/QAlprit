@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light dark" />
+  <title>QAlprit Workbench — Mobile QA. Bugs caught with proof.</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f4f6f9;
+      --surface: #ffffff;
+      --surface-alt: #f8fafc;
+      --border: #cbd5e1;
+      --text: #0f172a;
+      --muted: #475569;
+      --accent: #0f766e;
+      --accent-ink: #ffffff;
+      --pass: #15803d;
+      --pass-bg: #dcfce7;
+      --fail: #b91c1c;
+      --fail-bg: #fee2e2;
+      --warn: #b45309;
+      --warn-bg: #fef3c7;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0b1120;
+        --surface: #111827;
+        --surface-alt: #1e293b;
+        --border: #334155;
+        --text: #f1f5f9;
+        --muted: #94a3b8;
+        --accent: #2dd4bf;
+        --accent-ink: #042f2e;
+        --pass: #4ade80;
+        --pass-bg: #052e16;
+        --fail: #f87171;
+        --fail-bg: #450a0a;
+        --warn: #fbbf24;
+        --warn-bg: #451a03;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: var(--sans); background: var(--bg); color: var(--text); line-height: 1.5; }
+    header { background: #0f172a; color: #f8fafc; padding: 20px 28px; border-bottom: 1px solid #1e293b; }
+    .wrap { max-width: 1200px; margin: 0 auto; }
+    .head-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 14px; }
+    h1 { margin: 0; font-size: 22px; letter-spacing: -0.02em; }
+    .tagline { margin: 2px 0 0; font-size: 13px; color: #94a3b8; }
+    .pill { font-family: var(--mono); font-size: 12px; padding: 4px 10px; border-radius: 999px; background: #1e293b; color: #38bdf8; border: 1px solid #334155; }
+    main { padding: 24px 28px 60px; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+    .stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+    .stat-val { font-size: 26px; font-weight: 700; margin-top: 2px; }
+    .tablist { display: flex; gap: 6px; border-bottom: 1px solid var(--border); margin-bottom: 18px; overflow-x: auto; }
+    .tablist [role="tab"] {
+      position: relative; border: none; background: transparent; color: var(--muted);
+      padding: 10px 16px; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap;
+    }
+    .tablist [role="tab"][aria-selected="true"] { color: var(--text); }
+    .tablist [role="tab"][aria-selected="true"]::after {
+      content: ""; position: absolute; inset: auto 0 0; border-block-end: 3px solid var(--accent);
+    }
+    :where(a, button):focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+    .grid { display: grid; gap: 12px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; }
+    .run-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
+    .mono { font-family: var(--mono); font-size: 12.5px; }
+    .badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+    .badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+    .b-pass { background: var(--pass-bg); color: var(--pass); }
+    .b-fail { background: var(--fail-bg); color: var(--fail); }
+    .b-warn { background: var(--warn-bg); color: var(--warn); }
+    .b-neutral { background: var(--surface-alt); color: var(--muted); border: 1px solid var(--border); }
+    .btn { display: inline-block; padding: 7px 14px; border-radius: 7px; font-size: 13px; font-weight: 600; text-decoration: none; background: var(--accent); color: var(--accent-ink); }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+    .empty { background: var(--surface); border: 1px dashed var(--border); border-radius: 10px; padding: 28px; text-align: center; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap head-row">
+      <div>
+        <h1>QAlprit Workbench</h1>
+        <p class="tagline">Mobile QA. Bugs caught with proof.</p>
+      </div>
+      <div class="pill" id="verPill">Loading workspace...</div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="stats" aria-label="Workspace summary">
+      <div class="stat"><div class="stat-label">Recorded Runs</div><div class="stat-val" id="cntRuns">-</div></div>
+      <div class="stat"><div class="stat-label">Test Specs</div><div class="stat-val" id="cntSpecs">-</div></div>
+      <div class="stat"><div class="stat-label">Reusable Flows</div><div class="stat-val" id="cntFlows">-</div></div>
+      <div class="stat"><div class="stat-label">Sensitive Locators</div><div class="stat-val" id="cntSensitive">-</div></div>
+    </section>
+
+    <div class="tablist" role="tablist" aria-label="Workbench views">
+      <button type="button" role="tab" id="tab-runs" aria-selected="true">Test Runs</button>
+      <button type="button" role="tab" id="tab-specs" aria-selected="false">Specs &amp; Flows</button>
+      <button type="button" role="tab" id="tab-screens" aria-selected="false">Screen Locators</button>
+    </div>
+
+    <div id="panel-runs" role="tabpanel" aria-labelledby="tab-runs" tabindex="0"></div>
+    <div id="panel-specs" role="tabpanel" aria-labelledby="tab-specs" hidden></div>
+    <div id="panel-screens" role="tabpanel" aria-labelledby="tab-screens" hidden></div>
+  </main>
+
+  <script>
+    const tabs = [
+      { tab: document.getElementById("tab-runs"), panel: document.getElementById("panel-runs") },
+      { tab: document.getElementById("tab-specs"), panel: document.getElementById("panel-specs") },
+      { tab: document.getElementById("tab-screens"), panel: document.getElementById("panel-screens") },
+    ];
+    tabs.forEach(({ tab, panel }) => {
+      tab.addEventListener("click", () => {
+        tabs.forEach((t) => {
+          const active = t.tab === tab;
+          t.tab.setAttribute("aria-selected", String(active));
+          t.panel.hidden = !active;
+        });
+      });
+    });
+
+    function esc(s) {
+      return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    }
+
+    fetch("/api/overview").then((r) => r.json()).then((data) => {
+      document.getElementById("verPill").textContent = `qalprit v${data.version}`;
+      document.getElementById("cntRuns").textContent = data.runs.length;
+      document.getElementById("cntSpecs").textContent = data.specs.length;
+      document.getElementById("cntFlows").textContent = data.flows.length;
+      document.getElementById("cntSensitive").textContent = data.screens.filter((s) => s.sensitive).length;
+
+      const runsEl = document.getElementById("panel-runs");
+      if (!data.runs.length) {
+        runsEl.innerHTML = `<div class="empty">No runs found yet. Execute <code>qalprit run --platform android --device android_emulator --app /path/to/app.apk</code> to generate proof reports.</div>`;
+      } else {
+        runsEl.innerHTML = `<div class="grid">${data.runs.map((r) => `
+          <article class="card run-row">
+            <div>
+              <div class="mono"><strong>${esc(r.run_id)}</strong></div>
+              <div style="font-size:13px; color:var(--muted);">${esc(r.platform)} · ${esc(r.device_name)} · env=${esc(r.environment)} · suite=${esc(r.suite)}</div>
+              <div class="badges">
+                <span class="badge b-pass">${r.summary.passed} passed</span>
+                ${r.summary.failed ? `<span class="badge b-fail">${r.summary.failed} failed</span>` : ""}
+                ${r.summary.flaky ? `<span class="badge b-warn">${r.summary.flaky} flaky</span>` : ""}
+                <span class="badge b-neutral">${r.summary.total} total</span>
+              </div>
+            </div>
+            <div>
+              ${r.has_html ? `<a class="btn" href="/results/${encodeURIComponent(r.run_id)}/report.html" target="_blank" rel="noopener">Open Proof Report</a>` : ""}
+            </div>
+          </article>`).join("")}</div>`;
+      }
+
+      document.getElementById("panel-specs").innerHTML = `
+        <div class="card">
+          <table>
+            <caption>Test Specifications (${data.specs.length}) &amp; Reusable Flows (${data.flows.length})</caption>
+            <thead><tr><th scope="col">ID</th><th scope="col">Title</th><th scope="col">Suite</th><th scope="col">Steps</th><th scope="col">Reset</th><th scope="col">Source</th></tr></thead>
+            <tbody>
+              ${data.specs.map((s) => `<tr>
+                <td class="mono">${esc(s.id)}</td>
+                <td>${esc(s.title)}</td>
+                <td><span class="badge b-neutral">${esc(s.suite)}</span></td>
+                <td>${s.step_count} (+${s.teardown_count} teardown)</td>
+                <td class="mono">${esc(s.reset)}</td>
+                <td class="mono">${esc(s.source_path)}</td>
+              </tr>`).join("")}
+            </tbody>
+          </table>
+        </div>`;
+
+      document.getElementById("panel-screens").innerHTML = `
+        <div class="card">
+          <table>
+            <caption>Screen Locators &amp; Redaction Policy</caption>
+            <thead><tr><th scope="col">Target</th><th scope="col">Redaction</th><th scope="col">Android</th><th scope="col">iOS</th></tr></thead>
+            <tbody>
+              ${data.screens.map((sc) => `<tr>
+                <td class="mono">${esc(sc.target)}</td>
+                <td>${sc.sensitive ? '<span class="badge b-warn">sensitive: true (black-filled)</span>' : '<span class="badge b-neutral">standard</span>'}</td>
+                <td class="mono">${sc.platforms.android ? esc(sc.platforms.android.strategy + ": " + sc.platforms.android.value) : "-"}</td>
+                <td class="mono">${sc.platforms.ios ? esc(sc.platforms.ios.strategy + ": " + sc.platforms.ios.value) : "-"}</td>
+              </tr>`).join("")}
+            </tbody>
+          </table>
+        </div>`;
+    });
+  </script>
+</body>
+</html>

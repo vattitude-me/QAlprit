@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light dark" />
+  <title>QAlprit — Mobile QA. Bugs caught with proof.</title>
+  <meta name="description" content="Deterministic, Markdown-driven mobile UI test automation for Android and iOS powered by Appium 2, with in-memory Pillow secret redaction and self-contained proof reports." />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+
+  <header class="site-header">
+    <div class="container nav-row">
+      <a class="brand" href="#top" aria-label="QAlprit home">
+        <span class="brand-mark" aria-hidden="true">Q</span>
+        <span>
+          <strong>QAlprit</strong>
+          <small>Mobile QA. Bugs caught with proof.</small>
+        </span>
+      </a>
+      <nav aria-label="Primary">
+        <ul class="nav-links">
+          <li><a href="#proof-viewer">Live Proof Report</a></li>
+          <li><a href="#spec-studio">Spec Studio</a></li>
+          <li><a href="#architecture">Architecture</a></li>
+          <li><a href="https://github.com/vattitude-me/QAlprit" target="_blank" rel="noopener">GitHub</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main-content" tabindex="-1">
+    <section id="top" class="hero">
+      <div class="container hero-grid">
+        <div class="hero-copy">
+          <p class="eyebrow">Appium 2 · Android &amp; iOS · Zero Runtime LLMs</p>
+          <h1>Mobile QA.<br />Bugs caught with proof.</h1>
+          <p class="lead">
+            QAlprit turns readable Markdown test specs into deterministic native mobile runs—with
+            RFC 6238 TOTP secrets, in-memory Pillow bounding-box redaction, guaranteed teardown,
+            and self-contained HTML evidence reports.
+          </p>
+          <div class="cta-row">
+            <div class="install-box">
+              <code>pip install qalprit</code>
+              <button type="button" class="copy-btn" data-copy="pip install qalprit" aria-label="Copy pip install command">Copy</button>
+            </div>
+            <a class="btn-primary" href="#proof-viewer">Inspect Live Proof Report</a>
+            <a class="btn-secondary" href="https://github.com/vattitude-me/QAlprit" target="_blank" rel="noopener">View Source</a>
+          </div>
+        </div>
+
+        <div class="terminal-card" aria-label="QAlprit CLI workflow preview">
+          <div class="terminal-bar">
+            <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+            <span class="terminal-title">qalprit-cli · zsh</span>
+          </div>
+          <pre><code><span class="t-dim">$</span> qalprit doctor
+<span class="t-ok">[ OK ]</span> Python                       3.11.15
+<span class="t-ok">[ OK ]</span> Appium                       v2.11.3
+<span class="t-ok">[ OK ]</span> Appium driver: uiautomator2  Installed
+<span class="t-ok">[ OK ]</span> Android adb                  1.0.41
+
+<span class="t-dim">$</span> qalprit validate --suite mda --env mda
+Validation PASSED: 5 spec(s), 3 flow(s), 0 warning(s).
+
+<span class="t-dim">$</span> qalprit run --platform android --device android_emulator \
+    --app apps/mda-demo.apk --env mda --suite mda --retries 1
+Starting QAlprit run 20261113_135128_android_mda (5 spec(s))...
+<span class="t-ok">Run complete: 4 passed, 1 failed, 0 skipped, 1 flaky</span>
+Report HTML : results/20261113_135128_android_mda/report.html</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="pillars" aria-label="Core guarantees">
+      <div class="container pillar-grid">
+        <article class="pillar-card">
+          <h2>100% Deterministic</h2>
+          <p>Zero LLM API calls at runtime. Specs compile to Appium 2 actions with auto-wait readiness and explicit failure traces.</p>
+        </article>
+        <article class="pillar-card">
+          <h2>In-Memory Redaction</h2>
+          <p>Sensitive fields (`secret: true` or `sensitive: true`) are black-filled via Pillow in memory before any PNG touches disk.</p>
+        </article>
+        <article class="pillar-card">
+          <h2>Markdown + 1-Level Flows</h2>
+          <p>QA engineers write YAML front matter specs, reuse 1-level `flows/`, and map shared locators in `screens/screens.yaml`.</p>
+        </article>
+        <article class="pillar-card">
+          <h2>Proof-First Reports</h2>
+          <p>Every run emits a single self-contained `report.html`, `summary.md`, `results.json`, failure XML, and `appium.log`.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="proof-viewer" class="section-band">
+      <div class="container">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Interactive Evidence Demo</p>
+            <h2>Live Proof Report Viewer</h2>
+            <p class="section-desc">
+              Explore a sanitized QAlprit run. Filter by outcome or tag, inspect expanded flow steps,
+              and click any step screenshot to verify in-memory Pillow secret redaction.
+            </p>
+          </div>
+          <div class="run-meta-pill">
+            <span>Run: <code>20261113_135128_android_mda</code></span>
+            <span>Android 15 · Pixel 8 AVD</span>
+          </div>
+        </div>
+
+        <div class="kpi-grid" aria-label="Sample run metrics">
+          <div class="kpi"><span class="kpi-label">Pass Rate</span><strong class="kpi-val">80%</strong></div>
+          <div class="kpi"><span class="kpi-label">Total Specs</span><strong class="kpi-val">5</strong></div>
+          <div class="kpi kpi-pass"><span class="kpi-label">Passed</span><strong class="kpi-val">4</strong></div>
+          <div class="kpi kpi-fail"><span class="kpi-label">Failed</span><strong class="kpi-val">1</strong></div>
+          <div class="kpi kpi-warn"><span class="kpi-label">Flaky</span><strong class="kpi-val">1</strong></div>
+          <div class="kpi"><span class="kpi-label">Redacted Boxes</span><strong class="kpi-val">6</strong></div>
+        </div>
+
+        <div class="toolbar" role="region" aria-label="Report filters">
+          <div class="filter-group" id="statusFilters">
+            <button type="button" class="btn-filter active" data-status="all" aria-pressed="true">All (5)</button>
+            <button type="button" class="btn-filter" data-status="passed" aria-pressed="false">Passed (4)</button>
+            <button type="button" class="btn-filter" data-status="failed" aria-pressed="false">Failed (1)</button>
+            <button type="button" class="btn-filter" data-status="flaky" aria-pressed="false">Flaky (1)</button>
+          </div>
+          <div class="filter-controls">
+            <label class="visually-hidden" for="tagFilter">Filter by tag</label>
+            <select id="tagFilter" class="input-ctrl">
+              <option value="all">All tags</option>
+              <option value="auth">auth</option>
+              <option value="checkout">checkout</option>
+              <option value="catalog">catalog</option>
+              <option value="negative">negative</option>
+              <option value="webview">webview</option>
+            </select>
+            <label class="visually-hidden" for="searchBox">Search tests</label>
+            <input id="searchBox" class="input-ctrl" type="search" placeholder="Search test ID or title..." />
+            <button type="button" class="btn-filter" id="toggleAllBtn">Expand All</button>
+          </div>
+        </div>
+
+        <div id="demoTestsContainer" class="tests-stack"></div>
+      </div>
+    </section>
+
+    <section id="spec-studio" class="section-band alt-band">
+      <div class="container">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Authoring Experience</p>
+            <h2>Spec &amp; Locator Studio</h2>
+            <p class="section-desc">
+              No Python required to author tests. Inspect the exact YAML front matter, 1-level flow,
+              and sensitive locator configuration that power QAlprit.
+            </p>
+          </div>
+        </div>
+
+        <div class="studio-shell">
+          <div class="studio-tablist" role="tablist" aria-label="QAlprit configuration files">
+            <button type="button" role="tab" id="tab-spec" aria-selected="true">specs/mda/mda_04_e2e_checkout.md</button>
+            <button type="button" role="tab" id="tab-flow" aria-selected="false">flows/mda/login.md</button>
+            <button type="button" role="tab" id="tab-screens" aria-selected="false">screens/screens.yaml</button>
+            <button type="button" role="tab" id="tab-env" aria-selected="false">config/environments.yaml</button>
+          </div>
+
+          <div class="studio-panels">
+            <div role="tabpanel" id="panel-spec" aria-labelledby="tab-spec" tabindex="0">
+              <div class="code-panel">
+                <pre><code>---
+id: MDA-004
+title: End-to-end authenticated purchase checkout with sensitive data redaction
+tags: [mda, checkout, e2e, regression]
+platforms: [android, ios]
+reset: clear_data
+steps:
+  - run_flow:
+      flow: mda/login
+      params:
+        username: "${MDA_USER}"
+        password: "${MDA_PASS}"
+  - tap: mda_catalog.first_product_image
+  - tap: mda_product.increase_qty
+  - tap: mda_product.add_to_cart_button
+  - tap: mda_nav.open_cart
+  - tap: mda_cart.checkout_button
+  - type: {target: mda_payment.card_number_field, value: "${MDA_CARD_NUMBER}", secret: true}
+  - type: {target: mda_payment.security_code_field, value: "${MDA_CARD_CVV}", secret: true}
+  - tap: mda_review.place_order_button
+  - assert_visible: mda_complete.thank_you
+  - screenshot: mda_order_complete
+teardown:
+  - tap_if_visible: mda_nav.open_menu
+  - tap_if_visible: mda_nav.menu_logout
+expected: Full purchase completes with card/CVV pixels black-filled in memory.
+---</code></pre>
+              </div>
+            </div>
+
+            <div role="tabpanel" id="panel-flow" aria-labelledby="tab-flow" hidden="until-found">
+              <div class="code-panel">
+                <pre><code>---
+name: mda/login
+params: [username, password]
+steps:
+  - wait_for_visible: mda_nav.open_menu
+  - tap: mda_nav.open_menu
+  - tap: mda_nav.menu_login
+  - wait_for_visible: mda_login.username_field
+  - type: {target: mda_login.username_field, value: "${username}"}
+  - type: {target: mda_login.password_field, value: "${password}", secret: true}
+  - hide_keyboard: true
+  - tap: mda_login.login_button
+  - wait_for_visible: mda_catalog.title
+---
+# Reusable 1-level login flow
+# Expanded inline during execution; nested run_flow inside a flow is rejected by `qalprit validate`.</code></pre>
+              </div>
+            </div>
+
+            <div role="tabpanel" id="panel-screens" aria-labelledby="tab-screens" hidden="until-found">
+              <div class="code-panel">
+                <pre><code>mda_login:
+  username_field:
+    android: {id: "com.saucelabs.mydemoapp.android:id/nameET"}
+    ios: {accessibility_id: "nameET"}
+  password_field:
+    android: {id: "com.saucelabs.mydemoapp.android:id/passwordET", sensitive: true}
+    ios: {accessibility_id: "passwordET", sensitive: true}
+  login_button: {accessibility_id: "Tap to login with given credentials"}
+
+mda_payment:
+  card_number_field:
+    android: {id: "com.saucelabs.mydemoapp.android:id/cardNumberET", sensitive: true}
+    ios: {accessibility_id: "cardNumberET", sensitive: true}
+  security_code_field:
+    android: {id: "com.saucelabs.mydemoapp.android:id/securityCodeET", sensitive: true}
+    ios: {accessibility_id: "securityCodeET", sensitive: true}</code></pre>
+              </div>
+            </div>
+
+            <div role="tabpanel" id="panel-env" aria-labelledby="tab-env" hidden="until-found">
+              <div class="code-panel">
+                <pre><code>environments:
+  qa:
+    android_package: com.example.qalprit.qa
+    ios_bundle_id: com.example.qalprit.qa
+    default_timeout: 12
+    variables:
+      ENV_LABEL: QA
+  mda:
+    android_package: com.saucelabs.mydemoapp.android
+    ios_bundle_id: com.saucelabs.mydemoapp.ios
+    default_timeout: 12
+    variables:
+      ENV_LABEL: DEMO</code></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="architecture" class="section-band">
+      <div class="container">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">System Design</p>
+            <h2>Four-Layer Deterministic Pipeline</h2>
+            <p class="section-desc">
+              Built with Python 3.10+, Appium 2, Pydantic, Jinja2, and Pillow. Editable Draw.io source
+              lives in <code>docs/architecture.drawio</code>.
+            </p>
+          </div>
+          <a class="btn-secondary" href="https://github.com/vattitude-me/QAlprit/blob/main/docs/architecture.drawio" target="_blank" rel="noopener">Open Draw.io Source</a>
+        </div>
+        <figure class="arch-figure">
+          <img src="architecture.svg" alt="QAlprit four-layer architecture diagram covering authoring, deterministic core, Appium 2 targets, and in-memory Pillow evidence redaction" />
+          <figcaption>Figure 1: QAlprit execution flow from Markdown specs to redacted proof reports.</figcaption>
+        </figure>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-row">
+      <p><strong>QAlprit</strong> — Mobile QA. Bugs caught with proof. · MIT License</p>
+      <p>
+        <a href="https://github.com/vattitude-me/QAlprit" target="_blank" rel="noopener">GitHub</a> ·
+        <a href="https://pypi.org/project/qalprit/" target="_blank" rel="noopener">PyPI (`qalprit`)</a> ·
+        <a href="https://github.com/vattitude-me/QAlprit/blob/main/docs/authoring-guide.md" target="_blank" rel="noopener">Authoring Guide</a>
+      </p>
+    </div>
+  </footer>
+
+  <dialog id="proofLightbox" closedby="any" aria-labelledby="lbTitle">
+    <div class="lb-head">
+      <h3 id="lbTitle">Step Screenshot</h3>
+      <button type="button" class="lb-close" id="lbClose" autofocus>Close</button>
+    </div>
+    <div id="lbMedia" class="lb-media"></div>
+    <p id="lbCaption" class="lb-caption"></p>
+  </dialog>
+
+  <div id="liveStatus" class="visually-hidden" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
