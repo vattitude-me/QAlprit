@@ -8,6 +8,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+from qalprit.report.generator import generate_reports
 from qalprit.results import RunResult, RunSummary, write_results_json
 from qalprit.ui_server import collect_workspace_overview, create_ui_server
 
@@ -81,3 +82,39 @@ def test_ui_server_serves_overview_and_blocks_traversal(tmp_path: Path) -> None:
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_generate_reports_home_url_navigation(tmp_path: Path) -> None:
+    run_res = RunResult(
+        run_id="20261113_nav",
+        tool_version="0.1.1",
+        started_at="2026-11-13T00:00:00Z",
+        finished_at="2026-11-13T00:00:05Z",
+        environment="qa",
+        platform="android",
+        device_profile="android_emulator",
+        device_name="Pixel 8",
+        target_type="simulator",
+        suite="smoke",
+        summary=RunSummary(total=1, passed=1),
+    )
+
+    with_nav_dir = tmp_path / "with_nav"
+    with_nav_dir.mkdir()
+    html_with_nav, _ = generate_reports(
+        run_res, with_nav_dir, external_assets=True, home_url="/"
+    )
+    content = html_with_nav.read_text(encoding="utf-8")
+    assert "Back to Home" in content
+    assert 'href="/"' in content
+    assert "--accent: #0f766e;" in content
+    assert "data:image/" not in content
+
+    without_nav_dir = tmp_path / "without_nav"
+    without_nav_dir.mkdir()
+    html_without_nav, _ = generate_reports(
+        run_res, without_nav_dir, external_assets=True, home_url=None
+    )
+    content_no_nav = html_without_nav.read_text(encoding="utf-8")
+    assert "Back to Home" not in content_no_nav
+    assert "<nav class=\"site-nav\"" not in content_no_nav

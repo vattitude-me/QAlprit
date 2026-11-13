@@ -98,6 +98,7 @@ def generate_reports(
     run_dir: Path,
     external_assets: bool = False,
     masker: SecretMasker | None = None,
+    home_url: str | None = None,
 ) -> tuple[Path, Path]:
     """Render report.html and summary.md into run_dir."""
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -138,6 +139,7 @@ def generate_reports(
         tests=test_views,
         all_tags=all_tags,
         external_assets=external_assets,
+        home_url=home_url,
     )
     md_text = generate_summary_markdown(run_result)
 
