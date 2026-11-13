@@ -35,7 +35,9 @@
       </a>
       <nav aria-label="Primary">
         <ul class="nav-links">
-          <li><a href="#proof-viewer">Live Proof Report</a></li>
+          <li><a href="#evidence">Evidence</a></li>
+          <li><a href="#procedure">Procedure</a></li>
+          <li><a href="#proof-viewer">Case Files</a></li>
           <li><a href="#spec-studio">Spec Studio</a></li>
           <li><a href="#architecture">Architecture</a></li>
           <li><a href="https://github.com/vattitude-me/QAlprit" target="_blank" rel="noopener">GitHub</a></li>
@@ -48,40 +50,179 @@
     <section id="top" class="hero">
       <div class="container hero-grid">
         <div class="hero-copy">
-          <p class="eyebrow">Appium 2 · Android &amp; iOS · Zero Runtime LLMs</p>
-          <h1>Mobile QA.<br />Bugs caught with proof.</h1>
+          <p class="case-meta">
+            <span>Case File · Mobile QA · Android &amp; iOS</span>
+            <span class="case-badge"><span aria-hidden="true">✓</span> Verified</span>
+          </p>
+          <h1>Bugs caught.<br /><span class="proof-highlight">With proof.</span></h1>
           <p class="lead">
-            QAlprit turns readable Markdown test specs into deterministic native mobile runs—with
-            RFC 6238 TOTP secrets, in-memory Pillow bounding-box redaction, guaranteed teardown,
-            and self-contained HTML evidence reports.
+            Write tests in plain Markdown, or let your AI agent run QAlprit across Android and iOS—blacking out passwords and card numbers in memory, and delivering evidence nobody can argue with.
           </p>
           <div class="cta-row">
             <div class="install-box">
               <code>pip install qalprit</code>
               <button type="button" class="copy-btn" data-copy="pip install qalprit" aria-label="Copy pip install command">Copy</button>
             </div>
-            <a class="btn-primary" href="#proof-viewer">Inspect Interactive Demo</a>
+            <a class="btn-primary" href="#proof-viewer">Inspect Case Files</a>
             <a class="btn-secondary" href="sample-report.html">Android Report (5/5)</a>
             <a class="btn-secondary" href="sample-report-ios.html">iOS Report (3/3)</a>
             <a class="btn-secondary" href="https://github.com/vattitude-me/QAlprit" target="_blank" rel="noopener">View Source</a>
           </div>
         </div>
 
-        <div class="terminal-card" aria-label="QAlprit CLI workflow preview">
-          <div class="terminal-bar">
-            <div class="terminal-bar-left">
-              <span class="dot"></span><span class="dot"></span><span class="dot"></span>
-              <span class="terminal-title">qalprit-cli · zsh</span>
+        <aside class="exhibit-stage" aria-label="Exhibit A: In-memory secret redaction preview">
+          <span class="exhibit-tag">Exhibit A</span>
+          <div class="exhibit-phone">
+            <h2 class="exhibit-phone-title">Payment Checkout</h2>
+            <div class="mock-field">
+              <span class="mock-label">Cardholder</span>
+              <div class="mock-input">Rebecca Winter</div>
             </div>
-            <div class="terminal-tabs" role="tablist" aria-label="CLI preview platform">
-              <button type="button" role="tab" id="cli-tab-android" aria-selected="true">Android</button>
-              <button type="button" role="tab" id="cli-tab-ios" aria-selected="false">iOS</button>
+            <div class="mock-field">
+              <span class="mock-label">Card Number (sensitive: true)</span>
+              <div class="mock-redacted">
+                <span>████████ ████ ████ ████</span>
+                <span>PILLOW</span>
+              </div>
             </div>
+            <div class="mock-grid">
+              <div class="mock-field">
+                <span class="mock-label">Expires</span>
+                <div class="mock-input">03/25</div>
+              </div>
+              <div class="mock-field">
+                <span class="mock-label">CVV</span>
+                <div class="mock-redacted">
+                  <span>███</span>
+                  <span>MASKED</span>
+                </div>
+              </div>
+            </div>
+            <div class="mock-cta">Review Order</div>
+            <div class="stamp-passed"><span aria-hidden="true">✓</span> PASSED</div>
           </div>
-          <div role="tabpanel" id="cli-panel-android" aria-labelledby="cli-tab-android" tabindex="0">
-            <pre><code><span class="t-dim">$</span> qalprit doctor
+          <p class="exhibit-caption">Card no. &amp; CVV blacked out in memory before any screenshot touches disk.</p>
+        </aside>
+      </div>
+    </section>
+
+    <div class="ledger-strip" aria-label="QAlprit execution guarantees">
+      <div class="container ledger-items">
+        <span>Zero Runtime LLMs</span>
+        <span class="ledger-dot" aria-hidden="true">·</span>
+        <span>In-Memory Pillow Redaction</span>
+        <span class="ledger-dot" aria-hidden="true">·</span>
+        <span>Android &amp; iOS Deterministic Proof</span>
+        <span class="ledger-dot" aria-hidden="true">·</span>
+        <span>AI-Maintained Specs &amp; Locators</span>
+      </div>
+    </div>
+
+    <section id="evidence" class="section-band">
+      <div class="container">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">4 Exhibits on File</p>
+            <h2>The evidence.</h2>
+          </div>
+        </div>
+        <div class="exhibits-grid">
+          <article class="exhibit-card">
+            <header>
+              <span class="exhibit-num">Exhibit A</span>
+              <h3>100% Deterministic</h3>
+            </header>
+            <p>Same test, same steps, same result. Zero LLM guesswork during execution—every action compiles straight to Appium 2.</p>
+          </article>
+
+          <article class="exhibit-card featured">
+            <header>
+              <span class="exhibit-num">Exhibit B</span>
+              <h3>Secrets stay hidden</h3>
+            </header>
+            <p>Fields marked <code>secret: true</code> or <code>sensitive: true</code> are blacked out via Pillow in memory before saving any screenshot.</p>
+          </article>
+
+          <article class="exhibit-card">
+            <header>
+              <span class="exhibit-num">Exhibit C</span>
+              <h3>One shareable report</h3>
+            </header>
+            <p>Every run outputs a single self-contained <code>report.html</code>, PR-ready <code>summary.md</code>, failure XML, and full step evidence.</p>
+          </article>
+
+          <article class="exhibit-card">
+            <header>
+              <span class="exhibit-num">Exhibit D</span>
+              <h3>Written in Markdown</h3>
+            </header>
+            <p>Author tests cleanly in YAML front matter with 1-level reusable <code>flows/</code> and separate Android/iOS locators—no Python needed.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="procedure" class="section-band alt-band">
+      <div class="container">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Standard Procedure</p>
+            <h2>Four steps to a verdict.</h2>
+          </div>
+        </div>
+
+        <div class="steps-ledger">
+          <article class="verdict-step">
+            <span class="verdict-num" aria-hidden="true">01</span>
+            <h3>Write</h3>
+            <p>Describe journeys in plain Markdown specs or let your AI agent inspect live screens to map Android and iOS locators.</p>
+          </article>
+          <article class="verdict-step">
+            <span class="verdict-num" aria-hidden="true">02</span>
+            <h3>Validate</h3>
+            <p>Catch broken locator keys, nested flows, and missing <code>.env</code> secrets via <code>qalprit validate</code> before touching a device.</p>
+          </article>
+          <article class="verdict-step">
+            <span class="verdict-num" aria-hidden="true">03</span>
+            <h3>Run</h3>
+            <p>Execute against an Android Emulator, iOS Simulator, or real phone with auto-waits, keyboard handling, and guaranteed teardown.</p>
+          </article>
+          <article class="verdict-step">
+            <span class="verdict-num" aria-hidden="true">04</span>
+            <h3>Review</h3>
+            <p>Open the redacted HTML proof report, verify every step screenshot, and drop the Markdown verdict straight into your PR.</p>
+          </article>
+        </div>
+
+        <div class="quickstart-grid" style="margin-top: 32px;">
+          <article class="ai-prompt-card">
+            <p class="eyebrow">AI-Operated Workflow</p>
+            <h3>Let your AI agent run QAlprit</h3>
+            <p>
+              Do not debug XML dumps or manage CLI pipelines manually. Point Antigravity, Claude Code, Codex, Cursor, or Copilot at our agent instructions and your app binary:
+            </p>
+            <pre class="prompt-snippet">Follow docs/agent-instructions.md to run QAlprit against my app at apps/&lt;app&gt; on &lt;android|ios&gt;. Check tools, fix broken locators or keyboard issues without masking real bugs, and open my report.html.</pre>
+            <div class="prompt-actions">
+              <button type="button" class="copy-btn" data-copy="Follow docs/agent-instructions.md to run QAlprit against my app at apps/<app> on <android|ios>. Check tools, fix broken locators or keyboard issues without masking real bugs, and open my report.html.">Copy AI Prompt</button>
+              <a class="btn-secondary" href="https://github.com/vattitude-me/QAlprit/blob/main/docs/agent-instructions.md" target="_blank" rel="noopener">Read Agent Instructions</a>
+            </div>
+          </article>
+
+          <div class="terminal-card" aria-label="QAlprit CLI workflow preview">
+            <div class="terminal-bar">
+              <div class="terminal-bar-left">
+                <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+                <span class="terminal-title">qalprit-cli · zsh</span>
+              </div>
+              <div class="terminal-tabs" role="tablist" aria-label="CLI preview platform">
+                <button type="button" role="tab" id="cli-tab-android" aria-selected="true">Android</button>
+                <button type="button" role="tab" id="cli-tab-ios" aria-selected="false">iOS</button>
+              </div>
+            </div>
+            <div role="tabpanel" id="cli-panel-android" aria-labelledby="cli-tab-android" tabindex="0">
+              <pre><code><span class="t-dim">$</span> qalprit doctor
 <span class="t-ok">[ OK ]</span> Python                       3.11.15
-<span class="t-ok">[ OK ]</span> Appium                       v2.11.3
+<span class="t-ok">[ OK ]</span> Appium                       v3.9.0
 <span class="t-ok">[ OK ]</span> Appium driver: uiautomator2  Installed
 <span class="t-ok">[ OK ]</span> Android adb                  1.0.41
 
@@ -90,48 +231,52 @@ Validation PASSED: 5 spec(s), 3 flow(s), 0 warning(s).
 
 <span class="t-dim">$</span> qalprit run --platform android --device android_emulator \
     --app apps/mda-2.3.0-27.apk --env mda --suite mda
-Starting QAlprit run 20261113_135128_android_mda (5 spec(s))...
+Starting QAlprit run 20261113_183801_android_mda (5 spec(s))...
 <span class="t-ok">Run complete: 5 passed, 0 failed, 0 skipped, 0 flaky</span>
-Report HTML : results/20261113_135128_android_mda/report.html</code></pre>
-          </div>
-          <div role="tabpanel" id="cli-panel-ios" aria-labelledby="cli-tab-ios" hidden="until-found">
-            <pre><code><span class="t-dim">$</span> qalprit doctor
+Report HTML : results/20261113_183801_android_mda/report.html</code></pre>
+            </div>
+            <div role="tabpanel" id="cli-panel-ios" aria-labelledby="cli-tab-ios" hidden="until-found">
+              <pre><code><span class="t-dim">$</span> qalprit doctor
 <span class="t-ok">[ OK ]</span> Python                       3.11.15
-<span class="t-ok">[ OK ]</span> Appium                       v2.11.3
+<span class="t-ok">[ OK ]</span> Appium                       v3.9.0
 <span class="t-ok">[ OK ]</span> Appium driver: xcuitest      Installed
-<span class="t-ok">[ OK ]</span> Xcode                        27.2 (iOS 26.5 Simulator)
+<span class="t-ok">[ OK ]</span> Xcode / iOS Simulator        iPhone 17 (iOS 26.5)
 
 <span class="t-dim">$</span> qalprit validate --suite mda --env mda --platform ios
 Validation PASSED: 3 spec(s), 3 flow(s), 0 warning(s).
 
 <span class="t-dim">$</span> qalprit run --platform ios --device ios_simulator \
     --app "apps/My Demo App.app" --env mda --suite mda
-Starting QAlprit run 20261113_172847_ios_mda (3 spec(s))...
+Starting QAlprit run 20261113_183328_ios_mda (3 spec(s))...
 <span class="t-ok">Run complete: 3 passed, 0 failed, 0 skipped, 0 flaky</span>
-Report HTML : results/20261113_172847_ios_mda/report.html</code></pre>
+Report HTML : results/20261113_183328_ios_mda/report.html</code></pre>
+            </div>
           </div>
         </div>
       </div>
     </section>
 
-    <section class="pillars" aria-label="Core guarantees">
-      <div class="container pillar-grid">
-        <article class="pillar-card">
-          <h2>100% Deterministic</h2>
-          <p>Zero LLM API calls at runtime. Specs compile to Appium 2 actions with auto-wait readiness and explicit failure traces.</p>
-        </article>
-        <article class="pillar-card">
-          <h2>In-Memory Redaction</h2>
-          <p>Sensitive fields (`secret: true` or `sensitive: true`) are black-filled via Pillow in memory before any PNG touches disk.</p>
-        </article>
-        <article class="pillar-card">
-          <h2>Markdown + 1-Level Flows</h2>
-          <p>QA engineers write YAML front matter specs, reuse 1-level `flows/`, and map shared locators in `screens/screens.yaml`.</p>
-        </article>
-        <article class="pillar-card">
-          <h2>Proof-First Reports</h2>
-          <p>Every run emits a single self-contained `report.html`, `summary.md`, `results.json`, failure XML, and `appium.log`.</p>
-        </article>
+    <section class="record-band" aria-label="Latest results on record">
+      <div class="container">
+        <p class="eyebrow">Latest Results on Record</p>
+        <div class="record-grid">
+          <div class="record-stat">
+            <strong>5/5</strong>
+            <span>Android Specs Passed</span>
+          </div>
+          <div class="record-stat">
+            <strong>3/3</strong>
+            <span>iOS Specs Passed</span>
+          </div>
+          <div class="record-stat">
+            <strong>184</strong>
+            <span>Steps Checked (104 Android + 80 iOS)</span>
+          </div>
+          <div class="record-stat">
+            <strong>0</strong>
+            <span>Secrets Written to Screenshots</span>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -139,11 +284,11 @@ Report HTML : results/20261113_172847_ios_mda/report.html</code></pre>
       <div class="container">
         <div class="section-head">
           <div>
-            <p class="eyebrow">Interactive Evidence Demo</p>
+            <p class="eyebrow">Interactive Case Files</p>
             <h2>Live Proof Report Viewer</h2>
             <p class="section-desc">
-              Explore real sanitized QAlprit runs on Android and iOS Simulator. Switch platforms,
-              filter by outcome or tag, and click any screenshot to inspect in-memory Pillow secret redaction.
+              Explore sanitized QAlprit runs across Android and iOS Simulator. Switch platforms,
+              filter by outcome or tag, and inspect real Pillow-redacted screenshots.
             </p>
           </div>
           <div class="run-meta-pill">
@@ -204,7 +349,7 @@ Report HTML : results/20261113_172847_ios_mda/report.html</code></pre>
             <h2>Spec &amp; Locator Studio</h2>
             <p class="section-desc">
               No Python required to author tests. Inspect the exact YAML front matter, 1-level flow,
-              and sensitive locator configuration that power QAlprit.
+              and cross-platform locator overrides that drive QAlprit.
             </p>
           </div>
         </div>
@@ -339,6 +484,18 @@ mda_payment:
           <img src="architecture.svg" alt="Animated QAlprit architecture diagram: App Build, AI Authoring, Validate, Workflow Execution on Simulator/Real Device, Capture &amp; Mask, and Report &amp; Dashboard" />
           <figcaption>Figure 1: QAlprit architecture from mobile build artifact to masked proof report and dashboard.</figcaption>
         </figure>
+      </div>
+    </section>
+
+    <section class="closing-band alt-band" aria-label="Explore full sample case files">
+      <div class="container">
+        <p class="eyebrow">Verdict Delivered</p>
+        <h2>Case closed?<br />See for yourself.</h2>
+        <div class="cta-row">
+          <a class="btn-primary" href="sample-report.html">Android Report (5/5)</a>
+          <a class="btn-secondary" href="sample-report-ios.html">iOS Report (3/3)</a>
+          <a class="btn-secondary" href="https://github.com/vattitude-me/QAlprit/blob/main/docs/agent-instructions.md" target="_blank" rel="noopener">AI Agent Runbook</a>
+        </div>
       </div>
     </section>
   </main>
