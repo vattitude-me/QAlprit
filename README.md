@@ -121,13 +121,14 @@ See all 5 passing Android tests in the [Live Sample Report](https://qalprit.vatt
 
 ### Event Flow Diagram
 
-![QAlprit Event Flow Diagram](https://raw.githubusercontent.com/vattitude-me/QAlprit/main/docs/architecture.svg)
+![QAlprit Event Flow Diagram](https://raw.githubusercontent.com/vattitude-me/QAlprit/main/web/architecture.svg)
 
-1. **Write a Test**: Test steps live in `specs/*.md`, screen button names in `screens/screens.yaml`, and test passwords in `.env`.
-2. **Check Setup**: `qalprit validate` catches typos, missing screen names, or missing `.env` values in under a second.
-3. **Run Each Step**: `qalprit run` starts Appium 2, connects to Android or iOS, taps/types each step, and runs cleanup (`teardown`) even if a test fails.
-4. **Hide Secrets**: Before any screenshot is saved, Pillow black-fills `secret: true` inputs and `sensitive: true` screen fields right in memory.
-5. **Save Proof**: Generates `report.html`, `summary.md`, `results.json`, and redacted PNGs.
+1. **App Build**: Package the target mobile binary (`.apk`, `.app`, or `.ipa`).
+2. **AI Authoring**: Generate screen locators (`screens/screens.yaml`), reusable flows (`flows/*.yaml`), and test specs (`specs/*.md`).
+3. **Validate**: Review with human + `qalprit validate` to catch schema, locator, and `.env` issues before execution.
+4. **Workflow Execution**: Run each workflow deterministically via Appium 2 on a simulator/emulator or real USB device.
+5. **Capture & Mask**: Capture screen frames and mask sensitive fields/PII in memory before saving.
+6. **Report & Dashboard**: Generate `report.html`, `summary.md`, `results.json`, and explore runs in `qalprit ui`.
 
 ### CLI Reference
 

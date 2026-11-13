@@ -44,6 +44,6 @@ These project rules govern git workflow, versioning, PyPI publishing, website/Ve
 
 ## 5. Documentation, Privacy & Safety
 
-- **Concise Docs & Architecture Flow**: Keep `README.md` clear and accessible (prerequisites, install, run, output, and simple animated architecture flow). Keep `docs/architecture.svg` and `web/architecture.svg` synchronized when updating the diagram.
+- **Concise Docs & Architecture Flow**: Keep `README.md` clear and accessible (prerequisites, install, run, output, and simple animated architecture flow). Maintain a single canonical SVG at `web/architecture.svg` (served by Vercel and referenced via GitHub raw URL in `README.md`).
 - **Secrets & Ignored Artifacts**: Never commit `.env`, tokens/credentials, `.apk`/`.ipa` binaries (`apps/*`), raw test runs (`results/*`), `.agents/`, `PLAN.md`, `docs/PLAN.md`, `flows/hark/`, `specs/smoke/`, or unredacted screenshots.
 - **Destructive Actions**: Always ask the user for explicit confirmation before deleting files or directories. Use `tempfile.TemporaryDirectory()` for temporary build/report-generation links instead of creating files that require deletion.
