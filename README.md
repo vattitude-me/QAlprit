@@ -99,6 +99,36 @@ qalprit ui
 
 ---
 
+## Sample Output & End-to-End MDA Process
+
+Want to see what a real run produces before connecting a device? Explore the published sample run from the **Sauce Labs My Demo App** (`mda` suite, **5/5 passed** on Android 15):
+
+- **[Sample Proof Report Directory](examples/mda-sample-run/README.md)** — Contains [`summary.md`](examples/mda-sample-run/summary.md), sanitized [`results.json`](examples/mda-sample-run/results.json), and self-contained [`report.html`](examples/mda-sample-run/report.html) (download & open in any browser, or browse live at `/sample-report` on the Vercel site).
+
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="examples/mda-sample-run/previews/mda_02_locked_out.jpg" alt="MDA-002 locked out user with redacted password field" width="260" /><br />
+      <sub><strong>MDA-002</strong> — Password field black-filled in memory before save; locked-out banner verified.</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="examples/mda-sample-run/previews/mda_04_payment_redacted.jpg" alt="MDA-004 checkout payment form with card number and CVV redacted" width="260" /><br />
+      <sub><strong>MDA-004</strong> — Card Number &amp; Security Code (<code>sensitive: true</code>) black-filled in memory; cardholder &amp; expiry kept readable.</sub>
+    </td>
+  </tr>
+</table>
+
+### Step-by-Step Process for Any App Under Test
+
+1. **Install & Verify Tooling**: Run `pip install qalprit && qalprit doctor` to confirm Node, Appium 2 (`uiautomator2` / `xcuitest`), Java, and Android/iOS SDKs.
+2. **Add App Binary Locally**: Place your `.apk` or `.app`/`.ipa` inside `apps/` (ignored by git). For the sample suite, download `mda-2.3.0-27.apk` from [Sauce Labs My Demo App Android](https://github.com/saucelabs/my-demo-app-android/releases).
+3. **Configure Secrets (`config/env.example` -> `.env`)**: Copy `config/env.example` to `.env` so `${VAR}` credentials and `${TOTP:VAR}` secrets resolve at runtime without ever touching git or logs.
+4. **Inspect & Map Screens**: Run `qalprit inspect --platform android` against a live screen (or `--from-xml`) to populate `screens/screens.yaml` and mark PII/payment/password fields with `sensitive: true`.
+5. **Author Specs & Validate Offline**: Write Markdown specs under `specs/<suite>/` and shared 1-level flows under `flows/`, then run `qalprit validate --suite mda --env mda` to catch missing locators, params, or env vars in under a second.
+6. **Execute & Inspect Proof**: Run `qalprit run --platform android --device android_emulator --app apps/mda-2.3.0-27.apk --env mda --suite mda`, then review `results/<run-id>/report.html`, paste `summary.md` into PRs, or launch `qalprit ui`.
+
+---
+
 ## CLI Commands
 
 | Command | Purpose |
@@ -137,6 +167,8 @@ QAlprit/
 │   └── logo/
 │       ├── qalprit-logo.png        # Raster brand logo (1024x1024 PNG)
 │       └── qalprit-logo.svg        # Vector brand logo SVG
+├── examples/
+│   └── mda-sample-run/             # Published 5/5 Sauce Labs MDA sample report, JSON & previews
 ├── flows/                          # 1-level reusable Markdown flows
 ├── screens/
 │   └── screens.yaml                # Logical locators & sensitive: true redaction markers
