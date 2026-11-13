@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QAlprit Report — {{ run.run_id }}</title>
+  <style>
+    :root {
+      --bg: #f4f6f9;
+      --surface: #ffffff;
+      --surface-alt: #f8fafc;
+      --border: #e2e8f0;
+      --text: #0f172a;
+      --muted: #475569;
+      --header-bg: #0f172a;
+      --header-text: #f8fafc;
+      --pass: #15803d;
+      --pass-bg: #dcfce7;
+      --fail: #b91c1c;
+      --fail-bg: #fee2e2;
+      --skip: #475569;
+      --skip-bg: #e2e8f0;
+      --warn: #b45309;
+      --warn-bg: #fef3c7;
+      --accent: #2563eb;
+      --accent-bg: #dbeafe;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    header {
+      background: var(--header-bg);
+      color: var(--header-text);
+      padding: 24px 32px;
+      border-bottom: 1px solid #1e293b;
+    }
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      flex-wrap: wrap;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    h1 { margin: 0 0 6px; font-size: 22px; letter-spacing: -0.02em; }
+    .meta-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 20px;
+      font-size: 13px;
+      color: #cbd5e1;
+    }
+    .meta-grid span strong { color: #ffffff; font-weight: 600; }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px 20px 64px;
+    }
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .kpi {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+    }
+    .kpi-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .kpi-val { font-size: 26px; font-weight: 700; margin-top: 2px; }
+    .kpi-pass .kpi-val { color: var(--pass); }
+    .kpi-fail .kpi-val { color: var(--fail); }
+    .kpi-warn .kpi-val { color: var(--warn); }
+
+    .banner-warn {
+      background: var(--warn-bg);
+      border: 1px solid #fcd34d;
+      color: #78350f;
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin-bottom: 18px;
+      font-size: 14px;
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 18px;
+    }
+    .filter-group { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .btn-filter {
+      border: 1px solid var(--border);
+      background: var(--surface-alt);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 5px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-filter.active {
+      background: var(--text);
+      color: #ffffff;
+      border-color: var(--text);
+    }
+    .search-box {
+      padding: 6px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 13px;
+      min-width: 220px;
+    }
+
+    .test-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      margin-bottom: 14px;
+      overflow: hidden;
+    }
+    .test-summary {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 18px;
+      cursor: pointer;
+      list-style: none;
+      background: var(--surface);
+    }
+    .test-summary:hover { background: var(--surface-alt); }
+    .test-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .test-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; font-weight: 700; color: var(--muted); }
+    .test-title { font-weight: 600; font-size: 15px; }
+    .test-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 9px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .badge-passed { background: var(--pass-bg); color: var(--pass); }
+    .badge-failed { background: var(--fail-bg); color: var(--fail); }
+    .badge-skipped { background: var(--skip-bg); color: var(--skip); }
+    .badge-flaky { background: var(--warn-bg); color: var(--warn); }
+    .badge-webview { background: #fef3c7; color: #92400e; }
+    .badge-tag { background: var(--accent-bg); color: var(--accent); text-transform: none; font-weight: 600; }
+    .badge-flow { background: #ede9fe; color: #5b21b6; text-transform: none; }
+    .badge-redact { background: #0f172a; color: #f8fafc; text-transform: none; }
+
+    .test-body {
+      border-top: 1px solid var(--border);
+      padding: 16px 18px;
+      background: var(--surface-alt);
+    }
+    .test-info {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+    .error-box {
+      background: var(--fail-bg);
+      border: 1px solid #fca5a5;
+      color: #7f1d1d;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      margin-bottom: 12px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .section-label {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      margin: 14px 0 8px;
+    }
+    .step-list { display: flex; flex-direction: column; gap: 8px; }
+    .step-row {
+      display: grid;
+      grid-template-columns: 34px 1fr auto;
+      gap: 12px;
+      align-items: start;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+    .step-num {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      background: var(--skip-bg);
+      color: var(--text);
+    }
+    .step-num.passed { background: var(--pass-bg); color: var(--pass); }
+    .step-num.failed { background: var(--fail-bg); color: var(--fail); }
+    .step-desc { font-weight: 500; font-size: 14px; }
+    .step-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; font-size: 12px; color: var(--muted); }
+    .thumb {
+      width: 84px;
+      height: auto;
+      max-height: 140px;
+      object-fit: cover;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      cursor: zoom-in;
+      background: #0f172a;
+    }
+    pre.xml-box {
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      max-height: 220px;
+      overflow: auto;
+      margin-top: 8px;
+    }
+
+    dialog#lightbox {
+      border: none;
+      border-radius: 12px;
+      padding: 12px;
+      max-width: 92vw;
+      max-height: 92vh;
+      background: #0f172a;
+      color: #ffffff;
+    }
+    dialog#lightbox:modal { overscroll-behavior: contain; }
+    dialog#lightbox::backdrop {
+      background: rgba(15, 23, 42, 0.8);
+      overflow: hidden;
+      overscroll-behavior: contain;
+    }
+    dialog#lightbox img { max-width: 86vw; max-height: 78vh; display: block; border-radius: 6px; }
+    .lb-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 8px; font-size: 13px; }
+    .lb-close { background: #334155; color: #fff; border: none; border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+    .brand-sub { font-size: 13px; color: #94a3b8; margin: 0 0 10px; }
+    .brand-header { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; }
+    .brand-header h1 { margin: 0 0 2px; }
+    .brand-header .brand-sub { margin: 0; }
+    .brand-badge { width: 46px; height: 46px; border-radius: 12px; background: #ffffff; flex-shrink: 0; display: block; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-top">
+      <div>
+        <div class="brand-header">
+          <svg class="brand-badge" viewBox="158 21 272 272" width="46" height="46" aria-hidden="true">
+            <rect x="158" y="21" width="272" height="272" rx="56" fill="#FFFFFF"/>
+            <rect x="196" y="36" width="120" height="214" rx="26" fill="#1B1464"/>
+            <rect x="206" y="52" width="100" height="182" rx="14" fill="#5B3DF5"/>
+            <circle cx="224" cy="78" r="9" fill="#00C2FF"/>
+            <rect x="240" y="73" width="48" height="10" rx="5" fill="#A99BFF"/>
+            <rect x="216" y="104" width="80" height="10" rx="5" fill="#A99BFF"/>
+            <line x1="334" y1="214" x2="384" y2="264" stroke="#FF9F1C" stroke-width="22" stroke-linecap="round"/>
+            <circle cx="290" cy="170" r="62" fill="#FFF1A8" stroke="#00C2FF" stroke-width="14"/>
+            <path d="M250 152 A44 44 0 0 1 272 126" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round"/>
+            <g stroke="#FF3D71" stroke-width="4" stroke-linecap="round" fill="none">
+              <path d="M277 172 L262 163"/><path d="M276 180 L259 180"/><path d="M277 189 L262 199"/>
+              <path d="M303 172 L318 163"/><path d="M304 180 L321 180"/><path d="M303 189 L318 199"/>
+              <path d="M286 147 L279 134"/><path d="M294 147 L301 134"/>
+            </g>
+            <ellipse cx="290" cy="180" rx="15" ry="19" fill="#FF3D71"/>
+            <circle cx="290" cy="155" r="9" fill="#FF3D71"/>
+            <rect x="288.5" y="162" width="3" height="34" rx="1.5" fill="#FFF1A8"/>
+          </svg>
+          <div>
+            <h1>QAlprit Mobile Test Report</h1>
+            <p class="brand-sub">Mobile QA. Bugs caught with proof.</p>
+          </div>
+        </div>
+        <div class="meta-grid">
+          <span>Run ID: <strong>{{ run.run_id }}</strong></span>
+          <span>Environment: <strong>{{ run.environment }}</strong></span>
+          <span>Platform: <strong>{{ run.platform }}</strong> ({{ run.device_name }}{% if run.os_version %} · OS {{ run.os_version }}{% endif %}, {{ run.target_type }})</span>
+          <span>Suite: <strong>{{ run.suite }}</strong></span>
+          <span>Started: <strong>{{ run.started_at }}</strong></span>
+          <span>Tool: <strong>qalprit v{{ run.tool_version }}</strong></span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="kpi-grid">
+      <div class="kpi"><div class="kpi-label">Pass Rate</div><div class="kpi-val">{{ pass_rate }}</div></div>
+      <div class="kpi"><div class="kpi-label">Total</div><div class="kpi-val">{{ summary.total }}</div></div>
+      <div class="kpi kpi-pass"><div class="kpi-label">Passed</div><div class="kpi-val">{{ summary.passed }}</div></div>
+      <div class="kpi kpi-fail"><div class="kpi-label">Failed</div><div class="kpi-val">{{ summary.failed }}</div></div>
+      <div class="kpi"><div class="kpi-label">Skipped</div><div class="kpi-val">{{ summary.skipped }}</div></div>
+      <div class="kpi kpi-warn"><div class="kpi-label">Flaky</div><div class="kpi-val">{{ summary.flaky }}</div></div>
+      <div class="kpi"><div class="kpi-label">Duration</div><div class="kpi-val">{{ total_duration_fmt }}</div></div>
+    </section>
+
+    {% if summary.webview_tests > 0 %}
+    <div class="banner-warn">
+      <strong>WebView Discovery Notice (C8):</strong>
+      {{ summary.webview_tests }} test(s) encountered embedded WebView elements during execution.
+      v1 targets pure-native screens; review flagged tests before expanding scope.
+    </div>
+    {% endif %}
+
+    <section class="toolbar">
+      <div class="filter-group" id="statusFilters">
+        <button class="btn-filter active" data-status="all">All ({{ summary.total }})</button>
+        <button class="btn-filter" data-status="passed">Passed ({{ summary.passed }})</button>
+        <button class="btn-filter" data-status="failed">Failed ({{ summary.failed }})</button>
+        <button class="btn-filter" data-status="skipped">Skipped ({{ summary.skipped }})</button>
+        {% if summary.flaky > 0 %}
+        <button class="btn-filter" data-status="flaky">Flaky ({{ summary.flaky }})</button>
+        {% endif %}
+      </div>
+      <div class="filter-group">
+        {% if all_tags %}
+        <select id="tagFilter" class="search-box" style="min-width:140px;">
+          <option value="all">All tags</option>
+          {% for tag in all_tags %}
+          <option value="{{ tag }}">{{ tag }}</option>
+          {% endfor %}
+        </select>
+        {% endif %}
+        <input id="searchBox" class="search-box" type="search" placeholder="Search test ID or title..." />
+        <button class="btn-filter" id="toggleAllBtn" type="button">Expand All</button>
+      </div>
+    </section>
+
+    <section id="testsContainer">
+      {% for test in tests %}
+      <details class="test-card"
+        data-status="{{ test.status }}"
+        data-flaky="{{ 'true' if test.flaky else 'false' }}"
+        data-tags="{{ test.tags | join(',') }}"
+        data-search="{{ (test.id + ' ' + test.title) | lower }}"
+        {% if test.status == 'failed' %}open{% endif %}>
+        <summary class="test-summary">
+          <div class="test-left">
+            <span class="badge badge-{{ test.status }}">{{ test.status }}</span>
+            <span class="test-id">{{ test.id }}</span>
+            <span class="test-title">{{ test.title }}</span>
+            {% if test.flaky %}<span class="badge badge-flaky">Flaky ({{ test.attempt_count }} attempts)</span>{% endif %}
+            {% if test.webview_detected %}<span class="badge badge-webview">WebView</span>{% endif %}
+            {% for tag in test.tags %}<span class="badge badge-tag">{{ tag }}</span>{% endfor %}
+          </div>
+          <div class="test-right">
+            <span>{{ test.duration_fmt }}</span>
+          </div>
+        </summary>
+        <div class="test-body">
+          {% if test.expected %}
+          <div class="test-info"><strong>Expected:</strong> {{ test.expected }}</div>
+          {% endif %}
+          {% if test.skip_reason %}
+          <div class="test-info"><strong>Skip reason:</strong> {{ test.skip_reason }}</div>
+          {% endif %}
+          {% if test.failure_reason %}
+          <div class="error-box"><strong>Failure:</strong> {{ test.failure_reason }}</div>
+          {% endif %}
+
+          {% if test.main_steps %}
+          <div class="section-label">Steps ({{ test.main_steps | length }})</div>
+          <div class="step-list">
+            {% for step in test.main_steps %}
+            <div class="step-row">
+              <div class="step-num {{ step.status }}">{{ step.index }}</div>
+              <div>
+                <div class="step-desc">{{ step.description }}</div>
+                <div class="step-meta">
+                  <span>{{ step.action }}</span>
+                  <span>· {{ step.duration_fmt }}</span>
+                  {% if step.flow_name %}<span class="badge badge-flow">flow: {{ step.flow_name }}</span>{% endif %}
+                  {% if step.redacted_count > 0 %}<span class="badge badge-redact">Redacted {{ step.redacted_count }}</span>{% endif %}
+                  {% if step.webview_detected %}<span class="badge badge-webview">WebView</span>{% endif %}
+                </div>
+                {% if step.error %}
+                <div class="error-box" style="margin-top:8px; margin-bottom:0;">{{ step.error }}</div>
+                {% endif %}
+                {% if step.page_source_preview %}
+                <details style="margin-top:6px;">
+                  <summary style="font-size:12px; color:var(--accent); cursor:pointer;">Page Source ({{ step.page_source_path }})</summary>
+                  <pre class="xml-box">{{ step.page_source_preview }}</pre>
+                </details>
+                {% endif %}
+              </div>
+              <div>
+                {% if step.image_src %}
+                <img class="thumb" src="{{ step.image_src }}" alt="Step {{ step.index }} screenshot"
+                     data-caption="{{ test.id }} · Step {{ step.index }}: {{ step.description }}" />
+                {% endif %}
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+
+          {% if test.teardown_steps %}
+          <div class="section-label">Teardown ({{ test.teardown_steps | length }})</div>
+          <div class="step-list">
+            {% for step in test.teardown_steps %}
+            <div class="step-row">
+              <div class="step-num {{ step.status }}">{{ step.index }}</div>
+              <div>
+                <div class="step-desc">{{ step.description }}</div>
+                <div class="step-meta">
+                  <span>{{ step.action }}</span>
+                  <span>· {{ step.duration_fmt }}</span>
+                  {% if step.redacted_count > 0 %}<span class="badge badge-redact">Redacted {{ step.redacted_count }}</span>{% endif %}
+                </div>
+                {% if step.error %}
+                <div class="error-box" style="margin-top:8px; margin-bottom:0;">{{ step.error }}</div>
+                {% endif %}
+              </div>
+              <div>
+                {% if step.image_src %}
+                <img class="thumb" src="{{ step.image_src }}" alt="Teardown step {{ step.index }} screenshot"
+                     data-caption="{{ test.id }} · Teardown {{ step.index }}: {{ step.description }}" />
+                {% endif %}
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+      </details>
+      {% endfor %}
+    </section>
+  </main>
+
+  <dialog id="lightbox" closedby="any" aria-labelledby="lbCaption">
+    <img id="lbImg" src="" alt="Screenshot preview" />
+    <div class="lb-bar">
+      <span id="lbCaption"></span>
+      <button class="lb-close" id="lbClose" type="button" autofocus>Close</button>
+    </div>
+  </dialog>
+
+  <script>
+    (function() {
+      let activeStatus = "all";
+      const cards = Array.from(document.querySelectorAll(".test-card"));
+      const tagSel = document.getElementById("tagFilter");
+      const searchBox = document.getElementById("searchBox");
+      const toggleAllBtn = document.getElementById("toggleAllBtn");
+      let expandedAll = false;
+
+      function applyFilters() {
+        const tagVal = tagSel ? tagSel.value : "all";
+        const q = (searchBox ? searchBox.value : "").trim().toLowerCase();
+        cards.forEach(card => {
+          const st = card.dataset.status;
+          const isFlaky = card.dataset.flaky === "true";
+          const tags = card.dataset.tags ? card.dataset.tags.split(",") : [];
+          const hay = card.dataset.search || "";
+          const matchStatus = activeStatus === "all" || (activeStatus === "flaky" ? isFlaky : st === activeStatus);
+          const matchTag = tagVal === "all" || tags.includes(tagVal);
+          const matchQuery = !q || hay.includes(q);
+          card.style.display = (matchStatus && matchTag && matchQuery) ? "" : "none";
+        });
+      }
+
+      document.querySelectorAll("#statusFilters .btn-filter").forEach(btn => {
+        btn.addEventListener("click", () => {
+          document.querySelectorAll("#statusFilters .btn-filter").forEach(b => b.classList.remove("active"));
+          btn.classList.add("active");
+          activeStatus = btn.dataset.status;
+          applyFilters();
+        });
+      });
+      if (tagSel) tagSel.addEventListener("change", applyFilters);
+      if (searchBox) searchBox.addEventListener("input", applyFilters);
+      if (toggleAllBtn) {
+        toggleAllBtn.addEventListener("click", () => {
+          expandedAll = !expandedAll;
+          cards.forEach(c => { if (c.style.display !== "none") c.open = expandedAll; });
+          toggleAllBtn.textContent = expandedAll ? "Collapse All" : "Expand All";
+        });
+      }
+
+      const lb = document.getElementById("lightbox");
+      const lbImg = document.getElementById("lbImg");
+      const lbCap = document.getElementById("lbCaption");
+      document.querySelectorAll("img.thumb").forEach(img => {
+        img.addEventListener("click", () => {
+          lbImg.src = img.src;
+          lbCap.textContent = img.dataset.caption || "";
+          lb.showModal();
+        });
+      });
+      document.getElementById("lbClose").addEventListener("click", () => lb.close());
+      if (!("closedBy" in HTMLDialogElement.prototype)) {
+        const outside = (e) => {
+          const r = lb.getBoundingClientRect();
+          return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+        };
+        let pressedOutside = false;
+        lb.addEventListener("pointerdown", (e) => { pressedOutside = outside(e); });
+        lb.addEventListener("pointerup", (e) => { if (pressedOutside && outside(e)) lb.close(); });
+      }
+    })();
+  </script>
+</body>
+</html>

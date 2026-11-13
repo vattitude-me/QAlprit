@@ -1,0 +1,32 @@
+profiles:
+  android_emulator:
+    platform: android
+    target_type: simulator
+    device_name: Android Emulator
+    avd: Pixel_8_API_35
+    automation_name: UiAutomator2
+    auto_accept_alerts: true
+    capabilities:
+      appWaitActivity: "*"
+
+  android_device:
+    platform: android
+    target_type: device
+    device_name: Android Device
+    automation_name: UiAutomator2
+    auto_accept_alerts: true
+
+  ios_simulator:
+    platform: ios
+    target_type: simulator
+    device_name: iPhone 16
+    platform_version: "18.0"
+    automation_name: XCUITest
+    auto_accept_alerts: true
+
+  ios_device:
+    platform: ios
+    target_type: device
+    device_name: iPhone Device
+    automation_name: XCUITest
+    auto_accept_alerts: true

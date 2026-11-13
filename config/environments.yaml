@@ -1,0 +1,19 @@
+environments:
+  qa:
+    android_package: com.example.qalprit.qa
+    ios_bundle_id: com.example.qalprit.qa
+    default_timeout: 12
+    variables:
+      ENV_LABEL: QA
+  mda:
+    android_package: com.saucelabs.mydemoapp.android
+    ios_bundle_id: com.saucelabs.mydemoapp.ios
+    default_timeout: 12
+    variables:
+      ENV_LABEL: DEMO
+  staging:
+    android_package: com.example.qalprit.staging
+    ios_bundle_id: com.example.qalprit.staging
+    default_timeout: 15
+    variables:
+      ENV_LABEL: STAGING
