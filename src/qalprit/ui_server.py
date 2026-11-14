@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import mimetypes
+from dataclasses import asdict
 from functools import partial
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -13,8 +15,23 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 from qalprit import __version__
 from qalprit.config_loader import load_screens
+from qalprit.devices import list_android_devices, list_ios_simulators
+from qalprit.doctor import run_doctor
 from qalprit.results import load_results_json
-from qalprit.spec_loader import load_flows, load_specs
+from qalprit.spec_loader import STEP_VOCABULARY, load_flows, load_specs
+from qalprit.workbench_api import (
+    RunJobManager,
+    inspect_live_screen,
+    inspect_xml_payload,
+    list_workspace_apps,
+    list_workspace_configs,
+    run_workspace_validation,
+    save_environment_entry,
+    save_flow_spec,
+    save_screen_locators,
+    save_test_journey,
+    save_uploaded_app,
+)
 
 _UI_DIR = Path(__file__).parent / "ui"
 _UI_HTML_PATH = _UI_DIR / "index.html"
@@ -104,11 +121,18 @@ def collect_workspace_overview(
         except Exception:
             pass
 
+    apps = list_workspace_apps(root)
+    environments, device_profiles = list_workspace_configs(root)
+
     return {
         "tool": "QAlprit",
         "version": __version__,
         "tagline": "Mobile QA. Bugs caught with proof.",
         "project_root": str(root),
+        "apps": apps,
+        "environments": environments,
+        "device_profiles": device_profiles,
+        "step_vocabulary": sorted(STEP_VOCABULARY),
         "runs": runs,
         "corrupt_runs": corrupt_runs,
         "specs": [
@@ -134,6 +158,7 @@ def collect_workspace_overview(
                 "name": f.name,
                 "params": f.params,
                 "step_count": len(f.steps),
+                "steps": [st.model_dump() for st in f.steps],
                 "source_path": f.source_path.relative_to(root).as_posix()
                 if f.source_path.is_relative_to(root)
                 else str(f.source_path),
@@ -227,16 +252,21 @@ def compare_runs(results_dir: Path, base_run_id: str, target_run_id: str) -> dic
     }
 
 
+_MAX_HTTP_UPLOAD_BYTES = 310 * 1024 * 1024
+
+
 class _WorkbenchHandler(BaseHTTPRequestHandler):
     def __init__(
         self,
         *args: Any,
         project_root: Path,
         results_dir: Path,
+        job_manager: RunJobManager | None = None,
         **kwargs: Any,
     ) -> None:
         self.project_root = project_root.resolve()
         self.results_dir = results_dir.resolve()
+        self.job_manager = job_manager or RunJobManager()
         super().__init__(*args, **kwargs)
 
     def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
@@ -249,6 +279,37 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)
+
+    def _send_json(self, payload: Any, status: int = HTTPStatus.OK) -> None:
+        self._send_bytes(
+            json.dumps(payload, indent=2).encode("utf-8"),
+            "application/json; charset=utf-8",
+            status=status,
+        )
+
+    def _read_raw_body(self, max_bytes: int = 8 * 1024 * 1024) -> bytes:
+        raw_len = self.headers.get("Content-Length") or "0"
+        try:
+            length = int(raw_len)
+        except ValueError as exc:
+            raise ValueError("Invalid Content-Length header.") from exc
+        if length < 0:
+            raise ValueError("Negative Content-Length header.")
+        if length > max_bytes:
+            raise ValueError(f"Request body exceeds {max_bytes // (1024 * 1024)} MB limit.")
+        return self.rfile.read(length) if length > 0 else b""
+
+    def _read_json_body(self, max_bytes: int = 8 * 1024 * 1024) -> dict[str, Any]:
+        raw = self._read_raw_body(max_bytes=max_bytes)
+        if not raw:
+            return {}
+        try:
+            data = json.loads(raw.decode("utf-8"))
+        except Exception as exc:
+            raise ValueError(f"Invalid JSON request body: {exc}") from exc
+        if not isinstance(data, dict):
+            raise ValueError("JSON payload must be an object.")
+        return data
 
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
@@ -270,10 +331,29 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
 
         if req_path == "/api/overview":
             payload = collect_workspace_overview(self.project_root, self.results_dir)
-            self._send_bytes(
-                json.dumps(payload, indent=2).encode("utf-8"),
-                "application/json; charset=utf-8",
+            self._send_json(payload)
+            return
+
+        if req_path == "/api/doctor":
+            checks = [asdict(item) for item in run_doctor()]
+            self._send_json({"checks": checks})
+            return
+
+        if req_path == "/api/devices":
+            android_devs, android_err = list_android_devices()
+            ios_devs, ios_err = list_ios_simulators()
+            self._send_json(
+                {
+                    "android": [asdict(d) for d in android_devs],
+                    "android_error": android_err,
+                    "ios": [asdict(d) for d in ios_devs],
+                    "ios_error": ios_err,
+                }
             )
+            return
+
+        if req_path == "/api/runs/status":
+            self._send_json(self.job_manager.status())
             return
 
         if req_path == "/api/compare":
@@ -320,6 +400,118 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
 
         self._send_bytes(b"Not found", "text/plain; charset=utf-8", HTTPStatus.NOT_FOUND)
 
+    def do_POST(self) -> None:  # noqa: N802
+        parsed = urlparse(self.path)
+        req_path = unquote(parsed.path)
+        try:
+            if req_path == "/api/apps/upload":
+                ctype = (self.headers.get("Content-Type") or "").lower()
+                if "application/json" in ctype:
+                    body = self._read_json_body(max_bytes=_MAX_HTTP_UPLOAD_BYTES)
+                    filename = str(body.get("filename") or "")
+                    b64_raw = str(body.get("content_b64") or "")
+                    if "," in b64_raw and b64_raw.startswith("data:"):
+                        b64_raw = b64_raw.split(",", 1)[1]
+                    try:
+                        raw_bytes = base64.b64decode(b64_raw, validate=True)
+                    except Exception as exc:
+                        raise ValueError("Invalid base64 payload for uploaded app.") from exc
+                else:
+                    qs = parse_qs(parsed.query)
+                    filename = (qs.get("filename") or [self.headers.get("X-Filename") or ""])[0]
+                    raw_bytes = self._read_raw_body(max_bytes=_MAX_HTTP_UPLOAD_BYTES)
+                self._send_json(save_uploaded_app(self.project_root, filename, raw_bytes))
+                return
+
+            body = self._read_json_body()
+            if req_path == "/api/environments/save":
+                self._send_json(
+                    save_environment_entry(
+                        self.project_root,
+                        env_name=str(body.get("env_name") or "qa"),
+                        android_package=str(body.get("android_package") or ""),
+                        ios_bundle_id=str(body.get("ios_bundle_id") or ""),
+                        default_timeout=float(body.get("default_timeout") or 12.0),
+                    )
+                )
+                return
+
+            if req_path == "/api/inspect/xml":
+                self._send_json(
+                    inspect_xml_payload(
+                        self.project_root,
+                        xml_text=str(body.get("xml_text") or ""),
+                        platform=str(body.get("platform") or "android"),
+                        screen_name=str(body.get("screen_name") or "screen"),
+                    )
+                )
+                return
+
+            if req_path == "/api/inspect/live":
+                self._send_json(
+                    inspect_live_screen(
+                        self.project_root,
+                        platform=str(body.get("platform") or "android"),
+                        device_profile=str(body.get("device_profile") or "android_emulator"),
+                        env_name=str(body.get("env_name") or "qa"),
+                        app_path_str=str(body.get("app_path") or ""),
+                        screen_name=str(body.get("screen_name") or "screen"),
+                        wait_seconds=float(body.get("wait_seconds") or 2.0),
+                    )
+                )
+                return
+
+            if req_path == "/api/screens/save":
+                self._send_json(
+                    save_screen_locators(
+                        self.project_root,
+                        screen_name=str(body.get("screen_name") or "screen"),
+                        platform=str(body.get("platform") or "android"),
+                        entries=list(body.get("entries") or []),
+                    )
+                )
+                return
+
+            if req_path == "/api/flows/save":
+                self._send_json(
+                    save_flow_spec(
+                        self.project_root,
+                        name=str(body.get("name") or ""),
+                        params=list(body.get("params") or []),
+                        steps=list(body.get("steps") or []),
+                        notes=str(body.get("notes") or ""),
+                    )
+                )
+                return
+
+            if req_path == "/api/specs/save":
+                self._send_json(save_test_journey(self.project_root, body))
+                return
+
+            if req_path == "/api/validate":
+                self._send_json(
+                    run_workspace_validation(
+                        self.project_root,
+                        suite=str(body.get("suite") or "") or None,
+                        env_name=str(body.get("env_name") or "") or None,
+                        platform=str(body.get("platform") or "") or None,
+                        app_path_str=str(body.get("app_path") or ""),
+                    )
+                )
+                return
+
+            if req_path == "/api/runs/start":
+                self._send_json(self.job_manager.start(self.project_root, self.results_dir, body))
+                return
+
+            self._send_json({"error": f"Unknown API endpoint: {req_path}"}, status=HTTPStatus.NOT_FOUND)
+        except ValueError as exc:
+            self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+        except RuntimeError as exc:
+            self._send_json({"error": str(exc)}, status=HTTPStatus.CONFLICT)
+        except Exception as exc:
+            self._send_json({"error": str(exc)}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
+
 
 def create_ui_server(
     project_root: Path,
@@ -330,7 +522,8 @@ def create_ui_server(
     """Create a bound ThreadingHTTPServer for the local QAlprit workbench UI."""
     root = project_root.resolve()
     res_dir = (results_dir or (root / "results")).resolve()
-    handler = partial(_WorkbenchHandler, project_root=root, results_dir=res_dir)
+    job_manager = RunJobManager()
+    handler = partial(_WorkbenchHandler, project_root=root, results_dir=res_dir, job_manager=job_manager)
     try:
         return ThreadingHTTPServer((host, port), handler)
     except OSError:

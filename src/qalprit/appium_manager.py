@@ -14,7 +14,13 @@ import urllib.request
 from pathlib import Path
 from typing import IO
 
-from qalprit.doctor import find_android_sdk, find_java_bin
+from qalprit.doctor import (
+    find_android_sdk,
+    find_appium_entry,
+    find_appium_home,
+    find_java_bin,
+    find_node_bin,
+)
 from qalprit.env_loader import SecretMasker
 
 
@@ -53,9 +59,18 @@ def check_appium_status(appium_url: str, timeout: float = 2.0) -> bool:
 
 
 def build_appium_env(base_env: dict[str, str] | None = None) -> dict[str, str]:
-    """Build subprocess environment with ANDROID_HOME and JAVA_HOME auto-detected."""
+    """Build subprocess environment with ANDROID_HOME, JAVA_HOME, Node, and APPIUM_HOME auto-detected."""
     env = dict(os.environ if base_env is None else base_env)
     extra_path_dirs: list[str] = []
+
+    node_bin = find_node_bin()
+    if node_bin:
+        node_dir = str(Path(node_bin).resolve().parent)
+        extra_path_dirs.append(node_dir)
+
+    appium_home = find_appium_home()
+    if appium_home is not None:
+        env.setdefault("APPIUM_HOME", str(appium_home))
 
     sdk = find_android_sdk()
     if sdk is not None:
@@ -82,15 +97,12 @@ def build_appium_env(base_env: dict[str, str] | None = None) -> dict[str, str]:
 
 
 def resolve_appium_command() -> list[str]:
-    """Locate Appium 2 binary across macOS and Windows."""
-    appium_bin = shutil.which("appium")
-    if appium_bin:
-        return [appium_bin]
-    npx_bin = shutil.which("npx")
-    if npx_bin:
-        return [npx_bin, "--no-install", "appium"]
+    """Locate Appium 2 executable across bundled runtime, macOS, and Windows."""
+    cmd, _ = find_appium_entry()
+    if cmd:
+        return cmd
     raise FileNotFoundError(
-        "Appium 2 executable not found on PATH. Install with `npm install -g appium` "
+        "Appium 2 executable not found on PATH or bundled runtime. Install with `npm install -g appium` "
         "and run `qalprit doctor`."
     )
 

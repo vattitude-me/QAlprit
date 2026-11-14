@@ -1,349 +1,1803 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
+  <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="color-scheme" content="light dark" />
-  <title>QAlprit Workbench — Mobile QA. Bugs caught with proof.</title>
+  <title>QAlprit Workbench</title>
   <link rel="icon" type="image/svg+xml" href="/qalprit-icon.svg" />
   <style>
     :root {
       color-scheme: light dark;
-      --bg: #f4f6f9;
+      --bg: #f3f6f9;
       --surface: #ffffff;
-      --surface-alt: #f8fafc;
-      --border: #cbd5e1;
+      --surface-alt: #eef3f7;
+      --border: #d5e0ea;
       --text: #0f172a;
       --muted: #475569;
       --accent: #0f766e;
-      --accent-ink: #ffffff;
+      --accent-hover: #0d9488;
+      --accent-soft: #ccfbf1;
+      --accent-ink: #115e59;
       --pass: #15803d;
       --pass-bg: #dcfce7;
       --fail: #b91c1c;
       --fail-bg: #fee2e2;
       --warn: #b45309;
       --warn-bg: #fef3c7;
-      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+      --shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+      --mono: ui-monospace, 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+      --sans: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     }
+
     @media (prefers-color-scheme: dark) {
       :root {
-        --bg: #0b1120;
+        --bg: #090e1a;
         --surface: #111827;
-        --surface-alt: #1e293b;
-        --border: #334155;
+        --surface-alt: #182235;
+        --border: #263449;
         --text: #f1f5f9;
         --muted: #94a3b8;
         --accent: #2dd4bf;
-        --accent-ink: #042f2e;
+        --accent-hover: #5eead4;
+        --accent-soft: rgba(45, 212, 191, 0.14);
+        --accent-ink: #5eead4;
         --pass: #4ade80;
-        --pass-bg: #052e16;
+        --pass-bg: rgba(74, 222, 128, 0.14);
         --fail: #f87171;
-        --fail-bg: #450a0a;
+        --fail-bg: rgba(248, 113, 113, 0.14);
         --warn: #fbbf24;
-        --warn-bg: #451a03;
+        --warn-bg: rgba(251, 191, 36, 0.14);
+        --shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
       }
     }
+
     * { box-sizing: border-box; }
-    body { margin: 0; font-family: var(--sans); background: var(--bg); color: var(--text); line-height: 1.5; }
-    header { background: #0f172a; color: #f8fafc; padding: 20px 28px; border-bottom: 1px solid #1e293b; }
-    .wrap { max-width: 1200px; margin: 0 auto; }
-    .head-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 14px; }
-    .brand-row { display: flex; align-items: center; gap: 12px; }
-    .brand-icon { width: 42px; height: 42px; border-radius: 10px; background: #ffffff; border: 1px solid #334155; flex-shrink: 0; }
-    h1 { margin: 0; font-size: 22px; letter-spacing: -0.02em; }
-    .tagline { margin: 2px 0 0; font-size: 13px; color: #94a3b8; }
-    .pill { font-family: var(--mono); font-size: 12px; padding: 4px 10px; border-radius: 999px; background: #1e293b; color: #38bdf8; border: 1px solid #334155; }
-    main { padding: 24px 28px 60px; }
-    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 20px; }
-    .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
-    .stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
-    .stat-val { font-size: 26px; font-weight: 700; margin-top: 2px; }
-    .tablist { display: flex; gap: 6px; border-bottom: 1px solid var(--border); margin-bottom: 18px; overflow-x: auto; }
-    .tablist [role="tab"] {
-      position: relative; border: none; background: transparent; color: var(--muted);
-      padding: 10px 16px; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap;
+    body {
+      margin: 0;
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
     }
-    .tablist [role="tab"][aria-selected="true"] { color: var(--text); }
-    .tablist [role="tab"][aria-selected="true"]::after {
-      content: ""; position: absolute; inset: auto 0 0; border-block-end: 3px solid var(--accent);
+
+    header.topbar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 20;
     }
-    :where(a, button):focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
-    .grid { display: grid; gap: 12px; }
-    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; }
-    .run-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
-    .mono { font-family: var(--mono); font-size: 12.5px; }
-    .badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
-    .badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; }
-    .b-pass { background: var(--pass-bg); color: var(--pass); }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand-icon { width: 34px; height: 34px; flex-shrink: 0; }
+    .brand h1 { margin: 0; font-size: 1.15rem; font-weight: 700; letter-spacing: -0.01em; }
+    .brand p { margin: 0; font-size: 0.82rem; color: var(--muted); }
+    .meta-pills { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .pill strong { color: var(--text); }
+
+    .stepper-wrap {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 24px 0;
+    }
+    .stepper {
+      max-width: 1260px;
+      margin: 0 auto;
+      padding: 0;
+      list-style: none;
+      display: grid;
+      grid-template-columns: repeat(5, minmax(150px, 1fr));
+      gap: 8px;
+      overflow-x: auto;
+    }
+    .step-btn {
+      width: 100%;
+      background: transparent;
+      border: none;
+      border-bottom: 3px solid transparent;
+      padding: 10px 10px 12px;
+      text-align: left;
+      cursor: pointer;
+      color: var(--muted);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      border-radius: 8px 8px 0 0;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .step-btn:hover { background: var(--surface-alt); color: var(--text); }
+    .step-btn[aria-current="step"] {
+      color: var(--text);
+      background: var(--surface-alt);
+      border-bottom: 3px solid var(--accent);
+    }
+    .step-kicker {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .step-btn[aria-current="step"] .step-kicker { color: var(--accent-ink); }
+    .step-badge {
+      padding: 1px 7px;
+      border-radius: 999px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: var(--muted);
+    }
+    .step-title { font-size: 0.92rem; font-weight: 700; }
+    .step-sub { font-size: 0.75rem; color: var(--muted); }
+
+    main {
+      max-width: 1260px;
+      margin: 22px auto 44px;
+      padding: 0 20px;
+      display: grid;
+      gap: 18px;
+    }
+
+    .wizard-step[hidden] { display: none !important; }
+
+    .step-header {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--accent);
+      border-radius: 10px;
+      padding: 18px 20px;
+      box-shadow: var(--shadow);
+      margin-bottom: 16px;
+    }
+    .step-header h2 {
+      margin: 0 0 6px;
+      font-size: 1.25rem;
+      outline: none;
+    }
+    .step-header p { margin: 0; color: var(--muted); font-size: 0.92rem; }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 18px 20px;
+      box-shadow: var(--shadow);
+      margin-bottom: 16px;
+    }
+    .card h3 {
+      margin: 0 0 6px;
+      font-size: 1rem;
+      font-weight: 700;
+    }
+    .card-help {
+      margin: 0 0 14px;
+      font-size: 0.84rem;
+      color: var(--muted);
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .field label {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .field .hint {
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    input[type="text"],
+    input[type="number"],
+    input[type="file"],
+    select,
+    textarea {
+      width: 100%;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 8px 10px;
+      font-size: 0.88rem;
+      font-family: var(--sans);
+    }
+    textarea {
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      min-height: 110px;
+      resize: vertical;
+    }
+    input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    .btn-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin-top: 8px;
+    }
+    button.btn, a.btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 8px 14px;
+      border-radius: 7px;
+      font-size: 0.86rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--surface-alt);
+      color: var(--text);
+      text-decoration: none;
+    }
+    button.btn:hover, a.btn:hover { border-color: var(--accent); }
+    button.btn-primary, a.btn-primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #ffffff;
+    }
+    @media (prefers-color-scheme: dark) {
+      button.btn-primary, a.btn-primary { color: #042f2e; }
+    }
+    button.btn-primary:hover, a.btn-primary:hover {
+      background: var(--accent-hover);
+      border-color: var(--accent-hover);
+    }
+    button.btn-sm { padding: 4px 9px; font-size: 0.78rem; }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
+
+    .status-banner {
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 0.86rem;
+      margin-top: 10px;
+      border: 1px solid var(--border);
+      background: var(--surface-alt);
+    }
+    .status-banner[hidden] { display: none; }
+    .status-ok { background: var(--pass-bg); color: var(--pass); border-color: var(--pass); }
+    .status-error { background: var(--fail-bg); color: var(--fail); border-color: var(--fail); }
+    .status-warn { background: var(--warn-bg); color: var(--warn); border-color: var(--warn); }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.84rem;
+    }
+    th, td {
+      padding: 9px 10px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      font-size: 0.73rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      background: var(--surface-alt);
+    }
+    code, pre {
+      font-family: var(--mono);
+      font-size: 0.79rem;
+    }
+    pre.console {
+      background: #0b1120;
+      color: #e2e8f0;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      max-height: 280px;
+      overflow: auto;
+      white-space: pre-wrap;
+      margin: 10px 0 0;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.73rem;
+      font-weight: 700;
+    }
+    .b-ok { background: var(--pass-bg); color: var(--pass); }
     .b-fail { background: var(--fail-bg); color: var(--fail); }
     .b-warn { background: var(--warn-bg); color: var(--warn); }
-    .b-neutral { background: var(--surface-alt); color: var(--muted); border: 1px solid var(--border); }
-    .btn { display: inline-block; padding: 7px 14px; border-radius: 7px; font-size: 13px; font-weight: 600; text-decoration: none; background: var(--accent); color: var(--accent-ink); border: none; cursor: pointer; }
-    .btn-secondary { background: var(--surface-alt); color: var(--text); border: 1px solid var(--border); }
-    .toolbar-ui { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; }
-    .input-ui { padding: 7px 10px; border-radius: 7px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 13px; min-width: 180px; }
-    .warn-banner { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; margin-bottom: 14px; font-size: 13px; }
-    table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
-    th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
-    .empty { background: var(--surface); border: 1px dashed var(--border); border-radius: 10px; padding: 28px; text-align: center; color: var(--muted); }
-    footer { border-top: 1px solid var(--border); padding: 18px 28px 32px; font-size: 12.5px; color: var(--muted); }
-    footer a { color: var(--accent); text-decoration: none; }
+    .b-skip { background: var(--surface-alt); color: var(--muted); }
+
+    .step-rows {
+      display: grid;
+      gap: 8px;
+      margin: 8px 0 12px;
+    }
+    .step-row {
+      display: grid;
+      grid-template-columns: 150px minmax(180px, 1fr) minmax(180px, 1fr) auto auto;
+      gap: 8px;
+      align-items: center;
+      padding: 8px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface-alt);
+    }
+    @media (max-width: 820px) {
+      .step-row { grid-template-columns: 1fr; }
+    }
+    .chk-inline {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+
+    .step-footer-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 8px;
+      margin-top: 10px;
+      border-top: 1px solid var(--border);
+    }
+
+    footer {
+      max-width: 1260px;
+      margin: 0 auto 36px;
+      padding: 0 20px;
+      color: var(--muted);
+      font-size: 0.82rem;
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    footer a { color: var(--accent-ink); text-decoration: none; font-weight: 600; }
     footer a:hover { text-decoration: underline; }
-    .foot-row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+    .muted { color: var(--muted); }
   </style>
 </head>
 <body>
-  <header>
-    <div class="wrap head-row">
-      <div class="brand-row">
-        <img class="brand-icon" src="/qalprit-icon.svg" alt="" width="42" height="42" />
-        <div>
-          <h1>QAlprit Workbench</h1>
-          <p class="tagline">Mobile QA. Bugs caught with proof.</p>
-        </div>
+  <header class="topbar">
+    <div class="brand">
+      <svg class="brand-icon" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+        <defs>
+          <linearGradient id="qg" x1="6" y1="6" x2="58" y2="58" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#0f766e" />
+            <stop offset="100%" stop-color="#14b8a6" />
+          </linearGradient>
+        </defs>
+        <rect x="4" y="4" width="56" height="56" rx="14" fill="url(#qg)" />
+        <rect x="14" y="14" width="36" height="36" rx="10" stroke="#f8fafc" stroke-width="5.5" />
+        <path d="M24 32L30 38L44 23" stroke="#5eead4" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+        <path d="M37 37L49 49" stroke="#f8fafc" stroke-width="5.5" stroke-linecap="round" />
+      </svg>
+      <div>
+        <h1>QAlprit Workbench</h1>
+        <p>Guided Mobile QA — Upload APK &rarr; Identify Screens &rarr; Workflows &rarr; Journeys &rarr; Runs &amp; Reports</p>
       </div>
-      <div style="display:flex; align-items:center; gap:8px;">
-        <div class="pill" id="verPill">Loading workspace...</div>
-        <button type="button" class="btn btn-secondary" id="refreshBtn">Refresh</button>
-      </div>
+    </div>
+    <div class="meta-pills">
+      <span class="pill" id="verPill">Loading...</span>
+      <span class="pill" id="workspacePath" title="Workspace directory">Workspace</span>
     </div>
   </header>
 
-  <main class="wrap">
-    <div id="corruptBanner" class="warn-banner" hidden></div>
-    <section class="stats" aria-label="Workspace summary">
-      <div class="stat"><div class="stat-label">Recorded Runs</div><div class="stat-val" id="cntRuns">-</div></div>
-      <div class="stat"><div class="stat-label">Test Specs</div><div class="stat-val" id="cntSpecs">-</div></div>
-      <div class="stat"><div class="stat-label">Reusable Flows</div><div class="stat-val" id="cntFlows">-</div></div>
-      <div class="stat"><div class="stat-label">Sensitive Locators</div><div class="stat-val" id="cntSensitive">-</div></div>
+  <div class="stepper-wrap">
+    <nav aria-label="QA Workflow Steps">
+      <ol class="stepper">
+        <li>
+          <button type="button" class="step-btn" data-step="1" aria-current="step">
+            <span class="step-kicker">Step 1 <span class="step-badge" id="badgeApps">0 apps</span></span>
+            <span class="step-title">APK Upload &amp; Devices</span>
+            <span class="step-sub">App binary, package ID &amp; device check</span>
+          </button>
+        </li>
+        <li>
+          <button type="button" class="step-btn" data-step="2">
+            <span class="step-kicker">Step 2 <span class="step-badge" id="badgeScreens">0 locators</span></span>
+            <span class="step-title">Screen Identification</span>
+            <span class="step-sub">Capture buttons &amp; fields to screens.yaml</span>
+          </button>
+        </li>
+        <li>
+          <button type="button" class="step-btn" data-step="3">
+            <span class="step-kicker">Step 3 <span class="step-badge" id="badgeFlows">0 flows</span></span>
+            <span class="step-title">Workflows</span>
+            <span class="step-sub">Reusable multi-step actions (flows/)</span>
+          </button>
+        </li>
+        <li>
+          <button type="button" class="step-btn" data-step="4">
+            <span class="step-kicker">Step 4 <span class="step-badge" id="badgeSpecs">0 journeys</span></span>
+            <span class="step-title">Test Journeys</span>
+            <span class="step-sub">End-to-end specs &amp; workspace validation</span>
+          </button>
+        </li>
+        <li>
+          <button type="button" class="step-btn" data-step="5">
+            <span class="step-kicker">Step 5 <span class="step-badge" id="badgeRuns">0 runs</span></span>
+            <span class="step-title">Runs &amp; Reports</span>
+            <span class="step-sub">Execute tests, view proof &amp; compare diffs</span>
+          </button>
+        </li>
+      </ol>
+    </nav>
+  </div>
+
+  <main>
+    <div id="corruptBanner" class="status-banner status-warn" hidden role="status" aria-live="polite"></div>
+
+    <!-- ================================================================ -->
+    <!-- STEP 1: APK UPLOAD & DEVICES                                      -->
+    <!-- ================================================================ -->
+    <section class="wizard-step" id="step-1" data-step-panel="1" aria-labelledby="heading-step-1">
+      <div class="step-header">
+        <h2 id="heading-step-1" tabindex="-1">1. Upload Your App Binary &amp; Verify Devices</h2>
+        <p>Start here when a new <code>.apk</code>, <code>.ipa</code>, or <code>.zip</code> arrives. QAlprit stores binaries in <code>apps/</code>, detects Android package names automatically when possible, and checks that Appium and your connected phone/emulator are ready.</p>
+      </div>
+
+      <div class="grid-2">
+        <article class="card">
+          <h3>Upload App Binary (<code>apps/</code>)</h3>
+          <p class="card-help">Choose an Android <code>.apk</code> or iOS simulator <code>.zip</code> / <code>.ipa</code> file from your computer (up to 300 MB).</p>
+          <form id="uploadAppForm" method="POST">
+            <div class="form-grid">
+              <div class="field">
+                <label for="appFileInput">App File (.apk, .ipa, .zip)</label>
+                <input id="appFileInput" name="appFile" type="file" accept=".apk,.ipa,.zip" required />
+              </div>
+            </div>
+            <div class="btn-row">
+              <button type="submit" class="btn btn-primary" id="btnUploadApp">Upload App to Workspace</button>
+            </div>
+            <div id="uploadStatus" class="status-banner" hidden aria-live="polite"></div>
+          </form>
+
+          <h4 style="margin:18px 0 8px;font-size:0.88rem;">Available Binaries in Workspace</h4>
+          <table>
+            <thead>
+              <tr><th>File</th><th>Type</th><th>Size</th><th>Path</th></tr>
+            </thead>
+            <tbody id="appsTable">
+              <tr><td colspan="4" class="muted">No app binaries uploaded yet.</td></tr>
+            </tbody>
+          </table>
+        </article>
+
+        <article class="card">
+          <h3>App Target Package &amp; Environment</h3>
+          <p class="card-help">Tell QAlprit which Android package ID (or iOS bundle ID) this environment tests against.</p>
+          <form id="envSaveForm" method="POST">
+            <div class="form-grid">
+              <div class="field">
+                <label for="envNameInput">Environment Name</label>
+                <input id="envNameInput" type="text" value="qa" placeholder="qa" required />
+              </div>
+              <div class="field">
+                <label for="envTimeoutInput">Default Step Timeout (sec)</label>
+                <input id="envTimeoutInput" type="number" min="1" step="0.5" value="12" required />
+              </div>
+            </div>
+            <div class="form-grid">
+              <div class="field">
+                <label for="envAndroidPkg">Android Package ID</label>
+                <input id="envAndroidPkg" type="text" placeholder="com.example.myapp" />
+                <span class="hint">Auto-filled when APK metadata is readable via aapt2.</span>
+              </div>
+              <div class="field">
+                <label for="envIosBundle">iOS Bundle ID (optional)</label>
+                <input id="envIosBundle" type="text" placeholder="com.example.MyApp" />
+              </div>
+            </div>
+            <div class="btn-row">
+              <button type="submit" class="btn btn-primary">Save Environment Config</button>
+            </div>
+            <div id="envStatus" class="status-banner" hidden aria-live="polite"></div>
+          </form>
+        </article>
+      </div>
+
+      <article class="card">
+        <h3>Device &amp; Toolchain Check</h3>
+        <p class="card-help">Verify that Node, Appium, Java, Android SDK, and at least one phone/emulator (USB Debugging enabled) are detected before capturing screens or running tests.</p>
+        <div class="btn-row" style="margin-bottom:12px;">
+          <button type="button" class="btn btn-primary" id="btnRefreshDevices">Scan Connected Devices</button>
+          <button type="button" class="btn" id="btnRunDoctor">Run System Doctor</button>
+        </div>
+        <div class="grid-2" style="margin-bottom:0;">
+          <div>
+            <h4 style="margin:0 0 8px;font-size:0.86rem;">Connected Devices &amp; Emulators</h4>
+            <table>
+              <thead><tr><th>Platform</th><th>Name</th><th>Identifier</th><th>State</th></tr></thead>
+              <tbody id="devicesTable"><tr><td colspan="4" class="muted">Click "Scan Connected Devices" to probe adb / simctl.</td></tr></tbody>
+            </table>
+          </div>
+          <div>
+            <h4 style="margin:0 0 8px;font-size:0.86rem;">Toolchain Health (<code>qalprit doctor</code>)</h4>
+            <table>
+              <thead><tr><th>Component</th><th>Status</th><th>Details</th></tr></thead>
+              <tbody id="doctorTable"><tr><td colspan="3" class="muted">Click "Run System Doctor" to verify runtime tools.</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </article>
+
+      <div class="step-footer-nav">
+        <span class="muted">Workspace ready once an app binary or environment is set.</span>
+        <button type="button" class="btn btn-primary" data-next-step="2">Next: Screen Identification &rarr;</button>
+      </div>
     </section>
 
-    <div class="tablist" role="tablist" aria-label="Workbench views">
-      <button type="button" role="tab" id="tab-runs" aria-selected="true">Test Runs</button>
-      <button type="button" role="tab" id="tab-specs" aria-selected="false">Specs &amp; Flows</button>
-      <button type="button" role="tab" id="tab-screens" aria-selected="false">Screen Locators</button>
-    </div>
+    <!-- ================================================================ -->
+    <!-- STEP 2: SCREEN IDENTIFICATION                                     -->
+    <!-- ================================================================ -->
+    <section class="wizard-step" id="step-2" data-step-panel="2" aria-labelledby="heading-step-2" hidden>
+      <div class="step-header">
+        <h2 id="heading-step-2" tabindex="-1">2. Identify Screens &amp; Map Element Locators</h2>
+        <p>Every screen in your app has buttons, text fields, and labels. Capture a screen directly from a live device or paste a UI XML dump, pick clean names (like <code>login.email_input</code>), and save them to <code>screens/screens.yaml</code>.</p>
+      </div>
 
-    <div id="panel-runs" role="tabpanel" aria-labelledby="tab-runs" tabindex="0"></div>
-    <div id="panel-specs" role="tabpanel" aria-labelledby="tab-specs" hidden></div>
-    <div id="panel-screens" role="tabpanel" aria-labelledby="tab-screens" hidden></div>
+      <div class="grid-2">
+        <article class="card">
+          <h3>Option A: Capture Live Device Screen</h3>
+          <p class="card-help">Launches Appium briefly on the chosen device, reads the active XML screen hierarchy, and ranks tappable/editable elements.</p>
+          <form id="inspectLiveForm" method="POST">
+            <div class="form-grid">
+              <div class="field">
+                <label for="inspectScreenName">Screen Name</label>
+                <input id="inspectScreenName" type="text" value="login" placeholder="login" required />
+              </div>
+              <div class="field">
+                <label for="inspectPlatform">Platform</label>
+                <select id="inspectPlatform">
+                  <option value="android">android</option>
+                  <option value="ios">ios</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-grid">
+              <div class="field">
+                <label for="inspectDeviceSelect">Device Profile</label>
+                <select id="inspectDeviceSelect"></select>
+              </div>
+              <div class="field">
+                <label for="inspectEnvSelect">Environment</label>
+                <select id="inspectEnvSelect"></select>
+              </div>
+              <div class="field">
+                <label for="inspectAppSelect">App Binary (optional)</label>
+                <select id="inspectAppSelect"></select>
+              </div>
+            </div>
+            <div class="btn-row">
+              <button type="submit" class="btn btn-primary" id="btnCaptureLive">Capture Live Screen Elements</button>
+            </div>
+          </form>
+        </article>
+
+        <article class="card">
+          <h3>Option B: Inspect XML Dump (Offline / Sample)</h3>
+          <p class="card-help">Paste XML from UIAutomator, Appium Inspector, or a failure <code>*_FAIL.xml</code> dump — great for offline mapping or testing right now.</p>
+          <form id="inspectXmlForm" method="POST">
+            <div class="field">
+              <label for="inspectXmlText">UI Hierarchy XML</label>
+              <textarea id="inspectXmlText" placeholder="<hierarchy><node resource-id='com.demo:id/email' ... /></hierarchy>"></textarea>
+            </div>
+            <div class="btn-row">
+              <button type="submit" class="btn btn-primary">Extract Interactive Elements</button>
+              <button type="button" class="btn" id="btnLoadSampleXml">Load Sample Login XML</button>
+            </div>
+          </form>
+        </article>
+      </div>
+
+      <div id="inspectStatus" class="status-banner" hidden aria-live="polite"></div>
+
+      <article class="card">
+        <h3>Review &amp; Save Identified Elements</h3>
+        <p class="card-help">Check the elements you want to automate, adjust the key name (e.g. <code>email_input</code>, <code>submit_btn</code>), mark <strong>Sensitive</strong> on password/PIN fields to auto-mask secrets, and save.</p>
+        <table>
+          <thead>
+            <tr>
+              <th style="width:42px;">Save</th>
+              <th>Element Key</th>
+              <th>Strategy</th>
+              <th>Locator Value</th>
+              <th>Preview Label</th>
+              <th style="width:88px;">Sensitive</th>
+            </tr>
+          </thead>
+          <tbody id="inspectCandidatesBody">
+            <tr><td colspan="6" class="muted">Capture a live screen or extract XML above to populate candidate elements.</td></tr>
+          </tbody>
+        </table>
+        <div class="btn-row" style="margin-top:12px;">
+          <button type="button" class="btn btn-primary" id="btnSaveLocators">Save Checked Locators to screens/screens.yaml</button>
+        </div>
+      </article>
+
+      <article class="card">
+        <h3>Current Saved Screen Locators (<code>screens/screens.yaml</code>)</h3>
+        <table>
+          <thead>
+            <tr><th>Target (<code>screen.element</code>)</th><th>Android</th><th>iOS</th><th>Sensitive</th></tr>
+          </thead>
+          <tbody id="screensTable">
+            <tr><td colspan="4" class="muted">Loading saved locators...</td></tr>
+          </tbody>
+        </table>
+      </article>
+
+      <div class="step-footer-nav">
+        <button type="button" class="btn" data-prev-step="1">&larr; Back: APK Upload &amp; Devices</button>
+        <button type="button" class="btn btn-primary" data-next-step="3">Next: Reusable Workflows &rarr;</button>
+      </div>
+    </section>
+
+    <!-- ================================================================ -->
+    <!-- STEP 3: WORKFLOWS                                                 -->
+    <!-- ================================================================ -->
+    <section class="wizard-step" id="step-3" data-step-panel="3" aria-labelledby="heading-step-3" hidden>
+      <div class="step-header">
+        <h2 id="heading-step-3" tabindex="-1">3. Build Reusable Workflows (<code>flows/</code>)</h2>
+        <p>Group repeated user actions — such as signing in, dismissing onboarding, or resetting a cart — into named workflows saved under <code>flows/</code> so any test journey can call them in one line.</p>
+      </div>
+
+      <article class="card">
+        <h3>Workflow Editor</h3>
+        <form id="flowForm" method="POST">
+          <div class="form-grid">
+            <div class="field">
+              <label for="flowNameInput">Workflow Name (<code>flows/&lt;name&gt;.md</code>)</label>
+              <input id="flowNameInput" type="text" placeholder="auth/login" required />
+            </div>
+            <div class="field">
+              <label for="flowParamsInput">Parameters (comma-separated, optional)</label>
+              <input id="flowParamsInput" type="text" placeholder="email, password" />
+            </div>
+            <div class="field">
+              <label for="flowNotesInput">Human Description / Notes</label>
+              <input id="flowNotesInput" type="text" placeholder="Sign in with provided credentials" />
+            </div>
+          </div>
+
+          <h4 style="margin:14px 0 4px;font-size:0.88rem;">Workflow Steps</h4>
+          <p class="card-help">Use <code>screen.element</code> names from Step 2 and parameter placeholders like <code>${email}</code> or environment variables like <code>${QA_USER}</code>.</p>
+          <div id="flowStepsContainer" class="step-rows"></div>
+          <div class="btn-row">
+            <button type="button" class="btn" id="btnAddFlowStep">+ Add Step</button>
+            <button type="submit" class="btn btn-primary">Save Workflow</button>
+          </div>
+          <div id="flowStatus" class="status-banner" hidden aria-live="polite"></div>
+        </form>
+      </article>
+
+      <article class="card">
+        <h3>Saved Workflows in Workspace</h3>
+        <table>
+          <thead>
+            <tr><th>Flow Name</th><th>Params</th><th>Steps</th><th>Source</th><th>Action</th></tr>
+          </thead>
+          <tbody id="flowsTable">
+            <tr><td colspan="5" class="muted">No reusable workflows saved yet.</td></tr>
+          </tbody>
+        </table>
+      </article>
+
+      <div class="step-footer-nav">
+        <button type="button" class="btn" data-prev-step="2">&larr; Back: Screen Identification</button>
+        <button type="button" class="btn btn-primary" data-next-step="4">Next: Test Journeys &rarr;</button>
+      </div>
+    </section>
+
+    <!-- ================================================================ -->
+    <!-- STEP 4: TEST JOURNEYS                                             -->
+    <!-- ================================================================ -->
+    <section class="wizard-step" id="step-4" data-step-panel="4" aria-labelledby="heading-step-4" hidden>
+      <div class="step-header">
+        <h2 id="heading-step-4" tabindex="-1">4. Compose Test Journeys &amp; Validate (<code>specs/</code>)</h2>
+        <p>Create complete end-to-end test journeys in <code>specs/&lt;suite&gt;/</code> combining setup preconditions, your reusable workflows or direct screen assertions, and teardown cleanup — then validate everything before touching a device.</p>
+      </div>
+
+      <article class="card">
+        <h3>Test Journey Builder</h3>
+        <form id="specForm" method="POST">
+          <div class="form-grid">
+            <div class="field">
+              <label for="specIdInput">Journey ID</label>
+              <input id="specIdInput" type="text" placeholder="SMOKE-001" required />
+            </div>
+            <div class="field">
+              <label for="specTitleInput">Journey Title</label>
+              <input id="specTitleInput" type="text" placeholder="User can sign in and reach home" required />
+            </div>
+            <div class="field">
+              <label for="specSuiteInput">Suite Folder</label>
+              <input id="specSuiteInput" type="text" value="smoke" placeholder="smoke" required />
+            </div>
+            <div class="field">
+              <label for="specResetSelect">App Reset Policy</label>
+              <select id="specResetSelect">
+                <option value="clear_data">clear_data (recommended)</option>
+                <option value="reinstall">reinstall</option>
+                <option value="none">none</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-grid">
+            <div class="field">
+              <label>Target Platforms</label>
+              <div class="btn-row" style="margin-top:2px;">
+                <label class="chk-inline"><input type="checkbox" id="specPlatAndroid" checked /> android</label>
+                <label class="chk-inline"><input type="checkbox" id="specPlatIos" /> ios</label>
+              </div>
+            </div>
+            <div class="field">
+              <label for="specTagsInput">Tags (comma-separated)</label>
+              <input id="specTagsInput" type="text" value="smoke" placeholder="smoke, auth" />
+            </div>
+            <div class="field">
+              <label for="specExpectedInput">Expected Outcome (Optional)</label>
+              <input id="specExpectedInput" type="text" placeholder="Dashboard heading is visible" />
+            </div>
+          </div>
+
+          <h4 style="margin:14px 0 6px;font-size:0.88rem;">Setup Steps (optional)</h4>
+          <div id="specSetupContainer" class="step-rows"></div>
+          <button type="button" class="btn btn-sm" id="btnAddSpecSetupStep">+ Add Setup Step</button>
+
+          <h4 style="margin:16px 0 6px;font-size:0.88rem;">Main Journey Steps</h4>
+          <div class="btn-row" style="margin:0 0 8px;">
+            <select id="insertFlowSelect" style="max-width:260px;" aria-label="Select workflow to insert"></select>
+            <button type="button" class="btn btn-sm" id="btnInsertFlow">+ Insert Selected Workflow</button>
+            <button type="button" class="btn btn-sm" id="btnAddSpecMainStep">+ Add Screen Action Step</button>
+          </div>
+          <div id="specMainContainer" class="step-rows"></div>
+
+          <h4 style="margin:14px 0 6px;font-size:0.88rem;">Teardown Steps (optional)</h4>
+          <div id="specTeardownContainer" class="step-rows"></div>
+          <button type="button" class="btn btn-sm" id="btnAddSpecTeardownStep">+ Add Teardown Step</button>
+
+          <div class="btn-row" style="margin-top:16px;">
+            <button type="submit" class="btn btn-primary">Save Test Journey</button>
+            <button type="button" class="btn" id="btnValidateWorkspace">Validate Full Workspace</button>
+          </div>
+          <div id="specStatus" class="status-banner" hidden aria-live="polite"></div>
+          <div id="validateOutput" class="status-banner" hidden aria-live="polite"></div>
+        </form>
+      </article>
+
+      <article class="card">
+        <h3>Test Journeys in Workspace</h3>
+        <table>
+          <thead>
+            <tr><th>ID</th><th>Title</th><th>Suite</th><th>Platforms</th><th>Reset</th><th>Steps</th><th>Source</th></tr>
+          </thead>
+          <tbody id="specsTable">
+            <tr><td colspan="7" class="muted">Loading test journeys...</td></tr>
+          </tbody>
+        </table>
+      </article>
+
+      <div class="step-footer-nav">
+        <button type="button" class="btn" data-prev-step="3">&larr; Back: Workflows</button>
+        <button type="button" class="btn btn-primary" data-next-step="5">Next: Runs &amp; Reports &rarr;</button>
+      </div>
+    </section>
+
+    <!-- ================================================================ -->
+    <!-- STEP 5: RUNS & REPORTS                                            -->
+    <!-- ================================================================ -->
+    <section class="wizard-step" id="step-5" data-step-panel="5" aria-labelledby="heading-step-5" hidden>
+      <div class="step-header">
+        <h2 id="heading-step-5" tabindex="-1">5. Run Tests, Monitor Execution &amp; Inspect Proof Reports</h2>
+        <p>Preview your execution plan safely with a Dry Run, launch a live test run against your uploaded binary and connected device, open rich HTML / Markdown / JUnit reports with redacted screenshots, and compare any two runs for regressions.</p>
+      </div>
+
+      <article class="card">
+        <h3>Launch Test Run</h3>
+        <form id="runForm" method="POST">
+          <div class="form-grid">
+            <div class="field">
+              <label for="runPlatformSelect">Platform</label>
+              <select id="runPlatformSelect">
+                <option value="android">android</option>
+                <option value="ios">ios</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="runDeviceSelect">Device Profile</label>
+              <select id="runDeviceSelect"></select>
+            </div>
+            <div class="field">
+              <label for="runEnvSelect">Environment</label>
+              <select id="runEnvSelect"></select>
+            </div>
+            <div class="field">
+              <label for="runSuiteSelect">Suite Filter</label>
+              <select id="runSuiteSelect">
+                <option value="">All Suites</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="runAppSelect">App Binary</label>
+              <select id="runAppSelect"></select>
+            </div>
+            <div class="field">
+              <label for="runRetriesInput">Retries per Failed Journey</label>
+              <input id="runRetriesInput" type="number" min="0" max="5" value="0" />
+            </div>
+          </div>
+
+          <div class="btn-row">
+            <button type="button" class="btn" id="btnDryRun">Preview Execution Plan (Dry Run)</button>
+            <button type="submit" class="btn btn-primary" id="btnStartLiveRun">Start Live Test Run</button>
+            <a id="openFinishedReportLink" class="btn btn-primary" href="#" target="_blank" rel="noopener" hidden>Open Finished HTML Report &rarr;</a>
+          </div>
+          <div id="runStatusBanner" class="status-banner" hidden aria-live="polite"></div>
+          <pre id="runLiveLog" class="console" hidden></pre>
+        </form>
+      </article>
+
+      <article class="card">
+        <h3>Past Test Runs &amp; Evidence Reports</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Run ID</th>
+              <th>Suite / Env</th>
+              <th>Platform</th>
+              <th>Pass</th>
+              <th>Fail</th>
+              <th>Skip</th>
+              <th>Duration</th>
+              <th>Artifacts</th>
+            </tr>
+          </thead>
+          <tbody id="runsTable">
+            <tr><td colspan="8" class="muted">No completed test runs yet.</td></tr>
+          </tbody>
+        </table>
+      </article>
+
+      <article class="card">
+        <h3>Compare Two Runs (Regression Diff)</h3>
+        <p class="card-help">Select a baseline run and a newer target run to highlight regressions, fixes, persistent failures, and duration changes.</p>
+        <div class="form-grid" style="align-items:end;">
+          <div class="field">
+            <label for="compareBase">Baseline Run</label>
+            <select id="compareBase"></select>
+          </div>
+          <div class="field">
+            <label for="compareTarget">Target Run</label>
+            <select id="compareTarget"></select>
+          </div>
+          <div class="field">
+            <button type="button" class="btn btn-primary" id="btnCompare">Compare Runs</button>
+          </div>
+        </div>
+        <div id="compareOut" style="margin-top:12px;"></div>
+      </article>
+
+      <div class="step-footer-nav">
+        <button type="button" class="btn" data-prev-step="4">&larr; Back: Test Journeys</button>
+        <span class="muted">End of workflow</span>
+      </div>
+    </section>
   </main>
 
   <footer>
-    <div class="wrap foot-row">
-      <span><strong>QAlprit</strong> — Mobile QA. Bugs caught with proof.</span>
-      <span><a href="https://qalprit.vattitude.ca" target="_blank" rel="noopener">qalprit.vattitude.ca</a> · Managed by <a href="https://vattitude.ca" target="_blank" rel="noopener">vattitude.ca</a></span>
-    </div>
+    <span>QAlprit Local Workbench &mdash; all workspaces, locators, flows, and results stay on your machine.</span>
+    <span>Managed by <a href="https://vattitude.ca" target="_blank" rel="noopener">vattitude.ca</a></span>
   </footer>
 
+  <datalist id="screenTargetOptions"></datalist>
+  <datalist id="flowNameOptions"></datalist>
+
   <script>
-    const tabs = [
-      { tab: document.getElementById("tab-runs"), panel: document.getElementById("panel-runs") },
-      { tab: document.getElementById("tab-specs"), panel: document.getElementById("panel-specs") },
-      { tab: document.getElementById("tab-screens"), panel: document.getElementById("panel-screens") },
-    ];
-    tabs.forEach(({ tab, panel }) => {
-      tab.addEventListener("click", () => {
-        tabs.forEach((t) => {
-          const active = t.tab === tab;
-          t.tab.setAttribute("aria-selected", String(active));
-          t.panel.hidden = !active;
+    (function () {
+      const SAMPLE_LOGIN_XML =
+        "<hierarchy rotation=\"0\">\n" +
+        "  <android.widget.FrameLayout index=\"0\" bounds=\"[0,0][1080,2400]\">\n" +
+        "    <android.widget.EditText resource-id=\"com.example.demo:id/email_input\" text=\"\" hint=\"Email\" clickable=\"true\" focusable=\"true\" enabled=\"true\" bounds=\"[80,480][1000,600]\" />\n" +
+        "    <android.widget.EditText resource-id=\"com.example.demo:id/password_input\" password=\"true\" text=\"\" hint=\"Password\" clickable=\"true\" focusable=\"true\" enabled=\"true\" bounds=\"[80,640][1000,760]\" />\n" +
+        "    <android.widget.Button resource-id=\"com.example.demo:id/login_button\" text=\"Sign In\" content-desc=\"Sign In Button\" clickable=\"true\" enabled=\"true\" bounds=\"[80,820][1000,950]\" />\n" +
+        "    <android.widget.TextView resource-id=\"com.example.demo:id/forgot_link\" text=\"Forgot password?\" clickable=\"true\" enabled=\"true\" bounds=\"[340,980][740,1060]\" />\n" +
+        "  </android.widget.FrameLayout>\n" +
+        "</hierarchy>";
+
+      let STATE = {
+        overview: null,
+        inspectCandidates: [],
+        pollTimer: null,
+        stepVocab: [
+          "tap", "tap_if_visible", "type", "clear", "wait_for_visible",
+          "wait_for_enabled", "wait_for_text", "wait_for_keyboard",
+          "assert_visible", "assert_not_visible", "assert_text",
+          "assert_enabled", "assert_disabled", "scroll_until_visible",
+          "swipe", "wait", "background", "back", "hide_keyboard",
+          "launch", "reset_app", "biometric", "screenshot", "visual_compare", "run_flow"
+        ]
+      };
+
+      const $ = (id) => document.getElementById(id);
+
+      function esc(val) {
+        return String(val ?? "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
+
+      function fmtBytes(bytes) {
+        if (!bytes) return "-";
+        if (bytes < 1024) return bytes + " B";
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+        return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+      }
+
+      function fmtDuration(ms) {
+        if (!ms) return "0ms";
+        if (ms < 1000) return ms + "ms";
+        return (ms / 1000).toFixed(1) + "s";
+      }
+
+      function showBanner(elId, msg, kind) {
+        const el = $(elId);
+        if (!el) return;
+        el.className = "status-banner " + (kind ? "status-" + kind : "");
+        el.textContent = msg;
+        el.hidden = !msg;
+      }
+
+      async function apiJson(url, payload) {
+        const res = await fetch(url, {
+          method: payload !== undefined ? "POST" : "GET",
+          headers: payload !== undefined ? { "Content-Type": "application/json" } : undefined,
+          body: payload !== undefined ? JSON.stringify(payload) : undefined
         });
-      });
-    });
-
-    function esc(s) {
-      return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-    }
-
-    let workspaceData = null;
-
-    function renderRunsPanel() {
-      const runsEl = document.getElementById("panel-runs");
-      const runs = workspaceData ? workspaceData.runs : [];
-      if (!runs.length) {
-        runsEl.innerHTML = `<div class="empty">No runs found yet. Execute <code>qalprit run --platform android --device android_emulator --app /path/to/app.apk</code> to generate proof reports.</div>`;
-        return;
-      }
-
-      const compareHtml = runs.length >= 2 ? `
-        <div class="card" style="margin-bottom:14px;">
-          <div style="font-weight:700; margin-bottom:8px;">Compare Runs</div>
-          <div class="toolbar-ui" style="margin-bottom:8px;">
-            <select id="cmpBase" class="input-ui" aria-label="Base run">${runs.map((r, i) => `<option value="${esc(r.dir_name || r.run_id)}" ${i === 1 ? "selected" : ""}>Base: ${esc(r.run_id)}</option>`).join("")}</select>
-            <select id="cmpTarget" class="input-ui" aria-label="Target run">${runs.map((r, i) => `<option value="${esc(r.dir_name || r.run_id)}" ${i === 0 ? "selected" : ""}>Target: ${esc(r.run_id)}</option>`).join("")}</select>
-            <button type="button" class="btn" id="cmpBtn">Compare</button>
-          </div>
-          <div id="cmpResult" style="font-size:13px; color:var(--muted);"></div>
-        </div>` : "";
-
-      runsEl.innerHTML = `
-        ${compareHtml}
-        <div class="toolbar-ui">
-          <input id="runSearch" class="input-ui" type="search" placeholder="Filter runs by ID, platform, env, suite..." aria-label="Filter runs" />
-          <select id="runStatusFilter" class="input-ui" aria-label="Filter runs by outcome">
-            <option value="all">All runs</option>
-            <option value="has_fail">With failures</option>
-            <option value="all_pass">All passed</option>
-          </select>
-        </div>
-        <div class="grid" id="runsGrid"></div>`;
-
-      function drawRunCards() {
-        const q = (document.getElementById("runSearch").value || "").trim().toLowerCase();
-        const st = document.getElementById("runStatusFilter").value;
-        const filtered = runs.filter((r) => {
-          const hay = `${r.run_id} ${r.platform} ${r.device_name} ${r.environment} ${r.suite}`.toLowerCase();
-          if (q && !hay.includes(q)) return false;
-          if (st === "has_fail" && !(r.summary && r.summary.failed > 0)) return false;
-          if (st === "all_pass" && !(r.summary && r.summary.failed === 0 && r.summary.passed > 0)) return false;
-          return true;
-        });
-        document.getElementById("runsGrid").innerHTML = filtered.length ? filtered.map((r) => `
-          <article class="card run-row">
-            <div>
-              <div class="mono"><strong>${esc(r.run_id)}</strong>${r.interrupted ? ' <span class="badge b-fail">INTERRUPTED</span>' : ""}</div>
-              <div style="font-size:13px; color:var(--muted);">${esc(r.platform)} · ${esc(r.device_name)}${r.os_version ? " (OS " + esc(r.os_version) + ")" : ""} · env=${esc(r.environment)} · suite=${esc(r.suite)}</div>
-              <div class="badges">
-                <span class="badge b-pass">${r.summary.passed} passed</span>
-                ${r.summary.failed ? `<span class="badge b-fail">${r.summary.failed} failed</span>` : ""}
-                ${r.summary.flaky ? `<span class="badge b-warn">${r.summary.flaky} flaky</span>` : ""}
-                <span class="badge b-neutral">${r.summary.total} total</span>
-              </div>
-            </div>
-            <div style="display:flex; gap:8px; flex-wrap:wrap;">
-              ${r.has_junit ? `<a class="btn btn-secondary" href="/results/${encodeURIComponent(r.dir_name || r.run_id)}/junit.xml" target="_blank" rel="noopener">JUnit XML</a>` : ""}
-              ${r.has_html ? `<a class="btn" href="/results/${encodeURIComponent(r.dir_name || r.run_id)}/report.html" target="_blank" rel="noopener">Open Proof Report</a>` : ""}
-            </div>
-          </article>`).join("") : `<div class="empty">No runs match the current filter.</div>`;
-      }
-
-      document.getElementById("runSearch").addEventListener("input", drawRunCards);
-      document.getElementById("runStatusFilter").addEventListener("change", drawRunCards);
-      drawRunCards();
-
-      const cmpBtn = document.getElementById("cmpBtn");
-      if (cmpBtn) {
-        cmpBtn.addEventListener("click", () => {
-          const base = document.getElementById("cmpBase").value;
-          const target = document.getElementById("cmpTarget").value;
-          fetch(`/api/compare?base=${encodeURIComponent(base)}&target=${encodeURIComponent(target)}`)
-            .then((r) => r.json())
-            .then((cmp) => {
-              if (cmp.error) {
-                document.getElementById("cmpResult").textContent = cmp.error;
-                return;
-              }
-              document.getElementById("cmpResult").innerHTML = `
-                <div class="badges" style="margin-bottom:8px;">
-                  <span class="badge b-fail">Regressions: ${cmp.regressions.length}</span>
-                  <span class="badge b-pass">Fixes: ${cmp.fixes.length}</span>
-                  <span class="badge b-warn">Persistent Failures: ${cmp.persistent_failures.length}</span>
-                  <span class="badge b-neutral">Duration Delta: ${cmp.duration_delta_ms >= 0 ? "+" : ""}${cmp.duration_delta_ms}ms</span>
-                </div>
-                ${cmp.regressions.length ? `<div><strong>Regressed:</strong> ${cmp.regressions.map((x) => `<code>${esc(x.id)}</code>`).join(", ")}</div>` : ""}
-                ${cmp.fixes.length ? `<div><strong>Fixed:</strong> ${cmp.fixes.map((x) => `<code>${esc(x.id)}</code>`).join(", ")}</div>` : ""}`;
-            });
-        });
-      }
-    }
-
-    function renderSpecsAndScreens() {
-      if (!workspaceData) return;
-      document.getElementById("panel-specs").innerHTML = `
-        <div class="toolbar-ui">
-          <input id="specSearch" class="input-ui" type="search" placeholder="Search specs & flows..." aria-label="Filter specs and flows" />
-        </div>
-        <div class="card" style="margin-bottom:14px;">
-          <table>
-            <caption>Test Specifications (${workspaceData.specs.length})</caption>
-            <thead><tr><th scope="col">ID</th><th scope="col">Title</th><th scope="col">Suite</th><th scope="col">Steps</th><th scope="col">Reset</th><th scope="col">Source</th></tr></thead>
-            <tbody id="specRows"></tbody>
-          </table>
-        </div>
-        <div class="card">
-          <table>
-            <caption>Reusable Flows (${workspaceData.flows.length})</caption>
-            <thead><tr><th scope="col">Flow Name</th><th scope="col">Params</th><th scope="col">Steps</th><th scope="col">Source</th></tr></thead>
-            <tbody id="flowRows"></tbody>
-          </table>
-        </div>`;
-
-      function drawSpecTables() {
-        const q = (document.getElementById("specSearch").value || "").trim().toLowerCase();
-        document.getElementById("specRows").innerHTML = workspaceData.specs
-          .filter((s) => !q || `${s.id} ${s.title} ${s.suite}`.toLowerCase().includes(q))
-          .map((s) => `<tr>
-            <td class="mono">${esc(s.id)}</td>
-            <td>${esc(s.title)}</td>
-            <td><span class="badge b-neutral">${esc(s.suite)}</span></td>
-            <td>${s.step_count} (+${s.teardown_count} teardown)</td>
-            <td class="mono">${esc(s.reset)}</td>
-            <td class="mono">${esc(s.source_path)}</td>
-          </tr>`).join("");
-        document.getElementById("flowRows").innerHTML = workspaceData.flows
-          .filter((f) => !q || `${f.name} ${(f.params || []).join(" ")}`.toLowerCase().includes(q))
-          .map((f) => `<tr>
-            <td class="mono">${esc(f.name)}</td>
-            <td class="mono">${esc((f.params || []).join(", ") || "-")}</td>
-            <td>${f.step_count}</td>
-            <td class="mono">${esc(f.source_path)}</td>
-          </tr>`).join("");
-      }
-      document.getElementById("specSearch").addEventListener("input", drawSpecTables);
-      drawSpecTables();
-
-      document.getElementById("panel-screens").innerHTML = `
-        <div class="toolbar-ui">
-          <input id="screenSearch" class="input-ui" type="search" placeholder="Search screen locators..." aria-label="Filter locators" />
-        </div>
-        <div class="card">
-          <table>
-            <caption>Screen Locators &amp; Redaction Policy</caption>
-            <thead><tr><th scope="col">Target</th><th scope="col">Redaction</th><th scope="col">Android</th><th scope="col">iOS</th></tr></thead>
-            <tbody id="screenRows"></tbody>
-          </table>
-        </div>`;
-
-      function drawScreenRows() {
-        const q = (document.getElementById("screenSearch").value || "").trim().toLowerCase();
-        document.getElementById("screenRows").innerHTML = workspaceData.screens
-          .filter((sc) => !q || JSON.stringify(sc).toLowerCase().includes(q))
-          .map((sc) => `<tr>
-            <td class="mono">${esc(sc.target)}</td>
-            <td>${sc.sensitive ? '<span class="badge b-warn">sensitive: true (black-filled)</span>' : '<span class="badge b-neutral">standard</span>'}</td>
-            <td class="mono">${sc.platforms.android ? esc(sc.platforms.android.strategy + ": " + sc.platforms.android.value) : "-"}</td>
-            <td class="mono">${sc.platforms.ios ? esc(sc.platforms.ios.strategy + ": " + sc.platforms.ios.value) : "-"}</td>
-          </tr>`).join("");
-      }
-      document.getElementById("screenSearch").addEventListener("input", drawScreenRows);
-      drawScreenRows();
-    }
-
-    function loadOverview() {
-      fetch("/api/overview").then((r) => r.json()).then((data) => {
-        workspaceData = data;
-        document.getElementById("verPill").textContent = `qalprit v${data.version}`;
-        document.getElementById("cntRuns").textContent = data.runs.length;
-        document.getElementById("cntSpecs").textContent = data.specs.length;
-        document.getElementById("cntFlows").textContent = data.flows.length;
-        document.getElementById("cntSensitive").textContent = data.screens.filter((s) => s.sensitive).length;
-        const banner = document.getElementById("corruptBanner");
-        if (data.corrupt_runs && data.corrupt_runs.length) {
-          banner.hidden = false;
-          banner.textContent = `Skipped ${data.corrupt_runs.length} unreadable/corrupt run(s): ${data.corrupt_runs.map((c) => c.run_id).join(", ")}`;
-        } else {
-          banner.hidden = true;
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data.error || ("Request failed with HTTP " + res.status));
         }
-        renderRunsPanel();
-        renderSpecsAndScreens();
-      });
-    }
+        return data;
+      }
 
-    document.getElementById("refreshBtn").addEventListener("click", loadOverview);
-    loadOverview();
+      // ------------------------------------------------------------------
+      // Navigation: Accessible sequential stepper
+      // ------------------------------------------------------------------
+      function goToStep(stepNum, focusHeading) {
+        const target = String(stepNum);
+        document.querySelectorAll(".step-btn").forEach((btn) => {
+          if (btn.dataset.step === target) {
+            btn.setAttribute("aria-current", "step");
+          } else {
+            btn.removeAttribute("aria-current");
+          }
+        });
+        document.querySelectorAll(".wizard-step").forEach((sec) => {
+          sec.hidden = sec.dataset.stepPanel !== target;
+        });
+        if (focusHeading) {
+          const h = $("heading-step-" + target);
+          if (h) h.focus({ preventScroll: false });
+        }
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+
+      document.querySelectorAll(".step-btn").forEach((btn) => {
+        btn.addEventListener("click", () => goToStep(btn.dataset.step, true));
+      });
+      document.querySelectorAll("[data-next-step]").forEach((btn) => {
+        btn.addEventListener("click", () => goToStep(btn.dataset.nextStep, true));
+      });
+      document.querySelectorAll("[data-prev-step]").forEach((btn) => {
+        btn.addEventListener("click", () => goToStep(btn.dataset.prevStep, true));
+      });
+
+      // ------------------------------------------------------------------
+      // Dynamic Step Rows Builder (shared across Step 3 & Step 4)
+      // ------------------------------------------------------------------
+      function createStepRowElement(initial) {
+        const row = document.createElement("div");
+        row.className = "step-row";
+
+        const kindSelect = document.createElement("select");
+        kindSelect.setAttribute("aria-label", "Step action");
+        const opts = Array.from(new Set(["run_flow"].concat(STATE.stepVocab)));
+        opts.forEach((op) => {
+          const o = document.createElement("option");
+          o.value = op;
+          o.textContent = op === "run_flow" ? "run_flow (workflow)" : op;
+          kindSelect.appendChild(o);
+        });
+
+        const targetInput = document.createElement("input");
+        targetInput.type = "text";
+        targetInput.setAttribute("list", "screenTargetOptions");
+        targetInput.placeholder = "screen.element or flow name";
+        targetInput.setAttribute("aria-label", "Target screen element or flow name");
+
+        const valueInput = document.createElement("input");
+        valueInput.type = "text";
+        valueInput.placeholder = "value / text / JSON params (optional)";
+        valueInput.setAttribute("aria-label", "Step value or params");
+
+        const secretLabel = document.createElement("label");
+        secretLabel.className = "chk-inline";
+        const secretChk = document.createElement("input");
+        secretChk.type = "checkbox";
+        secretLabel.appendChild(secretChk);
+        secretLabel.appendChild(document.createTextNode("Secret"));
+
+        const controls = document.createElement("div");
+        controls.style.display = "flex";
+        controls.style.gap = "4px";
+        const btnUp = document.createElement("button");
+        btnUp.type = "button";
+        btnUp.className = "btn btn-sm";
+        btnUp.textContent = "↑";
+        btnUp.title = "Move step up";
+        const btnDown = document.createElement("button");
+        btnDown.type = "button";
+        btnDown.className = "btn btn-sm";
+        btnDown.textContent = "↓";
+        btnDown.title = "Move step down";
+        const btnDel = document.createElement("button");
+        btnDel.type = "button";
+        btnDel.className = "btn btn-sm";
+        btnDel.textContent = "×";
+        btnDel.title = "Remove step";
+        controls.append(btnUp, btnDown, btnDel);
+
+        btnUp.addEventListener("click", () => {
+          if (row.previousElementSibling) row.parentElement.insertBefore(row, row.previousElementSibling);
+        });
+        btnDown.addEventListener("click", () => {
+          if (row.nextElementSibling) row.parentElement.insertBefore(row.nextElementSibling, row);
+        });
+        btnDel.addEventListener("click", () => row.remove());
+
+        kindSelect.addEventListener("change", () => {
+          if (kindSelect.value === "run_flow") {
+            targetInput.setAttribute("list", "flowNameOptions");
+            targetInput.placeholder = "auth/login";
+            valueInput.placeholder = '{"email": "${email}"}';
+          } else if (kindSelect.value === "wait" || kindSelect.value === "background") {
+            targetInput.removeAttribute("list");
+            targetInput.placeholder = "seconds (e.g. 2)";
+            valueInput.placeholder = "";
+          } else {
+            targetInput.setAttribute("list", "screenTargetOptions");
+            targetInput.placeholder = "screen.element";
+            valueInput.placeholder = kindSelect.value === "assert_text" ? "expected substring" : "value / text (optional)";
+          }
+        });
+
+        // Pre-populate from normalized StepItem dict OR shorthand YAML dict
+        if (typeof initial === "string") {
+          kindSelect.value = initial;
+        } else if (initial && typeof initial === "object") {
+          if (initial.type && initial.params !== undefined) {
+            kindSelect.value = initial.type;
+            const p = initial.params || {};
+            targetInput.value = String(p.target || p.flow || p.name || p.app || p.direction || p.seconds || p.action || "");
+            if (p.params) {
+              valueInput.value = JSON.stringify(p.params);
+            } else if (p.value !== undefined) {
+              valueInput.value = String(p.value);
+            } else if (p.contains !== undefined) {
+              valueInput.value = String(p.contains);
+            }
+            if (initial.secret || p.secret) secretChk.checked = true;
+          } else if (initial.run_flow) {
+            kindSelect.value = "run_flow";
+            if (typeof initial.run_flow === "object") {
+              targetInput.value = String(initial.run_flow.flow || "");
+              if (initial.run_flow.params) valueInput.value = JSON.stringify(initial.run_flow.params);
+            } else {
+              targetInput.value = String(initial.run_flow);
+            }
+          } else {
+            const knownType = opts.find((k) => k !== "run_flow" && Object.prototype.hasOwnProperty.call(initial, k));
+            if (knownType) {
+              kindSelect.value = knownType;
+              const rawVal = initial[knownType];
+              if (rawVal && typeof rawVal === "object") {
+                targetInput.value = String(rawVal.target || rawVal.flow || rawVal.name || "");
+                if (rawVal.value !== undefined) valueInput.value = String(rawVal.value);
+                else if (rawVal.contains !== undefined) valueInput.value = String(rawVal.contains);
+                else if (rawVal.params) valueInput.value = JSON.stringify(rawVal.params);
+                if (rawVal.secret) secretChk.checked = true;
+              } else if (rawVal !== true && rawVal !== null && rawVal !== undefined) {
+                targetInput.value = String(rawVal);
+              }
+            }
+          }
+        } else {
+          kindSelect.value = "tap";
+        }
+
+        kindSelect.dispatchEvent(new Event("change"));
+        row.append(kindSelect, targetInput, valueInput, secretLabel, controls);
+        return row;
+      }
+
+      function readStepRows(containerId) {
+        const container = $(containerId);
+        const out = [];
+        container.querySelectorAll(".step-row").forEach((row) => {
+          const selects = row.querySelectorAll("select");
+          const inputs = row.querySelectorAll("input");
+          const kind = selects[0].value;
+          const target = inputs[0].value.trim();
+          const valRaw = inputs[1].value.trim();
+          const isSecret = inputs[2].checked;
+          if (!kind) return;
+
+          if (kind === "run_flow") {
+            if (!target) return;
+            if (valRaw) {
+              let parsedParams;
+              try {
+                parsedParams = JSON.parse(valRaw);
+              } catch (err) {
+                throw new Error("Flow params must be valid JSON (got: " + valRaw + ")");
+              }
+              out.push({ run_flow: { flow: target, params: parsedParams } });
+            } else {
+              out.push({ run_flow: target });
+            }
+            return;
+          }
+
+          const noTargetActions = new Set(["back", "hide_keyboard", "reset_app", "launch", "wait", "background", "swipe", "screenshot"]);
+          if (!target && !noTargetActions.has(kind)) return;
+
+          if (kind === "type") {
+            const inner = { target: target, value: valRaw };
+            if (isSecret) inner.secret = true;
+            out.push({ type: inner });
+            return;
+          }
+          if (kind === "assert_text" || kind === "wait_for_text") {
+            out.push({ [kind]: { target: target, contains: valRaw } });
+            return;
+          }
+          if (kind === "wait" || kind === "background") {
+            out.push({ [kind]: Number(valRaw || target) || 1 });
+            return;
+          }
+          if (kind === "swipe") {
+            out.push({ swipe: target || valRaw || "up" });
+            return;
+          }
+          if (kind === "screenshot") {
+            out.push({ screenshot: target || valRaw || "screen" });
+            return;
+          }
+          if (noTargetActions.has(kind) && !target) {
+            out.push(kind);
+            return;
+          }
+          out.push({ [kind]: target });
+        });
+        return out;
+      }
+
+      // ------------------------------------------------------------------
+      // Populate UI from /api/overview
+      // ------------------------------------------------------------------
+      function populateSelect(id, options, includeBlankLabel) {
+        const sel = $(id);
+        if (!sel) return;
+        const prev = sel.value;
+        sel.innerHTML = "";
+        if (includeBlankLabel !== undefined && includeBlankLabel !== null) {
+          const blank = document.createElement("option");
+          blank.value = "";
+          blank.textContent = includeBlankLabel;
+          sel.appendChild(blank);
+        }
+        options.forEach((opt) => {
+          const o = document.createElement("option");
+          o.value = opt.value;
+          o.textContent = opt.label;
+          sel.appendChild(o);
+        });
+        if (prev && Array.from(sel.options).some((o) => o.value === prev)) {
+          sel.value = prev;
+        }
+      }
+
+      function renderOverview(data) {
+        STATE.overview = data;
+        if (Array.isArray(data.step_vocabulary) && data.step_vocabulary.length) {
+          STATE.stepVocab = data.step_vocabulary;
+        }
+
+        $("verPill").innerHTML = "<strong>v" + esc(data.version) + "</strong>";
+        $("workspacePath").innerHTML = "<strong>Workspace:</strong> " + esc(data.project_root);
+        $("badgeApps").textContent = (data.apps || []).length + " apps";
+        $("badgeScreens").textContent = (data.screens || []).length + " locators";
+        $("badgeFlows").textContent = (data.flows || []).length + " flows";
+        $("badgeSpecs").textContent = (data.specs || []).length + " journeys";
+        $("badgeRuns").textContent = (data.runs || []).length + " runs";
+
+        if (data.corrupt_runs && data.corrupt_runs.length) {
+          showBanner("corruptBanner", "Skipped " + data.corrupt_runs.length + " unreadable results folder(s): " + data.corrupt_runs.map((c) => c.run_id).join(", "), "warn");
+        } else {
+          showBanner("corruptBanner", "", "");
+        }
+
+        // Apps table & selectors
+        const apps = data.apps || [];
+        $("appsTable").innerHTML = apps.length
+          ? apps.map((a) => `<tr><td><strong>${esc(a.name)}</strong></td><td>${esc(a.kind)}</td><td>${fmtBytes(a.size_bytes)}</td><td><code>${esc(a.rel_path)}</code></td></tr>`).join("")
+          : '<tr><td colspan="4" class="muted">No app binaries uploaded yet.</td></tr>';
+        const appOpts = apps.map((a) => ({ value: a.rel_path, label: `${a.name} (${a.kind})` }));
+        populateSelect("inspectAppSelect", appOpts, "-- Use installed package / none --");
+        populateSelect("runAppSelect", appOpts, "-- Select app binary --");
+
+        // Environments & Device profiles
+        const envNames = Object.keys(data.environments || {});
+        const envOpts = (envNames.length ? envNames : ["qa"]).map((k) => ({ value: k, label: k }));
+        populateSelect("inspectEnvSelect", envOpts);
+        populateSelect("runEnvSelect", envOpts);
+        if (data.environments && data.environments.qa) {
+          if (!$("envAndroidPkg").value && data.environments.qa.android_package) {
+            $("envAndroidPkg").value = data.environments.qa.android_package;
+          }
+          if (!$("envIosBundle").value && data.environments.qa.ios_bundle_id) {
+            $("envIosBundle").value = data.environments.qa.ios_bundle_id;
+          }
+        }
+
+        const devEntries = Object.entries(data.device_profiles || {});
+        const devOpts = (devEntries.length ? devEntries : [["android_emulator", { platform: "android", device_name: "Android Emulator" }]]).map(([k, v]) => ({
+          value: k,
+          label: `${k} (${v.platform}: ${v.device_name || k})`
+        }));
+        populateSelect("inspectDeviceSelect", devOpts);
+        populateSelect("runDeviceSelect", devOpts);
+
+        // Screen datalist & table
+        const screens = data.screens || [];
+        $("screenTargetOptions").innerHTML = screens.map((s) => `<option value="${esc(s.target)}"></option>`).join("");
+        $("screensTable").innerHTML = screens.length
+          ? screens.map((s) => {
+              const a = s.platforms.android ? `<code>${esc(s.platforms.android.strategy)}=${esc(s.platforms.android.value)}</code>` : '<span class="muted">-</span>';
+              const i = s.platforms.ios ? `<code>${esc(s.platforms.ios.strategy)}=${esc(s.platforms.ios.value)}</code>` : '<span class="muted">-</span>';
+              const sens = s.sensitive ? '<span class="badge b-warn">masked</span>' : '<span class="muted">no</span>';
+              return `<tr><td><code>${esc(s.target)}</code></td><td>${a}</td><td>${i}</td><td>${sens}</td></tr>`;
+            }).join("")
+          : '<tr><td colspan="4" class="muted">No screen locators mapped yet. Capture or extract XML above!</td></tr>';
+
+        // Flows datalist, dropdown, table
+        const flows = data.flows || [];
+        $("flowNameOptions").innerHTML = flows.map((f) => `<option value="${esc(f.name)}"></option>`).join("");
+        populateSelect("insertFlowSelect", flows.map((f) => ({ value: f.name, label: `${f.name}${f.params.length ? " (" + f.params.join(", ") + ")" : ""}` })), "-- Select workflow --");
+        $("flowsTable").innerHTML = flows.length
+          ? flows.map((f, idx) => `
+              <tr>
+                <td><code>${esc(f.name)}</code></td>
+                <td>${(f.params || []).length ? esc(f.params.join(", ")) : '<span class="muted">-</span>'}</td>
+                <td>${f.step_count}</td>
+                <td><code>${esc(f.source_path)}</code></td>
+                <td><button type="button" class="btn btn-sm" data-load-flow="${idx}">Load in Editor</button></td>
+              </tr>`).join("")
+          : '<tr><td colspan="5" class="muted">No workflows saved yet.</td></tr>';
+
+        // Specs suites + table
+        const specs = data.specs || [];
+        const suites = Array.from(new Set(specs.map((s) => s.suite).filter(Boolean))).sort();
+        populateSelect("runSuiteSelect", suites.map((s) => ({ value: s, label: s })), "All Suites");
+        $("specsTable").innerHTML = specs.length
+          ? specs.map((s) => `
+              <tr>
+                <td><strong>${esc(s.id)}</strong></td>
+                <td>${esc(s.title)}</td>
+                <td><span class="badge b-skip">${esc(s.suite)}</span></td>
+                <td>${esc((s.platforms || []).join(", "))}</td>
+                <td><code>${esc(s.reset)}</code></td>
+                <td>${s.step_count}</td>
+                <td><code>${esc(s.source_path)}</code></td>
+              </tr>`).join("")
+          : '<tr><td colspan="7" class="muted">No test journeys saved yet.</td></tr>';
+
+        // Runs table & compare selects
+        const runs = data.runs || [];
+        $("runsTable").innerHTML = runs.length
+          ? runs.map((r) => {
+              const s = r.summary || {};
+              const links = [
+                r.has_html ? `<a href="/results/${esc(r.dir_name)}/report.html" target="_blank" rel="noopener">HTML Report</a>` : "",
+                r.has_md ? `<a href="/results/${esc(r.dir_name)}/summary.md" target="_blank" rel="noopener">MD</a>` : "",
+                r.has_junit ? `<a href="/results/${esc(r.dir_name)}/junit.xml" target="_blank" rel="noopener">JUnit</a>` : ""
+              ].filter(Boolean).join(" &middot; ");
+              return `
+                <tr>
+                  <td><code>${esc(r.run_id)}</code></td>
+                  <td>${esc(r.suite)} / ${esc(r.environment)}</td>
+                  <td>${esc(r.platform)}</td>
+                  <td><span class="badge b-ok">${s.passed || 0}</span></td>
+                  <td><span class="badge ${s.failed ? "b-fail" : "b-skip"}">${s.failed || 0}</span></td>
+                  <td>${s.skipped || 0}</td>
+                  <td>${fmtDuration(s.duration_ms || 0)}</td>
+                  <td>${links || '<span class="muted">-</span>'}</td>
+                </tr>`;
+            }).join("")
+          : '<tr><td colspan="8" class="muted">No test runs yet.</td></tr>';
+
+        const runOpts = runs.map((r) => ({ value: r.dir_name, label: `${r.run_id} (${r.summary.passed || 0} pass / ${r.summary.failed || 0} fail)` }));
+        populateSelect("compareBase", runOpts);
+        populateSelect("compareTarget", runOpts);
+        if (runs.length >= 2) {
+          $("compareBase").value = runs[1].dir_name;
+          $("compareTarget").value = runs[0].dir_name;
+        }
+      }
+
+      async function loadOverview() {
+        const res = await fetch("/api/overview", { cache: "no-store" });
+        const data = await res.json();
+        renderOverview(data);
+      }
+
+      // ------------------------------------------------------------------
+      // Step 1 Event Handlers
+      // ------------------------------------------------------------------
+      $("uploadAppForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const file = $("appFileInput").files[0];
+        if (!file) {
+          showBanner("uploadStatus", "Choose an .apk, .ipa, or .zip file first.", "error");
+          return;
+        }
+        $("btnUploadApp").disabled = true;
+        showBanner("uploadStatus", "Uploading " + file.name + "...", "");
+        try {
+          const res = await fetch("/api/apps/upload?filename=" + encodeURIComponent(file.name), {
+            method: "POST",
+            body: file
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Upload failed");
+          let msg = "Saved to " + data.rel_path + " (" + fmtBytes(data.size_bytes) + ").";
+          if (data.detected_package) {
+            $("envAndroidPkg").value = data.detected_package;
+            msg += " Detected Android package: " + data.detected_package + " (pre-filled on the right — click Save Environment Config).";
+          }
+          showBanner("uploadStatus", msg, "ok");
+          $("appFileInput").value = "";
+          await loadOverview();
+          $("inspectAppSelect").value = data.rel_path;
+          $("runAppSelect").value = data.rel_path;
+        } catch (err) {
+          showBanner("uploadStatus", err.message, "error");
+        } finally {
+          $("btnUploadApp").disabled = false;
+        }
+      });
+
+      $("envSaveForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        try {
+          const data = await apiJson("/api/environments/save", {
+            env_name: $("envNameInput").value.trim() || "qa",
+            android_package: $("envAndroidPkg").value.trim(),
+            ios_bundle_id: $("envIosBundle").value.trim(),
+            default_timeout: Number($("envTimeoutInput").value) || 12
+          });
+          showBanner("envStatus", "Saved environment '" + data.env_name + "' into config/environments.yaml.", "ok");
+          await loadOverview();
+        } catch (err) {
+          showBanner("envStatus", err.message, "error");
+        }
+      });
+
+      $("btnRefreshDevices").addEventListener("click", async () => {
+        $("devicesTable").innerHTML = '<tr><td colspan="4" class="muted">Scanning USB &amp; emulators...</td></tr>';
+        try {
+          const data = await apiJson("/api/devices");
+          const rows = (data.android || []).concat(data.ios || []);
+          if (!rows.length) {
+            const notes = [data.android_error, data.ios_error].filter(Boolean).join(" | ");
+            $("devicesTable").innerHTML = `<tr><td colspan="4" class="muted">No devices found. ${esc(notes)}</td></tr>`;
+            return;
+          }
+          $("devicesTable").innerHTML = rows.map((d) => `
+            <tr>
+              <td>${esc(d.platform)}</td>
+              <td>${esc(d.name)}</td>
+              <td><code>${esc(d.identifier)}</code></td>
+              <td><span class="badge ${d.state === "device" || d.state === "Booted" ? "b-ok" : "b-warn"}">${esc(d.state)}</span></td>
+            </tr>`).join("");
+        } catch (err) {
+          $("devicesTable").innerHTML = `<tr><td colspan="4" class="muted">${esc(err.message)}</td></tr>`;
+        }
+      });
+
+      $("btnRunDoctor").addEventListener("click", async () => {
+        $("doctorTable").innerHTML = '<tr><td colspan="3" class="muted">Running diagnostics...</td></tr>';
+        try {
+          const data = await apiJson("/api/doctor");
+          $("doctorTable").innerHTML = (data.checks || []).map((c) => {
+            const cls = c.status === "ok" ? "b-ok" : c.status === "fail" ? "b-fail" : c.status === "warn" ? "b-warn" : "b-skip";
+            const fix = c.remediation ? `<div class="muted" style="font-size:0.75rem;">${esc(c.remediation)}</div>` : "";
+            return `<tr><td>${esc(c.name)}</td><td><span class="badge ${cls}">${esc(c.status)}</span></td><td>${esc(c.detail || "")}${fix}</td></tr>`;
+          }).join("");
+        } catch (err) {
+          $("doctorTable").innerHTML = `<tr><td colspan="3" class="muted">${esc(err.message)}</td></tr>`;
+        }
+      });
+
+      // ------------------------------------------------------------------
+      // Step 2 Event Handlers (Screen Identification)
+      // ------------------------------------------------------------------
+      function renderInspectCandidates(elements) {
+        STATE.inspectCandidates = (elements || []).map((el, idx) => ({
+          key: (el.key || el.suggested_key || ("element_" + (idx + 1))).replace(/[^a-zA-Z0-9_]/g, "_"),
+          strategy: el.recommended_strategy || el.strategy || "xpath",
+          value: el.recommended_value || el.value || "",
+          sensitive: Boolean(el.suggested_sensitive || el.sensitive),
+          preview: el.text || el.label || el.tag || ""
+        }));
+        if (!STATE.inspectCandidates.length) {
+          $("inspectCandidatesBody").innerHTML = '<tr><td colspan="6" class="muted">No interactive elements found in that screen XML.</td></tr>';
+          return;
+        }
+        $("inspectCandidatesBody").innerHTML = STATE.inspectCandidates.map((el, idx) => {
+          const sensitiveGuess = el.sensitive || /pass|pin|otp|secret|token|cvv|ssn/i.test(el.key + " " + el.value);
+          return `
+            <tr data-cand-idx="${idx}">
+              <td><input type="checkbox" class="cand-check" checked aria-label="Include ${esc(el.key)}" /></td>
+              <td><input type="text" class="cand-key" value="${esc(el.key)}" aria-label="Element key" /></td>
+              <td><code>${esc(el.strategy)}</code></td>
+              <td><code>${esc(el.value)}</code></td>
+              <td class="muted">${esc(el.preview)}</td>
+              <td><label class="chk-inline"><input type="checkbox" class="cand-sensitive" ${sensitiveGuess ? "checked" : ""} /> Mask</label></td>
+            </tr>`;
+        }).join("");
+      }
+
+      $("btnLoadSampleXml").addEventListener("click", () => {
+        $("inspectXmlText").value = SAMPLE_LOGIN_XML;
+        if (!$("inspectScreenName").value.trim()) $("inspectScreenName").value = "login";
+      });
+
+      $("inspectXmlForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        showBanner("inspectStatus", "Parsing XML hierarchy...", "");
+        try {
+          const data = await apiJson("/api/inspect/xml", {
+            xml_text: $("inspectXmlText").value,
+            platform: $("inspectPlatform").value,
+            screen_name: $("inspectScreenName").value.trim() || "screen"
+          });
+          renderInspectCandidates(data.elements || []);
+          showBanner("inspectStatus", `Found ${(data.elements || []).length} interactive element(s) for screen '${data.screen}'. Review names below and save.`, "ok");
+        } catch (err) {
+          showBanner("inspectStatus", err.message, "error");
+        }
+      });
+
+      $("inspectLiveForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        $("btnCaptureLive").disabled = true;
+        showBanner("inspectStatus", "Connecting via Appium to capture live UI hierarchy (may take a few seconds)...", "");
+        try {
+          const data = await apiJson("/api/inspect/live", {
+            platform: $("inspectPlatform").value,
+            device_profile: $("inspectDeviceSelect").value,
+            env_name: $("inspectEnvSelect").value,
+            app_path: $("inspectAppSelect").value,
+            screen_name: $("inspectScreenName").value.trim() || "screen"
+          });
+          renderInspectCandidates(data.elements || []);
+          showBanner("inspectStatus", `Captured ${(data.elements || []).length} live element(s) from '${data.screen}'.`, "ok");
+        } catch (err) {
+          showBanner("inspectStatus", err.message, "error");
+        } finally {
+          $("btnCaptureLive").disabled = false;
+        }
+      });
+
+      $("btnSaveLocators").addEventListener("click", async () => {
+        const screenName = $("inspectScreenName").value.trim() || "screen";
+        const platform = $("inspectPlatform").value;
+        const entries = [];
+        document.querySelectorAll("#inspectCandidatesBody tr[data-cand-idx]").forEach((tr) => {
+          const idx = Number(tr.dataset.candIdx);
+          const cand = STATE.inspectCandidates[idx];
+          if (!cand) return;
+          if (!tr.querySelector(".cand-check").checked) return;
+          entries.push({
+            key: tr.querySelector(".cand-key").value.trim() || ("element_" + (idx + 1)),
+            strategy: cand.strategy,
+            value: cand.value,
+            sensitive: tr.querySelector(".cand-sensitive").checked
+          });
+        });
+        if (!entries.length) {
+          showBanner("inspectStatus", "Check at least one element row to save.", "error");
+          return;
+        }
+        try {
+          const res = await apiJson("/api/screens/save", {
+            screen_name: screenName,
+            platform: platform,
+            entries: entries
+          });
+          showBanner("inspectStatus", `Saved ${res.saved_targets.length} locator(s) to screens/screens.yaml: ${res.saved_targets.join(", ")}`, "ok");
+          await loadOverview();
+        } catch (err) {
+          showBanner("inspectStatus", err.message, "error");
+        }
+      });
+
+      // ------------------------------------------------------------------
+      // Step 3 Event Handlers (Workflows)
+      // ------------------------------------------------------------------
+      $("btnAddFlowStep").addEventListener("click", () => {
+        $("flowStepsContainer").appendChild(createStepRowElement({ tap: "" }));
+      });
+
+      $("flowForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        try {
+          const steps = readStepRows("flowStepsContainer");
+          const params = $("flowParamsInput").value.split(",").map((s) => s.trim()).filter(Boolean);
+          const data = await apiJson("/api/flows/save", {
+            name: $("flowNameInput").value.trim(),
+            params: params,
+            steps: steps,
+            notes: $("flowNotesInput").value.trim()
+          });
+          showBanner("flowStatus", `Saved workflow '${data.name}' to ${data.source_path}.`, "ok");
+          await loadOverview();
+        } catch (err) {
+          showBanner("flowStatus", err.message, "error");
+        }
+      });
+
+      $("flowsTable").addEventListener("click", (e) => {
+        const btn = e.target.closest("[data-load-flow]");
+        if (!btn || !STATE.overview) return;
+        const flow = STATE.overview.flows[Number(btn.dataset.loadFlow)];
+        if (!flow) return;
+        $("flowNameInput").value = flow.name;
+        $("flowParamsInput").value = (flow.params || []).join(", ");
+        $("flowStepsContainer").innerHTML = "";
+        (flow.steps || []).forEach((st) => $("flowStepsContainer").appendChild(createStepRowElement(st)));
+        showBanner("flowStatus", `Loaded '${flow.name}' into editor.`, "");
+      });
+
+      // ------------------------------------------------------------------
+      // Step 4 Event Handlers (Test Journeys & Validate)
+      // ------------------------------------------------------------------
+      $("btnAddSpecSetupStep").addEventListener("click", () => {
+        $("specSetupContainer").appendChild(createStepRowElement({ tap: "" }));
+      });
+      $("btnAddSpecMainStep").addEventListener("click", () => {
+        $("specMainContainer").appendChild(createStepRowElement({ tap: "" }));
+      });
+      $("btnAddSpecTeardownStep").addEventListener("click", () => {
+        $("specTeardownContainer").appendChild(createStepRowElement("back"));
+      });
+      $("btnInsertFlow").addEventListener("click", () => {
+        const name = $("insertFlowSelect").value;
+        if (!name) return;
+        const flowObj = (STATE.overview && STATE.overview.flows || []).find((f) => f.name === name);
+        const paramStub = {};
+        if (flowObj && flowObj.params) {
+          flowObj.params.forEach((p) => { paramStub[p] = ""; });
+        }
+        $("specMainContainer").appendChild(createStepRowElement({
+          run_flow: Object.keys(paramStub).length ? { flow: name, params: paramStub } : name
+        }));
+      });
+
+      $("specForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        try {
+          const platforms = [];
+          if ($("specPlatAndroid").checked) platforms.push("android");
+          if ($("specPlatIos").checked) platforms.push("ios");
+          const tags = $("specTagsInput").value.split(",").map((t) => t.trim()).filter(Boolean);
+          const payload = {
+            id: $("specIdInput").value.trim(),
+            title: $("specTitleInput").value.trim(),
+            suite: $("specSuiteInput").value.trim() || "smoke",
+            reset: $("specResetSelect").value,
+            platforms: platforms.length ? platforms : ["android"],
+            tags: tags.length ? tags : ["smoke"],
+            expected: $("specExpectedInput").value.trim(),
+            setup: readStepRows("specSetupContainer"),
+            steps: readStepRows("specMainContainer"),
+            teardown: readStepRows("specTeardownContainer")
+          };
+          const res = await apiJson("/api/specs/save", payload);
+          showBanner("specStatus", `Saved journey '${res.id}' to ${res.source_path}.`, "ok");
+          await loadOverview();
+        } catch (err) {
+          showBanner("specStatus", err.message, "error");
+        }
+      });
+
+      $("btnValidateWorkspace").addEventListener("click", async () => {
+        showBanner("validateOutput", "Validating screens, workflows, and journeys...", "");
+        try {
+          const res = await apiJson("/api/validate", {
+            env_name: $("runEnvSelect").value || "qa",
+            platform: $("runPlatformSelect").value || "android"
+          });
+          if (res.ok) {
+            showBanner("validateOutput", `Validation PASSED (${res.specs_count} journey(s), ${res.flows_count} flow(s), ${res.warnings.length} warning(s)).`, "ok");
+          } else {
+            const firstErr = (res.errors || []).slice(0, 4).map((er) => `${er.location}: ${er.message}`).join(" | ");
+            showBanner("validateOutput", `Validation FAILED (${res.errors.length} error(s)): ${firstErr}`, "error");
+          }
+        } catch (err) {
+          showBanner("validateOutput", err.message, "error");
+        }
+      });
+
+      // ------------------------------------------------------------------
+      // Step 5 Event Handlers (Runs & Reports)
+      // ------------------------------------------------------------------
+      async function pollRunStatus() {
+        try {
+          const st = await apiJson("/api/runs/status");
+          const logEl = $("runLiveLog");
+          if (st.logs && st.logs.length) {
+            logEl.hidden = false;
+            logEl.textContent = st.logs.join("\n");
+            logEl.scrollTop = logEl.scrollHeight;
+          }
+          if (st.running) {
+            showBanner("runStatusBanner", `Running ${st.run_id}...`, "");
+            return;
+          }
+          if (STATE.pollTimer) {
+            clearInterval(STATE.pollTimer);
+            STATE.pollTimer = null;
+          }
+          $("btnStartLiveRun").disabled = false;
+          if (st.status === "completed") {
+            const s = st.summary || {};
+            showBanner("runStatusBanner", `Run ${st.run_id} finished: ${s.passed || 0} passed, ${s.failed || 0} failed, ${s.skipped || 0} skipped.`, s.failed ? "warn" : "ok");
+            if (st.report_url) {
+              $("openFinishedReportLink").href = st.report_url;
+              $("openFinishedReportLink").hidden = false;
+            }
+            await loadOverview();
+          } else if (st.status === "error") {
+            showBanner("runStatusBanner", `Run ${st.run_id} stopped with error: ${st.error}`, "error");
+          }
+        } catch (err) {
+          if (STATE.pollTimer) {
+            clearInterval(STATE.pollTimer);
+            STATE.pollTimer = null;
+          }
+          $("btnStartLiveRun").disabled = false;
+        }
+      }
+
+      async function startRun(dryRun) {
+        $("openFinishedReportLink").hidden = true;
+        showBanner("runStatusBanner", dryRun ? "Building Dry Run preview..." : "Starting test run...", "");
+        try {
+          const res = await apiJson("/api/runs/start", {
+            platform: $("runPlatformSelect").value,
+            device_profile: $("runDeviceSelect").value,
+            env_name: $("runEnvSelect").value,
+            suite: $("runSuiteSelect").value,
+            app_path: $("runAppSelect").value,
+            retries: Number($("runRetriesInput").value) || 0,
+            dry_run: dryRun
+          });
+          if (dryRun) {
+            const lines = [`Dry Run OK — ${res.specs.length} journey(s) matched (${res.platform} / ${res.device_profile} / ${res.env_name}):`]
+              .concat(res.specs.map((s) => `  • ${s.id}: ${s.title} (${s.suite}, reset=${s.reset}, ${s.steps} step(s))`));
+            $("runLiveLog").hidden = false;
+            $("runLiveLog").textContent = lines.join("\n");
+            showBanner("runStatusBanner", `Dry Run validated cleanly: ${res.specs.length} journey(s) ready to run.`, "ok");
+            return;
+          }
+          $("btnStartLiveRun").disabled = true;
+          if (STATE.pollTimer) clearInterval(STATE.pollTimer);
+          STATE.pollTimer = setInterval(pollRunStatus, 1500);
+          await pollRunStatus();
+        } catch (err) {
+          showBanner("runStatusBanner", err.message, "error");
+        }
+      }
+
+      $("btnDryRun").addEventListener("click", () => startRun(true));
+      $("runForm").addEventListener("submit", (e) => {
+        e.preventDefault();
+        startRun(false);
+      });
+
+      $("btnCompare").addEventListener("click", async () => {
+        const base = $("compareBase").value;
+        const target = $("compareTarget").value;
+        if (!base || !target) return;
+        const out = $("compareOut");
+        out.innerHTML = '<p class="muted">Comparing runs...</p>';
+        try {
+          const d = await apiJson(`/api/compare?base=${encodeURIComponent(base)}&target=${encodeURIComponent(target)}`);
+          const delta = d.duration_delta_ms >= 0 ? "+" + fmtDuration(d.duration_delta_ms) : "-" + fmtDuration(-d.duration_delta_ms);
+          let html = `<p><strong>Base:</strong> <code>${esc(d.base_run_id)}</code> &rarr; <strong>Target:</strong> <code>${esc(d.target_run_id)}</code> &middot; <strong>Duration delta:</strong> ${esc(delta)}</p>`;
+          html += `<p>Regressions: <strong class="badge ${d.regressions.length ? "b-fail" : "b-ok"}">${d.regressions.length}</strong> &nbsp; Fixes: <strong class="badge b-ok">${d.fixes.length}</strong> &nbsp; Persistent failures: <strong>${d.persistent_failures.length}</strong></p>`;
+          if (d.regressions.length) {
+            html += `<h4 style="margin:8px 0 4px;">New Regressions</h4><ul>` + d.regressions.map((x) => `<li><code>${esc(x.id)}</code> ${esc(x.title)} &mdash; ${esc(x.failure_category || "failure")}: ${esc(x.failure_reason)}</li>`).join("") + `</ul>`;
+          }
+          if (d.fixes.length) {
+            html += `<h4 style="margin:8px 0 4px;">Fixed Tests</h4><ul>` + d.fixes.map((x) => `<li><code>${esc(x.id)}</code> ${esc(x.title)}</li>`).join("") + `</ul>`;
+          }
+          out.innerHTML = html;
+        } catch (err) {
+          out.innerHTML = `<p class="status-banner status-error">${esc(err.message)}</p>`;
+        }
+      });
+
+      // Seed initial empty builder rows
+      $("flowStepsContainer").appendChild(createStepRowElement({ tap: "" }));
+      $("specMainContainer").appendChild(createStepRowElement({ tap: "" }));
+
+      loadOverview().catch((err) => {
+        showBanner("corruptBanner", "Failed to load workspace overview: " + err.message, "error");
+      });
+    })();
   </script>
 </body>
 </html>
