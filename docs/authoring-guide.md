@@ -22,33 +22,42 @@ Every test lives in a `.md` file under `specs/`. The YAML front matter between `
 | `reset` | No | `clear_data` | `reinstall`, `clear_data`, or `none` |
 | `auto_accept_alerts` | No | profile default | Overrides `devices.yaml` per test |
 | `continue_on_failure` | No | `false` | If `false`, remaining `steps` skip on failure while `teardown` still runs |
-| `steps` | Yes | — | Non-empty list of steps |
-| `teardown` | No | `[]` | Always runs even if a step above fails |
+| `retriable` | No | `true` | Controls automatic retries on transient failures (`--retries N`) |
+| `retries` | No | CLI `--retries` | Per-spec retry override (`0`–`5`) |
+| `retry_on_assertion` | No | `false` | Allow retrying assertion failures too (off by default to keep assertions deterministic) |
+| `setup` | No | `[]` | Steps run before `steps` on each attempt (`phase: setup`) |
+| `steps` | Yes | — | Non-empty list of steps (`phase: steps`) |
+| `teardown` | No | `[]` | Always runs even if a step above fails (`phase: teardown`) |
 | `expected` | No | `""` | Summary of expected outcome shown in reports |
 
 ---
 
-## 2. Step Vocabulary (v1)
+## 2. Step Vocabulary
 
 | Step | Parameters | Notes |
 |---|---|---|
 | `launch` | `app` | Launch or foreground the app under test |
-| `reset_app` | none | Apply configured `reset` mid-test |
+| `reset_app` | none | Apply configured `reset` mid-test; aborts attempt cleanly if reset fails |
 | `background` | `seconds` | Background app for N seconds, then foreground |
-| `tap` | `target` (or `{target, params?}`) | Auto-waits up to `default_timeout` |
+| `tap` | `target` (or `{target, params?}`) | Auto-waits up to `default_timeout`; retries once on stale element reference |
 | `tap_if_visible` | `target`, `timeout?`, `params?` | Short wait (default 2s); no-op if absent |
 | `type` | `target`, `value`, `secret?`, `params?` | `secret: true` masks logs/reports and redacts screenshot bounds |
 | `clear` | `target`, `params?` | Auto-waits and clears input |
-| `swipe` | `direction` (`up\|down\|left\|right`), `target?` | Finger drag direction on screen or element |
+| `swipe` | `direction` (`up\|down\|left\|right`), `target?`, `duration?`, `distance?` | Finger drag on screen or element (`distance` fraction `0 < d < 1`) |
 | `scroll_until_visible` | `target`, `direction?`, `max_swipes?` | Scrolls content (`down` default, `max_swipes: 8`) |
-| `wait` | `seconds` | Fixed pause; prefer `wait_for_visible` |
-| `wait_for_visible` | `target`, `timeout?`, `params?` | Explicit wait up to `timeout` |
+| `wait` | `seconds` | Fixed pause; prefer event-driven `wait_for_*` steps |
+| `wait_for_visible` | `target`, `timeout?`, `params?` | Explicit wait for visibility up to `timeout` |
+| `wait_for_enabled` | `target`, `timeout?`, `params?` | Wait until element is visible and enabled |
+| `wait_for_text` | `target`, `equals \| contains \| matches`, `timeout?`, `params?` | Wait until element text satisfies literal/substring/regex check |
+| `wait_for_keyboard` | `visible: true \| false`, `timeout?` | Wait until OS soft keyboard appears or dismisses |
 | `assert_visible` / `assert_not_visible` | `target`, `timeout?`, `params?` | Auto-waits for visibility state |
-| `assert_text` | `target`, `equals` or `contains`, `timeout?` | Auto-waits and checks element text |
+| `assert_text` | `target`, `equals \| contains \| matches`, `timeout?` | Auto-waits and verifies element text (exact, substring, or regex) |
+| `assert_enabled` / `assert_disabled` | `target`, `timeout?`, `params?` | Assert element enabled/disabled state |
 | `back` / `hide_keyboard` | none | Hardware/system back or hide soft keyboard |
 | `biometric` | `action: enroll \| match \| fail` | Simulator/emulator only; auto-skipped on real devices |
 | `run_flow` | `flow`, `params?` | Expands a 1-level flow from `flows/` |
-| `screenshot` | `name` | Captures an explicitly named screenshot |
+| `screenshot` | `name` (or `{name, baseline?, threshold?, mask?}`) | Captures screenshot and optionally compares against baseline PNG |
+| `visual_compare` | `target?`, `baseline`, `threshold?`, `mask?` | Compares current screenshot (or cropped element) against a stored baseline |
 
 Add `capture: off` to any step when a full screen contains sensitive information and no screenshot should be captured after that step.
 
@@ -147,3 +156,11 @@ On **iOS Simulators**, `clear_data` terminates, uninstalls, and reinstalls the `
 
 1. Use a QA build debug reset hook / logout in `teardown:`, or
 2. Erase the simulator between runs (`xcrun simctl erase <udid>`).
+
+---
+
+## 6. Retries, Failure Taxonomy & Visual Baselines
+
+- **Transient-Only Retries:** With `--retries N` (or per-spec `retries:`), QAlprit retries transient failures (`locator_not_found`, `locator_timeout`, `stale_element`, `driver_session_error`, `app_launch_failure`) by default and stops immediately on deterministic assertion failures unless `retry_on_assertion: true` is set.
+- **Locator Single-Strategy Rule:** Each platform locator block in `screens/screens.yaml` should define only one primary selector key (`accessibility_id`, `id`, `text`, or `xpath`) per target/override.
+- **Visual Baselines:** Run once with `--update-baselines` to record PNG baselines (`baselines/`), then omit `--update-baselines` in CI to assert visual similarity within `threshold` (with optional `mask:` targets or boxes to ignore dynamic clocks/avatars).

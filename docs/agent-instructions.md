@@ -34,12 +34,17 @@ When a user asks you to run, set up, or update QAlprit tests for an app, act as 
 ### 2. Inspect Before Authoring or Fixing Locators
 
 - Never guess `accessibility_id` names, labels, or XPaths.
-- Capture live screen structure with:
+- Capture live screen structure with (optionally exporting JSON for programmatic locator ranking):
   ```bash
-  qalprit inspect --platform <android|ios> --device <profile> --app <app-path> --screen <screen_name>
+  qalprit inspect --platform <android|ios> --device <profile> --app <app-path> --screen <screen_name> [--export-json screen.json]
+  ```
+- Preview the resolved execution plan before launching a device:
+  ```bash
+  qalprit list --suite <suite> --platform <android|ios>
+  qalprit run --platform <android|ios> --device <profile> --env <env> --suite <suite> --dry-run
   ```
 - Maintain `screens/screens.yaml` cleanly:
-  - Prefer a shared `accessibility_id` when both platforms expose the same ID.
+  - Prefer a shared `accessibility_id` when both platforms expose the same ID, and keep only one primary strategy key (`accessibility_id`, `id`, `text`, or `xpath`) per target/platform override.
   - When Android and iOS differ, keep `android:` and `ios:` blocks independent under the same logical locator key — never break a passing platform override to fix the other.
   - For unlabelled iOS text fields beside a label, target relative to the label (for example `xpath: //XCUIElementTypeStaticText[@name="Zip Code*"]/following::XCUIElementTypeTextField[1]`).
   - Keep `sensitive: true` on passwords, cards, CVVs, PINs, OTPs, and PII fields, and `secret: true` on sensitive `type` steps in specs.
@@ -56,26 +61,29 @@ Fix any missing locators, invalid step names, nested flow calls (flows are 1 lev
 
 ### 4. Execute & Triage Failures Automatically
 
-Run the suite:
+Run the suite (or rerun only failed tests after fixing a locator with `--rerun-failed`):
 
 ```bash
 qalprit run --platform <android|ios> --device <profile> --app <app-path> --env <env> --suite <suite>
+# Re-run only failures from an earlier run:
+qalprit run --platform <android|ios> --device <profile> --app <app-path> --env <env> --rerun-failed results/<run-id>
 ```
 
 When any spec fails, read:
-- `results/<run-id>/summary.md`
+- `results/<run-id>/summary.md` (includes failure category counts)
+- `results/<run-id>/junit.xml` (for CI failure details)
 - `results/<run-id>/screenshots/<SPEC_ID>/attempt_*/*_FAIL.png`
 - `results/<run-id>/page_sources/<SPEC_ID>/attempt_*/*_FAIL.xml`
 
-Classify the failure and respond accordingly:
+Classify the failure (`failure_category` in `results.json` / `report.html`) and respond accordingly:
 
-| Failure Type | How to Spot It | How the Agent Should Evolve the Suite |
+| Failure Type / Category | How to Spot It | How the Agent Should Evolve the Suite |
 |---|---|---|
-| **Wrong / Changed Locator** | Element missing from XML or different attribute on this OS/version | Update only the affected platform (`android:` or `ios:`) in `screens/screens.yaml` from `*_FAIL.xml` or `qalprit inspect`. |
-| **iOS Keyboard Covering Fields** | `XCUIElementTypeKeyboard` overlaps a lower field (`visible="false"` in `*_FAIL.xml`) | Insert `- hide_keyboard: true` (or `scroll_until_visible`) after typing into the field above it. |
-| **Platform Formatting Difference** | Semantic match with different punctuation/spacing (e.g., `$29.99` vs `$ 29.99`) | Switch brittle `equals:` text checks to `contains:` when valid on both OSes. |
+| **Wrong / Changed Locator** (`locator_not_found`, `locator_timeout`) | Element missing from XML or different attribute on this OS/version | Update only the affected platform (`android:` or `ios:`) in `screens/screens.yaml` from `*_FAIL.xml` or `qalprit inspect`. |
+| **iOS Keyboard Covering Fields** (`locator_not_visible`) | `XCUIElementTypeKeyboard` overlaps a lower field (`visible="false"` in `*_FAIL.xml`) | Insert `- hide_keyboard: true` (or `scroll_until_visible`, or `wait_for_keyboard: {visible: false}`) after typing into the field above it. |
+| **Platform Formatting Difference** (`assertion_failure`) | Semantic match with different punctuation/spacing (e.g., `$29.99` vs `$ 29.99`) | Switch brittle `equals:` checks to `contains:` or `matches:` regex when valid on both OSes. |
 | **Platform-Only Fixture or Flow** | A test user, screen, or OS feature only exists on Android or iOS | Scope that spec with `platforms: [android]` or `platforms: [ios]` and explain why. |
-| **Real App Bug** | Wrong data, crash, missing screen, broken button, or wrong sort order | **Do not weaken assertions to pass.** Report the bug to the user with the `*_FAIL.png` screenshot and `report.html`. |
+| **Real App Bug** (`assertion_failure`, `visual_regression`) | Wrong data, crash, missing screen, broken button, or visual diff | **Do not weaken assertions to pass.** Report the bug to the user with the `*_FAIL.png` screenshot, diff image, and `report.html`. |
 
 ### 5. Safety Boundaries
 

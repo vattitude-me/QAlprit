@@ -9,7 +9,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import unquote, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 from qalprit import __version__
 from qalprit.config_loader import load_screens
@@ -30,6 +30,7 @@ def collect_workspace_overview(
     res_dir = (results_dir or (root / "results")).resolve()
 
     runs: list[dict[str, Any]] = []
+    corrupt_runs: list[dict[str, str]] = []
     if res_dir.exists() and res_dir.is_dir():
         for entry in sorted(res_dir.iterdir(), key=lambda p: p.name, reverse=True):
             if not entry.is_dir():
@@ -42,19 +43,37 @@ def collect_workspace_overview(
                 runs.append(
                     {
                         "run_id": run.run_id,
+                        "dir_name": entry.name,
                         "started_at": run.started_at,
                         "finished_at": run.finished_at,
                         "environment": run.environment,
                         "platform": run.platform,
                         "device_name": run.device_name,
                         "target_type": run.target_type,
+                        "os_version": run.os_version,
+                        "app_version": run.app_version,
                         "suite": run.suite,
+                        "tags": run.tags,
+                        "interrupted": run.interrupted,
                         "summary": run.summary.model_dump(),
+                        "tests": [
+                            {
+                                "id": t.id,
+                                "title": t.title,
+                                "status": t.status,
+                                "flaky": t.flaky,
+                                "failure_category": t.failure_category,
+                                "duration_ms": t.duration_ms,
+                            }
+                            for t in run.tests
+                        ],
                         "has_html": (entry / "report.html").exists(),
                         "has_md": (entry / "summary.md").exists(),
+                        "has_junit": (entry / "junit.xml").exists(),
                     }
                 )
-            except Exception:
+            except Exception as exc:
+                corrupt_runs.append({"run_id": entry.name, "error": str(exc)})
                 continue
 
     specs, _ = load_specs(root / "specs")
@@ -91,6 +110,7 @@ def collect_workspace_overview(
         "tagline": "Mobile QA. Bugs caught with proof.",
         "project_root": str(root),
         "runs": runs,
+        "corrupt_runs": corrupt_runs,
         "specs": [
             {
                 "id": s.id,
@@ -121,6 +141,89 @@ def collect_workspace_overview(
             for f in sorted(flows.values(), key=lambda x: x.name)
         ],
         "screens": screens_list,
+    }
+
+
+def _find_run_json(results_dir: Path, run_id: str) -> Path | None:
+    if not run_id or "/" in run_id or "\\" in run_id or ".." in run_id:
+        return None
+    direct = (results_dir / run_id / "results.json").resolve()
+    if direct.is_relative_to(results_dir.resolve()) and direct.is_file():
+        return direct
+    for entry in results_dir.iterdir():
+        if not entry.is_dir():
+            continue
+        p = entry / "results.json"
+        if p.is_file():
+            try:
+                r = load_results_json(p)
+                if r.run_id == run_id:
+                    return p
+            except Exception:
+                continue
+    return None
+
+
+def compare_runs(results_dir: Path, base_run_id: str, target_run_id: str) -> dict[str, Any]:
+    """Compare two runs and report regressions, fixes, persistent failures, and delta."""
+    base_path = _find_run_json(results_dir, base_run_id)
+    target_path = _find_run_json(results_dir, target_run_id)
+    if base_path is None:
+        raise FileNotFoundError(f"Base run '{base_run_id}' not found")
+    if target_path is None:
+        raise FileNotFoundError(f"Target run '{target_run_id}' not found")
+
+    base = load_results_json(base_path)
+    target = load_results_json(target_path)
+    base_map = {t.id: t for t in base.tests}
+    target_map = {t.id: t for t in target.tests}
+
+    regressions: list[dict[str, Any]] = []
+    fixes: list[dict[str, Any]] = []
+    persistent_failures: list[dict[str, Any]] = []
+    new_tests: list[dict[str, Any]] = []
+    removed_tests: list[dict[str, Any]] = []
+
+    for tid, tt in target_map.items():
+        bt = base_map.get(tid)
+        if bt is None:
+            new_tests.append({"id": tid, "title": tt.title, "status": tt.status})
+            continue
+        if bt.status != "failed" and tt.status == "failed":
+            regressions.append(
+                {
+                    "id": tid,
+                    "title": tt.title,
+                    "base_status": bt.status,
+                    "target_status": tt.status,
+                    "failure_category": tt.failure_category,
+                    "failure_reason": tt.failure_reason or "",
+                }
+            )
+        elif bt.status == "failed" and tt.status == "passed":
+            fixes.append({"id": tid, "title": tt.title, "base_status": bt.status, "target_status": tt.status})
+        elif bt.status == "failed" and tt.status == "failed":
+            persistent_failures.append(
+                {
+                    "id": tid,
+                    "title": tt.title,
+                    "failure_category": tt.failure_category,
+                }
+            )
+
+    for tid, bt in base_map.items():
+        if tid not in target_map:
+            removed_tests.append({"id": tid, "title": bt.title, "status": bt.status})
+
+    return {
+        "base_run_id": base.run_id,
+        "target_run_id": target.run_id,
+        "duration_delta_ms": target.summary.duration_ms - base.summary.duration_ms,
+        "regressions": regressions,
+        "fixes": fixes,
+        "persistent_failures": persistent_failures,
+        "new_tests": new_tests,
+        "removed_tests": removed_tests,
     }
 
 
@@ -173,12 +276,41 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
             )
             return
 
+        if req_path == "/api/compare":
+            qs = parse_qs(parsed.query)
+            base_id = (qs.get("base") or [""])[0]
+            target_id = (qs.get("target") or [""])[0]
+            if not base_id or not target_id:
+                self._send_bytes(
+                    json.dumps({"error": "Both 'base' and 'target' query params are required"}).encode("utf-8"),
+                    "application/json; charset=utf-8",
+                    HTTPStatus.BAD_REQUEST,
+                )
+                return
+            try:
+                payload = compare_runs(self.results_dir, base_id, target_id)
+                self._send_bytes(
+                    json.dumps(payload, indent=2).encode("utf-8"),
+                    "application/json; charset=utf-8",
+                )
+            except FileNotFoundError as exc:
+                self._send_bytes(
+                    json.dumps({"error": str(exc)}).encode("utf-8"),
+                    "application/json; charset=utf-8",
+                    HTTPStatus.NOT_FOUND,
+                )
+            return
+
         if req_path.startswith("/results/"):
             rel = req_path[len("/results/") :].lstrip("/")
-            if not rel:
+            if not rel or ".." in Path(rel).parts:
                 self._send_bytes(b"Not found", "text/plain; charset=utf-8", HTTPStatus.NOT_FOUND)
                 return
-            candidate = (self.results_dir / rel).resolve()
+            raw_candidate = self.results_dir / rel
+            if raw_candidate.is_symlink() and not raw_candidate.resolve().is_relative_to(self.results_dir):
+                self._send_bytes(b"Not found", "text/plain; charset=utf-8", HTTPStatus.NOT_FOUND)
+                return
+            candidate = raw_candidate.resolve()
             if not candidate.is_relative_to(self.results_dir) or not candidate.is_file():
                 self._send_bytes(b"Not found", "text/plain; charset=utf-8", HTTPStatus.NOT_FOUND)
                 return
@@ -199,4 +331,9 @@ def create_ui_server(
     root = project_root.resolve()
     res_dir = (results_dir or (root / "results")).resolve()
     handler = partial(_WorkbenchHandler, project_root=root, results_dir=res_dir)
-    return ThreadingHTTPServer((host, port), handler)
+    try:
+        return ThreadingHTTPServer((host, port), handler)
+    except OSError:
+        if port == 0:
+            raise
+        return ThreadingHTTPServer((host, 0), handler)

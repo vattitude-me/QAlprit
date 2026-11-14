@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+import re
 from typing import Any, Literal
 
 from qalprit.config_loader import (
@@ -32,9 +33,13 @@ _TARGETED_STEPS = {
     "clear",
     "scroll_until_visible",
     "wait_for_visible",
+    "wait_for_enabled",
+    "wait_for_text",
     "assert_visible",
     "assert_not_visible",
     "assert_text",
+    "assert_enabled",
+    "assert_disabled",
 }
 _VALID_DIRECTIONS = {"up", "down", "left", "right"}
 _VALID_BIOMETRIC_ACTIONS = {"enroll", "match", "fail"}
@@ -123,6 +128,27 @@ def _validate_step_shape(
                 ValidationIssue("error", file_path, loc, f"'{step.type}' requires 'target'")
             )
 
+    if "timeout" in step.params and step.params["timeout"] is not None:
+        raw_to = step.params["timeout"]
+        if isinstance(raw_to, bool) or not isinstance(raw_to, (int, float)) or raw_to <= 0:
+            issues.append(
+                ValidationIssue(
+                    "error",
+                    file_path,
+                    loc,
+                    f"'timeout' must be a positive number > 0, got {raw_to!r}",
+                )
+            )
+        elif raw_to > 300:
+            issues.append(
+                ValidationIssue(
+                    "warning",
+                    file_path,
+                    loc,
+                    f"Timeout {raw_to}s exceeds 300s recommended maximum",
+                )
+            )
+
     if step.type == "type":
         if "value" not in step.params or step.params["value"] is None:
             issues.append(
@@ -140,6 +166,23 @@ def _validate_step_shape(
                     f"'swipe' direction must be one of {sorted(_VALID_DIRECTIONS)}, got {direction!r}",
                 )
             )
+        if "duration" in step.params and step.params["duration"] is not None:
+            dur = step.params["duration"]
+            if isinstance(dur, bool) or not isinstance(dur, (int, float)) or dur <= 0:
+                issues.append(
+                    ValidationIssue("error", file_path, loc, f"'swipe.duration' must be > 0 ms, got {dur!r}")
+                )
+        if "distance" in step.params and step.params["distance"] is not None:
+            dist = step.params["distance"]
+            if isinstance(dist, bool) or not isinstance(dist, (int, float)) or not (0.1 <= float(dist) <= 0.9):
+                issues.append(
+                    ValidationIssue(
+                        "error",
+                        file_path,
+                        loc,
+                        f"'swipe.distance' must be between 0.1 and 0.9, got {dist!r}",
+                    )
+                )
 
     elif step.type == "scroll_until_visible":
         direction = step.params.get("direction", "down")
@@ -153,7 +196,7 @@ def _validate_step_shape(
                 )
             )
         max_swipes = step.params.get("max_swipes", 8)
-        if not isinstance(max_swipes, int) or max_swipes < 1:
+        if isinstance(max_swipes, bool) or not isinstance(max_swipes, int) or max_swipes < 1:
             issues.append(
                 ValidationIssue(
                     "error",
@@ -165,7 +208,7 @@ def _validate_step_shape(
 
     elif step.type in ("wait", "background"):
         seconds = step.params.get("seconds")
-        if not isinstance(seconds, (int, float)) or seconds < 0:
+        if isinstance(seconds, bool) or not isinstance(seconds, (int, float)) or seconds < 0:
             issues.append(
                 ValidationIssue(
                     "error",
@@ -174,17 +217,41 @@ def _validate_step_shape(
                     f"'{step.type}' requires non-negative numeric 'seconds', got {seconds!r}",
                 )
             )
+        elif seconds > 300:
+            issues.append(
+                ValidationIssue(
+                    "warning",
+                    file_path,
+                    loc,
+                    f"'{step.type}' seconds={seconds} exceeds 300s recommended maximum",
+                )
+            )
 
-    elif step.type == "assert_text":
-        if "equals" not in step.params and "contains" not in step.params:
+    elif step.type in ("assert_text", "wait_for_text"):
+        if not any(k in step.params for k in ("equals", "contains", "regex", "matches")):
             issues.append(
                 ValidationIssue(
                     "error",
                     file_path,
                     loc,
-                    "'assert_text' requires either 'equals' or 'contains'",
+                    f"'{step.type}' requires one of 'equals', 'contains', 'regex', or 'matches'",
                 )
             )
+        for rx_key in ("regex", "matches"):
+            if rx_key in step.params and isinstance(step.params[rx_key], str) and "${" not in step.params[rx_key]:
+                try:
+                    re.compile(step.params[rx_key])
+                except re.error as exc:
+                    issues.append(
+                        ValidationIssue("error", file_path, loc, f"Invalid regex in '{step.type}': {exc}")
+                    )
+
+    elif step.type == "wait_for_keyboard":
+        for kb_key in ("shown", "visible"):
+            if kb_key in step.params and not isinstance(step.params[kb_key], bool):
+                issues.append(
+                    ValidationIssue("error", file_path, loc, f"'wait_for_keyboard.{kb_key}' must be boolean")
+                )
 
     elif step.type == "biometric":
         action = step.params.get("action")
@@ -203,6 +270,23 @@ def _validate_step_shape(
             issues.append(
                 ValidationIssue("error", file_path, loc, "'screenshot' requires 'name'")
             )
+
+    elif step.type == "visual_compare":
+        if not (step.params.get("baseline") or step.params.get("name")):
+            issues.append(
+                ValidationIssue("error", file_path, loc, "'visual_compare' requires 'baseline' or 'name'")
+            )
+        if "threshold" in step.params and step.params["threshold"] is not None:
+            th = step.params["threshold"]
+            if isinstance(th, bool) or not isinstance(th, (int, float)) or not (0.0 <= float(th) <= 1.0):
+                issues.append(
+                    ValidationIssue(
+                        "error",
+                        file_path,
+                        loc,
+                        f"'visual_compare.threshold' must be between 0.0 and 1.0, got {th!r}",
+                    )
+                )
 
 
 def _validate_locator_and_env(
@@ -287,6 +371,16 @@ def _validate_locator_and_env(
                             )
                         )
 
+            if step.type == "type" and screens.get_entry(target, plat).sensitive and not step.secret:
+                issues.append(
+                    ValidationIssue(
+                        "warning",
+                        file_path,
+                        loc,
+                        f"Typing into sensitive locator '{target}' ({plat}) without 'secret: true' may expose value in reports/logs",
+                    )
+                )
+
 
 def validate_project(
     project_root: Path,
@@ -294,6 +388,7 @@ def validate_project(
     suite: str | None = None,
     tags: list[str] | None = None,
     platform: str | None = None,
+    app_path: Path | None = None,
 ) -> ValidationResult:
     """Validate project configs, screens, flows, specs, locators, and env vars."""
     result = ValidationResult()
@@ -339,6 +434,24 @@ def validate_project(
     except Exception as exc:
         result.issues.append(ValidationIssue("error", screens_path, "screens", str(exc)))
 
+    if app_path is not None:
+        if not app_path.exists():
+            result.issues.append(
+                ValidationIssue("error", app_path, "app", f"App binary not found: {app_path}")
+            )
+        elif platform:
+            suffix = app_path.suffix.lower()
+            valid_exts = {"android": {".apk", ".aab"}, "ios": {".app", ".ipa"}}.get(platform, set())
+            if valid_exts and suffix not in valid_exts:
+                result.issues.append(
+                    ValidationIssue(
+                        "warning",
+                        app_path,
+                        "app",
+                        f"App binary '{app_path.name}' extension '{suffix or '<none>'}' is unusual for platform '{platform}' (expected {', '.join(sorted(valid_exts))})",
+                    )
+                )
+
     flows, flow_parse_errors = load_flows(flows_dir)
     result.flows = flows
     for err in flow_parse_errors:
@@ -380,7 +493,7 @@ def validate_project(
         referenced_flow_names = {
             step.params.get("flow")
             for spec in selected_specs
-            for phase_steps in (spec.steps, spec.teardown)
+            for phase_steps in (spec.setup, spec.steps, spec.teardown)
             for step in phase_steps
             if step.type == "run_flow" and step.params.get("flow")
         }
@@ -391,6 +504,17 @@ def validate_project(
     flow_platforms = [platform] if platform else ["android", "ios"]
     for flow in flows_to_validate:
         declared_params = set(flow.params)
+        flow_text = "\n".join(_iter_strings([s.params for s in flow.steps]))
+        for param_name in flow.params:
+            if f"${{{param_name}}}" not in flow_text and f"{{{param_name}}}" not in flow_text:
+                result.issues.append(
+                    ValidationIssue(
+                        "warning",
+                        flow.source_path,
+                        f"flow:{flow.name}.params",
+                        f"Declared flow param '{param_name}' is not referenced in any step",
+                    )
+                )
         for idx, step in enumerate(flow.steps, start=1):
             loc = f"flow:{flow.name}.steps[{idx}]"
             _validate_step_shape(step, flow.source_path, loc, result.issues, allow_run_flow=False)
@@ -407,8 +531,17 @@ def validate_project(
             )
 
     for spec in selected_specs:
+        if spec.retries is not None and (spec.retries < 0 or spec.retries > 5):
+            result.issues.append(
+                ValidationIssue(
+                    "error",
+                    spec.source_path,
+                    f"{spec.id}.retries",
+                    f"'retries' must be between 0 and 5, got {spec.retries!r}",
+                )
+            )
         spec_platforms = [platform] if platform else list(spec.platforms)
-        for phase_name, step_list in (("steps", spec.steps), ("teardown", spec.teardown)):
+        for phase_name, step_list in (("setup", spec.setup), ("steps", spec.steps), ("teardown", spec.teardown)):
             for idx, step in enumerate(step_list, start=1):
                 loc = f"{spec.id}.{phase_name}[{idx}]"
                 _validate_step_shape(step, spec.source_path, loc, result.issues, allow_run_flow=True)

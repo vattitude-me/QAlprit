@@ -16,7 +16,9 @@ def exec_launch(ctx: StepContext, step: StepItem) -> StepOutcome:
 
 
 def exec_reset_app(ctx: StepContext, step: StepItem) -> StepOutcome:
-    ctx.reset_fn(ctx.reset_mode)
+    res = ctx.reset_fn(ctx.reset_mode)
+    if isinstance(res, tuple) and len(res) == 2 and res[0] is False:
+        raise RuntimeError(f"Application reset ({ctx.reset_mode}) failed: {res[1]}")
     return StepOutcome()
 
 

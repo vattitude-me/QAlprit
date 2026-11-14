@@ -101,10 +101,10 @@ You do not have to run every command or debug screen XML by hand. Put your app i
 
 Every run creates a folder under `results/<run-id>/` with your proof:
 
-- **`report.html`** — Open in any browser to see pass/fail results and click through step screenshots.
-- **`summary.md`** — Short results table ready to paste into a pull request.
-- **`screenshots/`** — Step screenshots with passwords and sensitive boxes blacked out before saving.
-- **`results.json`** & **`appium.log`** — Raw test data and Appium logs for debugging.
+- **`report.html`** — Open in any browser to see pass/fail results, failure categories, and step screenshots.
+- **`summary.md`** & **`junit.xml`** — Markdown results table for pull requests plus JUnit XML for CI pipelines.
+- **`screenshots/`** — Step screenshots with passwords and sensitive boxes blacked out in memory before saving.
+- **`results.json`** & **`appium.log`** — Structured test data (`schema_version: 1.1`) and scrubbed Appium logs.
 
 ### Real Sample Output (Sauce Labs My Demo App)
 
@@ -132,11 +132,11 @@ See all 5 passing Android tests in the [Live Sample Report](https://qalprit.vatt
 ![QAlprit Event Flow Diagram](https://raw.githubusercontent.com/vattitude-me/QAlprit/main/web/architecture.svg)
 
 1. **App Build**: Package the target mobile binary (`.apk`, `.app`, or `.ipa`).
-2. **AI Authoring**: Generate screen locators (`screens/screens.yaml`), reusable flows (`flows/*.yaml`), and test specs (`specs/*.md`).
+2. **AI Authoring**: Generate screen locators (`screens/screens.yaml`), reusable flows (`flows/*.md`), and test specs (`specs/*.md`).
 3. **Validate**: Review with human + `qalprit validate` to catch schema, locator, and `.env` issues before execution.
 4. **Workflow Execution**: Run each workflow deterministically via Appium 2 on a simulator/emulator or real USB device.
-5. **Capture & Mask**: Capture screen frames and mask sensitive fields/PII in memory before saving.
-6. **Report & Dashboard**: Generate `report.html`, `summary.md`, `results.json`, and explore runs in `qalprit ui`.
+5. **Capture & Mask**: Capture screen frames and mask sensitive fields/PII in memory before saving (`secure_evidence: true`).
+6. **Report & Dashboard**: Generate `report.html`, `summary.md`, `junit.xml`, `results.json`, and explore or compare runs in `qalprit ui`.
 
 ### CLI Reference
 
@@ -144,11 +144,12 @@ See all 5 passing Android tests in the [Live Sample Report](https://qalprit.vatt
 |---|---|
 | `qalprit doctor` | Checks Python, Node, Appium 2, and Android/iOS tools |
 | `qalprit devices` | Lists connected phones, emulators, and simulators |
-| `qalprit inspect --platform android\|ios` | Reads the current app screen and suggests locators |
-| `qalprit validate --suite <name> --env <name>` | Checks specs, flows, locators, and `.env` without a phone |
-| `qalprit run --platform android\|ios --device <name> --app <path>` | Runs tests and generates proof reports |
-| `qalprit report <results-dir>` | Rebuilds `report.html` and `summary.md` from `results.json` |
-| `qalprit ui` | Opens a local web dashboard for past runs and specs |
+| `qalprit list [--suite <name>]` | Lists test specs, reusable flows, and screen locators (`--json-output` supported) |
+| `qalprit inspect --platform android\|ios` | Reads the current app screen and ranks suggested locators (`--export-json` supported) |
+| `qalprit validate --suite <name> --env <name>` | Checks specs, flows, locators, and `.env` without a phone (`--app` optional) |
+| `qalprit run --platform android\|ios --device <name> --app <path>` | Runs tests (`--id`, `--exclude-tags`, `--rerun-failed`, `--dry-run`, `--update-baselines`) |
+| `qalprit report <results-dir>` | Rebuilds `report.html`, `summary.md`, and `junit.xml` from `results.json` |
+| `qalprit ui` | Opens a local web dashboard to browse and compare runs |
 
 ### More Docs
 

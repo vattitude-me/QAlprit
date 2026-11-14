@@ -79,7 +79,11 @@
     .b-fail { background: var(--fail-bg); color: var(--fail); }
     .b-warn { background: var(--warn-bg); color: var(--warn); }
     .b-neutral { background: var(--surface-alt); color: var(--muted); border: 1px solid var(--border); }
-    .btn { display: inline-block; padding: 7px 14px; border-radius: 7px; font-size: 13px; font-weight: 600; text-decoration: none; background: var(--accent); color: var(--accent-ink); }
+    .btn { display: inline-block; padding: 7px 14px; border-radius: 7px; font-size: 13px; font-weight: 600; text-decoration: none; background: var(--accent); color: var(--accent-ink); border: none; cursor: pointer; }
+    .btn-secondary { background: var(--surface-alt); color: var(--text); border: 1px solid var(--border); }
+    .toolbar-ui { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; }
+    .input-ui { padding: 7px 10px; border-radius: 7px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 13px; min-width: 180px; }
+    .warn-banner { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; margin-bottom: 14px; font-size: 13px; }
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
     th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
     th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
@@ -100,11 +104,15 @@
           <p class="tagline">Mobile QA. Bugs caught with proof.</p>
         </div>
       </div>
-      <div class="pill" id="verPill">Loading workspace...</div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <div class="pill" id="verPill">Loading workspace...</div>
+        <button type="button" class="btn btn-secondary" id="refreshBtn">Refresh</button>
+      </div>
     </div>
   </header>
 
   <main class="wrap">
+    <div id="corruptBanner" class="warn-banner" hidden></div>
     <section class="stats" aria-label="Workspace summary">
       <div class="stat"><div class="stat-label">Recorded Runs</div><div class="stat-val" id="cntRuns">-</div></div>
       <div class="stat"><div class="stat-label">Test Specs</div><div class="stat-val" id="cntSpecs">-</div></div>
@@ -150,22 +158,54 @@
       return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
     }
 
-    fetch("/api/overview").then((r) => r.json()).then((data) => {
-      document.getElementById("verPill").textContent = `qalprit v${data.version}`;
-      document.getElementById("cntRuns").textContent = data.runs.length;
-      document.getElementById("cntSpecs").textContent = data.specs.length;
-      document.getElementById("cntFlows").textContent = data.flows.length;
-      document.getElementById("cntSensitive").textContent = data.screens.filter((s) => s.sensitive).length;
+    let workspaceData = null;
 
+    function renderRunsPanel() {
       const runsEl = document.getElementById("panel-runs");
-      if (!data.runs.length) {
+      const runs = workspaceData ? workspaceData.runs : [];
+      if (!runs.length) {
         runsEl.innerHTML = `<div class="empty">No runs found yet. Execute <code>qalprit run --platform android --device android_emulator --app /path/to/app.apk</code> to generate proof reports.</div>`;
-      } else {
-        runsEl.innerHTML = `<div class="grid">${data.runs.map((r) => `
+        return;
+      }
+
+      const compareHtml = runs.length >= 2 ? `
+        <div class="card" style="margin-bottom:14px;">
+          <div style="font-weight:700; margin-bottom:8px;">Compare Runs</div>
+          <div class="toolbar-ui" style="margin-bottom:8px;">
+            <select id="cmpBase" class="input-ui" aria-label="Base run">${runs.map((r, i) => `<option value="${esc(r.dir_name || r.run_id)}" ${i === 1 ? "selected" : ""}>Base: ${esc(r.run_id)}</option>`).join("")}</select>
+            <select id="cmpTarget" class="input-ui" aria-label="Target run">${runs.map((r, i) => `<option value="${esc(r.dir_name || r.run_id)}" ${i === 0 ? "selected" : ""}>Target: ${esc(r.run_id)}</option>`).join("")}</select>
+            <button type="button" class="btn" id="cmpBtn">Compare</button>
+          </div>
+          <div id="cmpResult" style="font-size:13px; color:var(--muted);"></div>
+        </div>` : "";
+
+      runsEl.innerHTML = `
+        ${compareHtml}
+        <div class="toolbar-ui">
+          <input id="runSearch" class="input-ui" type="search" placeholder="Filter runs by ID, platform, env, suite..." aria-label="Filter runs" />
+          <select id="runStatusFilter" class="input-ui" aria-label="Filter runs by outcome">
+            <option value="all">All runs</option>
+            <option value="has_fail">With failures</option>
+            <option value="all_pass">All passed</option>
+          </select>
+        </div>
+        <div class="grid" id="runsGrid"></div>`;
+
+      function drawRunCards() {
+        const q = (document.getElementById("runSearch").value || "").trim().toLowerCase();
+        const st = document.getElementById("runStatusFilter").value;
+        const filtered = runs.filter((r) => {
+          const hay = `${r.run_id} ${r.platform} ${r.device_name} ${r.environment} ${r.suite}`.toLowerCase();
+          if (q && !hay.includes(q)) return false;
+          if (st === "has_fail" && !(r.summary && r.summary.failed > 0)) return false;
+          if (st === "all_pass" && !(r.summary && r.summary.failed === 0 && r.summary.passed > 0)) return false;
+          return true;
+        });
+        document.getElementById("runsGrid").innerHTML = filtered.length ? filtered.map((r) => `
           <article class="card run-row">
             <div>
-              <div class="mono"><strong>${esc(r.run_id)}</strong></div>
-              <div style="font-size:13px; color:var(--muted);">${esc(r.platform)} · ${esc(r.device_name)} · env=${esc(r.environment)} · suite=${esc(r.suite)}</div>
+              <div class="mono"><strong>${esc(r.run_id)}</strong>${r.interrupted ? ' <span class="badge b-fail">INTERRUPTED</span>' : ""}</div>
+              <div style="font-size:13px; color:var(--muted);">${esc(r.platform)} · ${esc(r.device_name)}${r.os_version ? " (OS " + esc(r.os_version) + ")" : ""} · env=${esc(r.environment)} · suite=${esc(r.suite)}</div>
               <div class="badges">
                 <span class="badge b-pass">${r.summary.passed} passed</span>
                 ${r.summary.failed ? `<span class="badge b-fail">${r.summary.failed} failed</span>` : ""}
@@ -173,46 +213,137 @@
                 <span class="badge b-neutral">${r.summary.total} total</span>
               </div>
             </div>
-            <div>
-              ${r.has_html ? `<a class="btn" href="/results/${encodeURIComponent(r.run_id)}/report.html" target="_blank" rel="noopener">Open Proof Report</a>` : ""}
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              ${r.has_junit ? `<a class="btn btn-secondary" href="/results/${encodeURIComponent(r.dir_name || r.run_id)}/junit.xml" target="_blank" rel="noopener">JUnit XML</a>` : ""}
+              ${r.has_html ? `<a class="btn" href="/results/${encodeURIComponent(r.dir_name || r.run_id)}/report.html" target="_blank" rel="noopener">Open Proof Report</a>` : ""}
             </div>
-          </article>`).join("")}</div>`;
+          </article>`).join("") : `<div class="empty">No runs match the current filter.</div>`;
       }
 
+      document.getElementById("runSearch").addEventListener("input", drawRunCards);
+      document.getElementById("runStatusFilter").addEventListener("change", drawRunCards);
+      drawRunCards();
+
+      const cmpBtn = document.getElementById("cmpBtn");
+      if (cmpBtn) {
+        cmpBtn.addEventListener("click", () => {
+          const base = document.getElementById("cmpBase").value;
+          const target = document.getElementById("cmpTarget").value;
+          fetch(`/api/compare?base=${encodeURIComponent(base)}&target=${encodeURIComponent(target)}`)
+            .then((r) => r.json())
+            .then((cmp) => {
+              if (cmp.error) {
+                document.getElementById("cmpResult").textContent = cmp.error;
+                return;
+              }
+              document.getElementById("cmpResult").innerHTML = `
+                <div class="badges" style="margin-bottom:8px;">
+                  <span class="badge b-fail">Regressions: ${cmp.regressions.length}</span>
+                  <span class="badge b-pass">Fixes: ${cmp.fixes.length}</span>
+                  <span class="badge b-warn">Persistent Failures: ${cmp.persistent_failures.length}</span>
+                  <span class="badge b-neutral">Duration Delta: ${cmp.duration_delta_ms >= 0 ? "+" : ""}${cmp.duration_delta_ms}ms</span>
+                </div>
+                ${cmp.regressions.length ? `<div><strong>Regressed:</strong> ${cmp.regressions.map((x) => `<code>${esc(x.id)}</code>`).join(", ")}</div>` : ""}
+                ${cmp.fixes.length ? `<div><strong>Fixed:</strong> ${cmp.fixes.map((x) => `<code>${esc(x.id)}</code>`).join(", ")}</div>` : ""}`;
+            });
+        });
+      }
+    }
+
+    function renderSpecsAndScreens() {
+      if (!workspaceData) return;
       document.getElementById("panel-specs").innerHTML = `
+        <div class="toolbar-ui">
+          <input id="specSearch" class="input-ui" type="search" placeholder="Search specs & flows..." aria-label="Filter specs and flows" />
+        </div>
+        <div class="card" style="margin-bottom:14px;">
+          <table>
+            <caption>Test Specifications (${workspaceData.specs.length})</caption>
+            <thead><tr><th scope="col">ID</th><th scope="col">Title</th><th scope="col">Suite</th><th scope="col">Steps</th><th scope="col">Reset</th><th scope="col">Source</th></tr></thead>
+            <tbody id="specRows"></tbody>
+          </table>
+        </div>
         <div class="card">
           <table>
-            <caption>Test Specifications (${data.specs.length}) &amp; Reusable Flows (${data.flows.length})</caption>
-            <thead><tr><th scope="col">ID</th><th scope="col">Title</th><th scope="col">Suite</th><th scope="col">Steps</th><th scope="col">Reset</th><th scope="col">Source</th></tr></thead>
-            <tbody>
-              ${data.specs.map((s) => `<tr>
-                <td class="mono">${esc(s.id)}</td>
-                <td>${esc(s.title)}</td>
-                <td><span class="badge b-neutral">${esc(s.suite)}</span></td>
-                <td>${s.step_count} (+${s.teardown_count} teardown)</td>
-                <td class="mono">${esc(s.reset)}</td>
-                <td class="mono">${esc(s.source_path)}</td>
-              </tr>`).join("")}
-            </tbody>
+            <caption>Reusable Flows (${workspaceData.flows.length})</caption>
+            <thead><tr><th scope="col">Flow Name</th><th scope="col">Params</th><th scope="col">Steps</th><th scope="col">Source</th></tr></thead>
+            <tbody id="flowRows"></tbody>
           </table>
         </div>`;
 
+      function drawSpecTables() {
+        const q = (document.getElementById("specSearch").value || "").trim().toLowerCase();
+        document.getElementById("specRows").innerHTML = workspaceData.specs
+          .filter((s) => !q || `${s.id} ${s.title} ${s.suite}`.toLowerCase().includes(q))
+          .map((s) => `<tr>
+            <td class="mono">${esc(s.id)}</td>
+            <td>${esc(s.title)}</td>
+            <td><span class="badge b-neutral">${esc(s.suite)}</span></td>
+            <td>${s.step_count} (+${s.teardown_count} teardown)</td>
+            <td class="mono">${esc(s.reset)}</td>
+            <td class="mono">${esc(s.source_path)}</td>
+          </tr>`).join("");
+        document.getElementById("flowRows").innerHTML = workspaceData.flows
+          .filter((f) => !q || `${f.name} ${(f.params || []).join(" ")}`.toLowerCase().includes(q))
+          .map((f) => `<tr>
+            <td class="mono">${esc(f.name)}</td>
+            <td class="mono">${esc((f.params || []).join(", ") || "-")}</td>
+            <td>${f.step_count}</td>
+            <td class="mono">${esc(f.source_path)}</td>
+          </tr>`).join("");
+      }
+      document.getElementById("specSearch").addEventListener("input", drawSpecTables);
+      drawSpecTables();
+
       document.getElementById("panel-screens").innerHTML = `
+        <div class="toolbar-ui">
+          <input id="screenSearch" class="input-ui" type="search" placeholder="Search screen locators..." aria-label="Filter locators" />
+        </div>
         <div class="card">
           <table>
             <caption>Screen Locators &amp; Redaction Policy</caption>
             <thead><tr><th scope="col">Target</th><th scope="col">Redaction</th><th scope="col">Android</th><th scope="col">iOS</th></tr></thead>
-            <tbody>
-              ${data.screens.map((sc) => `<tr>
-                <td class="mono">${esc(sc.target)}</td>
-                <td>${sc.sensitive ? '<span class="badge b-warn">sensitive: true (black-filled)</span>' : '<span class="badge b-neutral">standard</span>'}</td>
-                <td class="mono">${sc.platforms.android ? esc(sc.platforms.android.strategy + ": " + sc.platforms.android.value) : "-"}</td>
-                <td class="mono">${sc.platforms.ios ? esc(sc.platforms.ios.strategy + ": " + sc.platforms.ios.value) : "-"}</td>
-              </tr>`).join("")}
-            </tbody>
+            <tbody id="screenRows"></tbody>
           </table>
         </div>`;
-    });
+
+      function drawScreenRows() {
+        const q = (document.getElementById("screenSearch").value || "").trim().toLowerCase();
+        document.getElementById("screenRows").innerHTML = workspaceData.screens
+          .filter((sc) => !q || JSON.stringify(sc).toLowerCase().includes(q))
+          .map((sc) => `<tr>
+            <td class="mono">${esc(sc.target)}</td>
+            <td>${sc.sensitive ? '<span class="badge b-warn">sensitive: true (black-filled)</span>' : '<span class="badge b-neutral">standard</span>'}</td>
+            <td class="mono">${sc.platforms.android ? esc(sc.platforms.android.strategy + ": " + sc.platforms.android.value) : "-"}</td>
+            <td class="mono">${sc.platforms.ios ? esc(sc.platforms.ios.strategy + ": " + sc.platforms.ios.value) : "-"}</td>
+          </tr>`).join("");
+      }
+      document.getElementById("screenSearch").addEventListener("input", drawScreenRows);
+      drawScreenRows();
+    }
+
+    function loadOverview() {
+      fetch("/api/overview").then((r) => r.json()).then((data) => {
+        workspaceData = data;
+        document.getElementById("verPill").textContent = `qalprit v${data.version}`;
+        document.getElementById("cntRuns").textContent = data.runs.length;
+        document.getElementById("cntSpecs").textContent = data.specs.length;
+        document.getElementById("cntFlows").textContent = data.flows.length;
+        document.getElementById("cntSensitive").textContent = data.screens.filter((s) => s.sensitive).length;
+        const banner = document.getElementById("corruptBanner");
+        if (data.corrupt_runs && data.corrupt_runs.length) {
+          banner.hidden = false;
+          banner.textContent = `Skipped ${data.corrupt_runs.length} unreadable/corrupt run(s): ${data.corrupt_runs.map((c) => c.run_id).join(", ")}`;
+        } else {
+          banner.hidden = true;
+        }
+        renderRunsPanel();
+        renderSpecsAndScreens();
+      });
+    }
+
+    document.getElementById("refreshBtn").addEventListener("click", loadOverview);
+    loadOverview();
   </script>
 </body>
 </html>

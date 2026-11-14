@@ -18,12 +18,17 @@ from qalprit.steps.interaction_steps import (
     exec_tap_if_visible,
     exec_type,
 )
-from qalprit.steps.media_steps import exec_screenshot
+from qalprit.steps.media_steps import exec_screenshot, exec_visual_compare
 from qalprit.steps.wait_assert_steps import (
+    exec_assert_disabled,
+    exec_assert_enabled,
     exec_assert_not_visible,
     exec_assert_text,
     exec_assert_visible,
     exec_wait,
+    exec_wait_for_enabled,
+    exec_wait_for_keyboard,
+    exec_wait_for_text,
     exec_wait_for_visible,
 )
 
@@ -39,13 +44,19 @@ STEP_EXECUTORS: dict[str, Callable[[StepContext, StepItem], StepOutcome]] = {
     "scroll_until_visible": exec_scroll_until_visible,
     "wait": exec_wait,
     "wait_for_visible": exec_wait_for_visible,
+    "wait_for_enabled": exec_wait_for_enabled,
+    "wait_for_text": exec_wait_for_text,
+    "wait_for_keyboard": exec_wait_for_keyboard,
     "assert_visible": exec_assert_visible,
     "assert_not_visible": exec_assert_not_visible,
     "assert_text": exec_assert_text,
+    "assert_enabled": exec_assert_enabled,
+    "assert_disabled": exec_assert_disabled,
     "back": exec_back,
     "hide_keyboard": exec_hide_keyboard,
     "biometric": exec_biometric,
     "screenshot": exec_screenshot,
+    "visual_compare": exec_visual_compare,
 }
 
 

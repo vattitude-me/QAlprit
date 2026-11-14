@@ -25,6 +25,8 @@ class ElementProtocol(Protocol):
 
     def is_displayed(self) -> bool: ...
 
+    def is_enabled(self) -> bool: ...
+
 
 @runtime_checkable
 class DriverProtocol(Protocol):
@@ -95,17 +97,36 @@ class AppiumDriverAdapter:
             return AppiumBy.ANDROID_UIAUTOMATOR, value
         if strategy == "text":
             if self.platform == "android":
-                escaped = value.replace('"', '\\"')
+                escaped = value.replace("\\", "\\\\").replace('"', '\\"')
                 return (
                     AppiumBy.ANDROID_UIAUTOMATOR,
                     f'new UiSelector().text("{escaped}")',
                 )
-            escaped = value.replace("'", "\\'")
+            escaped = value.replace("\\", "\\\\").replace("'", "\\'")
             return (
                 AppiumBy.IOS_PREDICATE,
                 f"label == '{escaped}' OR name == '{escaped}' OR value == '{escaped}'",
             )
         raise ValueError(f"Unsupported locator strategy: {strategy}")
+
+    def is_keyboard_shown(self) -> bool:
+        try:
+            shown = self._driver.is_keyboard_shown()
+            if shown is not None:
+                return bool(shown)
+        except Exception:
+            pass
+        if self.platform == "ios":
+            try:
+                from appium.webdriver.common.appiumby import AppiumBy
+
+                return any(
+                    el.is_displayed()
+                    for el in self._driver.find_elements(AppiumBy.CLASS_NAME, "XCUIElementTypeKeyboard")
+                )
+            except Exception:
+                return False
+        return False
 
     def find_element(self, strategy: str, value: str) -> Any:
         by, loc = self._to_by_and_val(strategy, value)
