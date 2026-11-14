@@ -8,9 +8,68 @@ import platform
 import re
 import shutil
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
+
+
+def find_bundled_runtime_dir() -> Path | None:
+    """Locate optional bundled desktop runtime directory (`runtime/`)."""
+    candidates: list[Path] = []
+    env_rt = os.environ.get("QALPRIT_RUNTIME_DIR")
+    if env_rt:
+        candidates.append(Path(env_rt))
+    if getattr(sys, "frozen", False):
+        exe_dir = Path(sys.executable).resolve().parent
+        candidates.extend([exe_dir / "runtime", exe_dir.parent / "Resources" / "runtime"])
+    else:
+        candidates.append(Path(__file__).resolve().parents[2] / "runtime")
+    for cand in candidates:
+        if cand.is_dir():
+            return cand
+    return None
+
+
+def find_node_bin() -> str | None:
+    """Locate Node.js executable, preferring bundled runtime if present."""
+    exe = "node.exe" if platform.system() == "Windows" else "node"
+    rt = find_bundled_runtime_dir()
+    if rt is not None:
+        for cand in (rt / "node" / exe, rt / "node" / "bin" / exe):
+            if cand.is_file():
+                return str(cand)
+    return shutil.which("node")
+
+
+def find_appium_home() -> Path | None:
+    """Locate bundled APPIUM_HOME containing pre-installed Appium drivers."""
+    rt = find_bundled_runtime_dir()
+    if rt is not None:
+        cand = rt / "appium_home"
+        if cand.is_dir():
+            return cand
+    return None
+
+
+def find_appium_entry() -> tuple[list[str] | None, str]:
+    """Return command prefix to invoke Appium 2 and display path/label."""
+    rt = find_bundled_runtime_dir()
+    node_bin = find_node_bin()
+    if rt is not None and node_bin:
+        for rel in (
+            rt / "appium" / "node_modules" / "appium" / "build" / "lib" / "main.js",
+            rt / "node" / "node_modules" / "appium" / "build" / "lib" / "main.js",
+        ):
+            if rel.is_file():
+                return [node_bin, str(rel)], str(rel)
+    appium_bin = shutil.which("appium")
+    if appium_bin:
+        return [appium_bin], appium_bin
+    npx_bin = shutil.which("npx")
+    if npx_bin:
+        return [npx_bin, "--no-install", "appium"], f"{npx_bin} --no-install appium"
+    return None, ""
 
 
 @dataclass
@@ -24,6 +83,9 @@ class CheckItem:
 def find_android_sdk() -> Path | None:
     """Locate Android SDK directory across macOS, Windows, and Linux."""
     candidates: list[Path] = []
+    rt = find_bundled_runtime_dir()
+    if rt is not None:
+        candidates.extend([rt / "android-sdk", rt / "android"])
     for env_key in ("ANDROID_HOME", "ANDROID_SDK_ROOT"):
         val = os.environ.get(env_key)
         if val:
@@ -75,7 +137,13 @@ def find_android_tool(name: str) -> str | None:
 
 
 def find_java_bin() -> str | None:
-    """Locate java binary, checking PATH, JAVA_HOME, and Homebrew OpenJDK on macOS."""
+    """Locate java binary, checking bundled runtime, PATH, JAVA_HOME, and Homebrew OpenJDK."""
+    java_exe = "java.exe" if platform.system() == "Windows" else "java"
+    rt = find_bundled_runtime_dir()
+    if rt is not None:
+        cand = rt / "jdk" / "bin" / java_exe
+        if cand.exists():
+            return str(cand)
     direct = shutil.which("java")
     # On macOS, /usr/bin/java can be a stub when no JDK is linked
     if direct and platform.system() == "Darwin" and direct == "/usr/bin/java":
@@ -150,19 +218,23 @@ def run_doctor(python_min: tuple[int, int] = (3, 10)) -> list[CheckItem]:
         )
 
     # 2. Node.js
-    node_bin = shutil.which("node")
+    node_bin = find_node_bin()
     if node_bin:
         rc, out = _run_quick([node_bin, "--version"])
-        checks.append(CheckItem("Node.js", "ok" if rc == 0 else "warn", out or node_bin))
+        checks.append(CheckItem("Node.js", "ok" if rc == 0 else "warn", f"{out or node_bin} ({node_bin})"))
     else:
         checks.append(
             CheckItem("Node.js", "fail", "Not found", "Install Node.js LTS to run Appium 2")
         )
 
     # 3. Appium 2 + drivers
-    appium_bin = shutil.which("appium")
-    if appium_bin:
-        rc, ver_out = _run_quick([appium_bin, "--version"])
+    appium_cmd, appium_label = find_appium_entry()
+    app_env = dict(os.environ)
+    appium_home = find_appium_home()
+    if appium_home is not None:
+        app_env.setdefault("APPIUM_HOME", str(appium_home))
+    if appium_cmd:
+        rc, ver_out = _run_quick(appium_cmd + ["--version"], env=app_env)
         ver_str = ver_out.splitlines()[0] if ver_out else "unknown"
         major = 0
         m = re.match(r"(\d+)\.", ver_str.strip())
@@ -173,13 +245,13 @@ def run_doctor(python_min: tuple[int, int] = (3, 10)) -> list[CheckItem]:
             CheckItem(
                 "Appium",
                 status,
-                f"v{ver_str} ({appium_bin})",
+                f"v{ver_str} ({appium_label})",
                 "" if major >= 2 else "Upgrade to Appium 2: npm install -g appium",
             )
         )
 
         # Installed drivers
-        rc_d, drv_out = _run_quick([appium_bin, "driver", "list", "--installed", "--json"])
+        rc_d, drv_out = _run_quick(appium_cmd + ["driver", "list", "--installed", "--json"], env=app_env)
         installed_drivers: set[str] = set()
         if rc_d == 0 and drv_out:
             try:
