@@ -26,12 +26,16 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]" build twine
 
-      - name: Run pytest suite
-        run: pytest -v
+      - name: Run pytest suite with coverage
+        run: pytest -v --cov=qalprit --cov-report=term-missing
+
+      - name: Check frontend syntax
+        run: node --check web/app.js
 
       - name: Validate sample specs and locators
         run: |
           cp config/env.example .env
+          qalprit list --suite mda
           qalprit validate --suite mda --env mda
           qalprit validate --suite regression --env qa
 

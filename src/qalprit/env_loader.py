@@ -5,16 +5,21 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import html
 import os
 import re
 import struct
 import time
+import urllib.parse
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
 
 _VAR_PATTERN = re.compile(r"\$\{([A-Za-z0-9_:.]+)\}")
 _SENSITIVE_KEY_MARKERS = ("PASS", "SECRET", "TOKEN", "PIN", "KEY", "OTP", "TOTP", "AUTH")
+_IGNORED_SECRET_LITERALS = frozenset(
+    {"true", "false", "null", "none", "passed", "failed", "skipped", "ok", "yes", "no"}
+)
 
 
 def parse_env_file(path: Path) -> dict[str, str]:
@@ -92,8 +97,18 @@ class SecretMasker:
             self.add(item)
 
     def add(self, value: str | None) -> None:
-        if value and len(value) >= 2:
-            self._secrets.add(value)
+        if not value or not isinstance(value, str):
+            return
+        cleaned = value.strip()
+        if len(cleaned) < 3 or cleaned.lower() in _IGNORED_SECRET_LITERALS:
+            return
+        self._secrets.add(value)
+        escaped_xml = html.escape(value, quote=True)
+        if escaped_xml and len(escaped_xml) >= 3:
+            self._secrets.add(escaped_xml)
+        quoted_url = urllib.parse.quote(value, safe="")
+        if quoted_url and quoted_url != value and len(quoted_url) >= 3:
+            self._secrets.add(quoted_url)
 
     def mask(self, text: str) -> str:
         if not text or not self._secrets:

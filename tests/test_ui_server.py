@@ -51,29 +51,30 @@ def test_ui_server_serves_overview_and_blocks_traversal(tmp_path: Path) -> None:
 
     server = create_ui_server(tmp_path, host="127.0.0.1", port=0)
     port = server.server_address[1]
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     t = threading.Thread(target=server.serve_forever, daemon=True)
     t.start()
     try:
-        with urllib.request.urlopen(f"http://127.0.0.1:{port}/") as resp:
+        with opener.open(f"http://127.0.0.1:{port}/") as resp:
             assert resp.status == 200
             assert b"QAlprit Workbench" in resp.read()
 
-        with urllib.request.urlopen(f"http://127.0.0.1:{port}/qalprit-icon.svg") as resp:
+        with opener.open(f"http://127.0.0.1:{port}/qalprit-icon.svg") as resp:
             assert resp.status == 200
             assert "image/svg+xml" in resp.headers.get("Content-Type", "")
             assert b"QAlprit icon" in resp.read()
 
-        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/overview") as resp:
+        with opener.open(f"http://127.0.0.1:{port}/api/overview") as resp:
             payload = json.loads(resp.read().decode("utf-8"))
             assert payload["runs"][0]["run_id"] == "20261113_demo"
 
-        with urllib.request.urlopen(
+        with opener.open(
             f"http://127.0.0.1:{port}/results/20261113_demo/report.html"
         ) as resp:
             assert b"<h1>Report</h1>" in resp.read()
 
         try:
-            urllib.request.urlopen(
+            opener.open(
                 f"http://127.0.0.1:{port}/results/../../screens/screens.yaml"
             )
             raise AssertionError("Expected 404 for path traversal")

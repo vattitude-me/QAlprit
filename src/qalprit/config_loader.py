@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from qalprit.env_loader import EnvContext
 
@@ -31,6 +31,9 @@ class EnvironmentConfig(BaseModel):
     android_package: str = ""
     ios_bundle_id: str = ""
     default_timeout: float = Field(default=10.0, gt=0)
+    poll_interval: float = Field(default=0.25, gt=0)
+    secure_evidence: bool = True
+    save_page_source_on_failure: bool = True
     variables: dict[str, str] = Field(default_factory=dict)
 
     def as_env_vars(self) -> dict[str, str]:
@@ -67,6 +70,19 @@ class LocatorEntry(BaseModel):
     ios_predicate: str | None = None
     android_uiautomator: str | None = None
     sensitive: bool = False
+
+    @model_validator(mode="after")
+    def _validate_single_strategy(self) -> LocatorEntry:
+        found = [key for key in _LOCATOR_STRATEGIES if getattr(self, key) is not None]
+        if not found:
+            raise ValueError(
+                "Locator must specify at least one strategy (e.g. accessibility_id, id, text, xpath)"
+            )
+        if len(found) > 1:
+            raise ValueError(
+                f"Locator specifies multiple competing strategies ({', '.join(found)}); specify exactly one strategy per platform entry"
+            )
+        return self
 
     def strategy_and_value(self) -> tuple[str, str]:
         for key in _LOCATOR_STRATEGIES:

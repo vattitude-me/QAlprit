@@ -23,14 +23,20 @@ STEP_VOCABULARY: frozenset[str] = frozenset(
         "scroll_until_visible",
         "wait",
         "wait_for_visible",
+        "wait_for_enabled",
+        "wait_for_text",
+        "wait_for_keyboard",
         "assert_visible",
         "assert_not_visible",
         "assert_text",
+        "assert_enabled",
+        "assert_disabled",
         "back",
         "hide_keyboard",
         "biometric",
         "run_flow",
         "screenshot",
+        "visual_compare",
     }
 )
 
@@ -74,6 +80,10 @@ class TestSpec(BaseModel):
     reset: Literal["reinstall", "clear_data", "none"] = "clear_data"
     auto_accept_alerts: bool | None = None
     continue_on_failure: bool = False
+    retriable: bool = True
+    retries: int | None = None
+    retry_on_assertion: bool = False
+    setup: list[StepItem] = Field(default_factory=list)
     steps: list[StepItem] = Field(default_factory=list)
     teardown: list[StepItem] = Field(default_factory=list)
     expected: str = ""
@@ -118,9 +128,24 @@ def normalize_step(raw_step: Any) -> StepItem:
             step_capture = params.pop("capture")
         if "secret" in params:
             secret = bool(params["secret"])
-    elif val is None or isinstance(val, bool):
+    elif val is None:
         params = {}
-    elif step_type in ("tap", "tap_if_visible", "clear", "wait_for_visible", "assert_visible", "assert_not_visible", "scroll_until_visible"):
+    elif step_type == "wait_for_keyboard" and isinstance(val, bool):
+        params = {"shown": val}
+    elif isinstance(val, bool):
+        params = {}
+    elif step_type in (
+        "tap",
+        "tap_if_visible",
+        "clear",
+        "wait_for_visible",
+        "wait_for_enabled",
+        "assert_visible",
+        "assert_not_visible",
+        "assert_enabled",
+        "assert_disabled",
+        "scroll_until_visible",
+    ):
         params = {"target": str(val)}
     elif step_type in ("wait", "background"):
         params = {"seconds": val}
@@ -132,6 +157,8 @@ def normalize_step(raw_step: Any) -> StepItem:
         params = {"action": str(val)}
     elif step_type == "screenshot":
         params = {"name": str(val)}
+    elif step_type == "visual_compare":
+        params = {"baseline": str(val), "name": str(val)}
     elif step_type == "run_flow":
         params = {"flow": str(val)}
     else:
@@ -208,9 +235,11 @@ def load_specs(specs_dir: Path) -> tuple[list[TestSpec], list[str]]:
             inferred_suite = rel_parts[0] if len(rel_parts) > 1 else "default"
             suite = str(meta.get("suite") or inferred_suite)
 
+            setup = [normalize_step(s) for s in (meta.get("setup") or [])]
             steps = [normalize_step(s) for s in raw_steps]
             teardown = [normalize_step(s) for s in (meta.get("teardown") or [])]
 
+            raw_retries = meta.get("retries")
             spec_kwargs: dict[str, Any] = {
                 "id": str(meta["id"]),
                 "title": str(meta["title"]),
@@ -222,6 +251,10 @@ def load_specs(specs_dir: Path) -> tuple[list[TestSpec], list[str]]:
                 "reset": meta.get("reset") or "clear_data",
                 "auto_accept_alerts": meta.get("auto_accept_alerts"),
                 "continue_on_failure": bool(meta.get("continue_on_failure", False)),
+                "retriable": bool(meta.get("retriable", True)),
+                "retries": int(raw_retries) if raw_retries is not None else None,
+                "retry_on_assertion": bool(meta.get("retry_on_assertion", False)),
+                "setup": setup,
                 "steps": steps,
                 "teardown": teardown,
                 "expected": str(meta.get("expected") or ""),

@@ -9,11 +9,13 @@ import socket
 import subprocess
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import IO
 
 from qalprit.doctor import find_android_sdk, find_java_bin
+from qalprit.env_loader import SecretMasker
 
 
 def find_free_port(preferred: int = 4723) -> int:
@@ -34,7 +36,13 @@ def check_appium_status(appium_url: str, timeout: float = 2.0) -> bool:
     url = appium_url.rstrip("/") + "/status"
     try:
         req = urllib.request.Request(url, method="GET")
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        host = (urllib.parse.urlparse(url).hostname or "").lower()
+        if host in {"127.0.0.1", "localhost", "::1"}:
+            opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+            resp_ctx = opener.open(req, timeout=timeout)
+        else:
+            resp_ctx = urllib.request.urlopen(req, timeout=timeout)
+        with resp_ctx as resp:
             if resp.status != 200:
                 return False
             payload = json.loads(resp.read().decode("utf-8"))
@@ -97,12 +105,14 @@ class AppiumManager:
         startup_timeout: float = 30.0,
         host: str = "127.0.0.1",
         port: int | None = None,
+        masker: SecretMasker | None = None,
     ) -> None:
         self.log_path = log_path
         self.external_url = appium_url
         self.startup_timeout = startup_timeout
         self.host = host
         self.port = port
+        self.masker = masker
         self._proc: subprocess.Popen[bytes] | None = None
         self._log_file: IO[bytes] | None = None
         self.url: str = appium_url or ""
@@ -166,6 +176,17 @@ class AppiumManager:
                 pass
             self._log_file = None
 
+    def _scrub_log(self) -> None:
+        if self.masker is None or not self.log_path.is_file():
+            return
+        try:
+            raw = self.log_path.read_text(encoding="utf-8", errors="replace")
+            scrubbed = self.masker.mask(raw)
+            if scrubbed != raw:
+                self.log_path.write_text(scrubbed, encoding="utf-8")
+        except Exception:
+            pass
+
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         if self._proc is not None:
             if self._proc.poll() is None:
@@ -177,3 +198,4 @@ class AppiumManager:
                     self._proc.wait(timeout=5.0)
             self._proc = None
         self._close_log()
+        self._scrub_log()

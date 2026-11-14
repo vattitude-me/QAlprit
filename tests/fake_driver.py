@@ -9,29 +9,51 @@ from typing import Any
 from PIL import Image, ImageDraw
 
 
+class FakeStaleElementReferenceError(Exception):
+    """Fake StaleElementReferenceException for deterministic retry testing."""
+
+
 @dataclass
 class FakeElement:
     key: tuple[str, str]
     text: str = ""
     rect: dict[str, int] = field(default_factory=lambda: {"x": 20, "y": 40, "width": 100, "height": 30})
     displayed: bool = True
+    enabled: bool = True
+    stale_once: bool = False
+    stale_on_action: bool = False
     clicks: int = 0
     typed: list[str] = field(default_factory=list)
     cleared: int = 0
 
     def click(self) -> None:
+        if self.stale_on_action:
+            self.stale_on_action = False
+            raise FakeStaleElementReferenceError("stale element reference during click")
         self.clicks += 1
 
     def send_keys(self, value: str) -> None:
+        if self.stale_on_action:
+            self.stale_on_action = False
+            raise FakeStaleElementReferenceError("stale element reference during send_keys")
         self.typed.append(value)
         self.text = value
 
     def clear(self) -> None:
+        if self.stale_on_action:
+            self.stale_on_action = False
+            raise FakeStaleElementReferenceError("stale element reference during clear")
         self.cleared += 1
         self.text = ""
 
     def is_displayed(self) -> bool:
+        if self.stale_once:
+            self.stale_once = False
+            raise FakeStaleElementReferenceError("stale element reference during is_displayed")
         return self.displayed
+
+    def is_enabled(self) -> bool:
+        return self.enabled
 
 
 class FakeDriver:
@@ -58,6 +80,7 @@ class FakeDriver:
         self.quit_called = False
         self.secret_paint_boxes: list[dict[str, int]] = []
         self.on_swipe_hook: Any = None
+        self.keyboard_shown: bool = False
 
     def set_page_source(self, xml: str) -> None:
         self._page_source = xml
@@ -73,13 +96,15 @@ class FakeDriver:
         text: str = "",
         rect: dict[str, int] | None = None,
         displayed: bool = True,
+        enabled: bool = True,
     ) -> FakeElement:
         key = (strategy, value)
         el = FakeElement(
             key=key,
             text=text,
-            rect=rect or {"x": 20, "y": 40, "width": 100, "height": 30},
+            rect=rect if rect is not None else {"x": 20, "y": 40, "width": 100, "height": 30},
             displayed=displayed,
+            enabled=enabled,
         )
         self.elements.setdefault(key, []).append(el)
         return el
@@ -165,6 +190,10 @@ class FakeDriver:
 
     def hide_keyboard(self) -> None:
         self.calls.append(("hide_keyboard", None))
+        self.keyboard_shown = False
+
+    def is_keyboard_shown(self) -> bool:
+        return self.keyboard_shown
 
     def swipe(self, start_x: int, start_y: int, end_x: int, end_y: int, duration: int = 300) -> None:
         self.calls.append(("swipe", (start_x, start_y, end_x, end_y, duration)))
