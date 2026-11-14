@@ -3,6 +3,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$ProgressPreference = "SilentlyContinue"
 Set-StrictMode -Version Latest
 
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
@@ -52,8 +53,8 @@ if (-not (Test-Path $AppiumMainJs)) {
     Push-Location $AppiumDir
     try {
         & $NpmCmd init -y | Out-Null
-        & $NpmCmd install --no-audit --no-fund appium@2
-        if ($LASTEXITCODE -ne 0) { throw "npm install appium@2 failed" }
+        & $NpmCmd install --no-audit --no-fund appium@2.19.0
+        if ($LASTEXITCODE -ne 0) { throw "npm install appium@2.19.0 failed" }
     } finally {
         Pop-Location
     }
@@ -65,8 +66,8 @@ $env:APPIUM_HOME = $AppiumHome
 $env:PATH = "$NodeDest;$env:PATH"
 $installedDrivers = & $NodeExe $AppiumMainJs driver list --installed --json 2>$null | Out-String
 if ($installedDrivers -notmatch '"uiautomator2"') {
-    & $NodeExe $AppiumMainJs driver install uiautomator2
-    if ($LASTEXITCODE -ne 0) { throw "appium driver install uiautomator2 failed" }
+    & $NodeExe $AppiumMainJs driver install uiautomator2@4.2.9
+    if ($LASTEXITCODE -ne 0) { throw "appium driver install uiautomator2@4.2.9 failed" }
 }
 
 # 3. Portable Eclipse Temurin JRE 17 (win-x64)

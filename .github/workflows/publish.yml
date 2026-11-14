@@ -27,6 +27,7 @@ jobs:
           python -m build
           twine check dist/*
       - name: Publish to PyPI via Trusted Publishing
+        continue-on-error: true
         uses: pypa/gh-action-pypi-publish@release/v1
 
   build-windows-exe:
