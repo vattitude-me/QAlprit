@@ -1210,3 +1210,87 @@ def test_system_preflight_and_storage_preferences_api(
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_selective_cleanup_plan_execution_and_uninstaller_controls(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import json
+    import threading
+    import urllib.request
+    from qalprit.ui_server import create_ui_server
+
+    fake_home = tmp_path / "home"
+    active_data = tmp_path / "app_data" / "QAlprit"
+    active_ws = ensure_workspace(fake_home / "Documents" / "QAlpritWorkspace")
+    settings_file = active_data / "settings.json"
+    monkeypatch.setattr(Path, "home", lambda: fake_home)
+    monkeypatch.setenv("QALPRIT_DATA_DIR", str(active_data))
+    monkeypatch.setenv("QALPRIT_SETTINGS_PATH", str(settings_file))
+    monkeypatch.delenv("QALPRIT_SDK_DIR", raising=False)
+    monkeypatch.delenv("ANDROID_AVD_HOME", raising=False)
+
+    # Populate active SDK + active AVD so legacy folders are flagged safe leftovers
+    (active_data / "android-sdk" / "emulator").mkdir(parents=True)
+    (active_data / "android-sdk" / "emulator" / "emu.bin").write_bytes(b"12345")
+    (active_data / "avd" / "QAlprit_Pixel.avd").mkdir(parents=True)
+    (active_data / "avd" / "QAlprit_Pixel.avd" / "config.ini").write_text("hw=1\n", encoding="utf-8")
+
+    # Populate legacy leftovers + unrelated Android Studio AVD (must never be touched!)
+    legacy_dot = fake_home / ".qalprit" / "android-sdk"
+    legacy_dot.mkdir(parents=True)
+    (legacy_dot / "old.bin").write_bytes(b"abcdefghij")
+    legacy_pixel = fake_home / ".android" / "avd" / "QAlprit_Pixel.avd"
+    legacy_pixel.mkdir(parents=True)
+    (legacy_pixel / "config.ini").write_text("legacy\n", encoding="utf-8")
+    (fake_home / ".android" / "avd" / "QAlprit_Pixel.ini").write_text("path=...\n", encoding="utf-8")
+    studio_avd = fake_home / ".android" / "avd" / "Pixel_Studio_7.avd"
+    studio_avd.mkdir(parents=True)
+    (studio_avd / "config.ini").write_text("keepme\n", encoding="utf-8")
+
+    server = create_ui_server(active_ws, host="127.0.0.1", port=0)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/") as r:
+            html = r.read().decode("utf-8")
+        assert 'id="cleanupTargetsBody"' in html
+        assert 'id="btnCleanupSelected"' in html
+
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/system/cleanup") as r:
+            plan = json.loads(r.read().decode("utf-8"))
+        by_id = {it["id"]: it for it in plan["items"]}
+        assert by_id["legacy_dot_qalprit"]["safe_for_new_install"] is True
+        assert by_id["legacy_dot_qalprit"]["exists"] is True
+        assert by_id["legacy_avd_qalprit_pixel"]["safe_for_new_install"] is True
+        assert by_id["active_sdk"]["safe_for_new_install"] is False
+        assert by_id["active_workspace"]["safe_for_new_install"] is False
+
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{port}/api/system/cleanup",
+            data=json.dumps({"target_ids": ["legacy_dot_qalprit", "legacy_avd_qalprit_pixel"]}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req) as r:
+            res = json.loads(r.read().decode("utf-8"))
+        assert res["ok"] is True
+        assert res["freed_bytes"] > 0
+        assert not (fake_home / ".qalprit").exists()
+        assert not legacy_pixel.exists()
+        assert (studio_avd / "config.ini").is_file()
+        assert (active_data / "android-sdk" / "emulator" / "emu.bin").is_file()
+        assert (active_ws / "config" / "devices.yaml").is_file()
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    iss_text = (Path(__file__).resolve().parents[1] / "packaging" / "windows" / "installer.iss").read_text(encoding="utf-8")
+    assert "InitializeUninstall" in iss_text
+    assert "CurUninstallStepChanged" in iss_text
+    assert "ChkUnSdk" in iss_text
+    assert "ChkUnWs" in iss_text
+    scan_block = iss_text.split("procedure ScanSystemSoftware();", 1)[1].split("function ", 1)[0]
+    assert "{app}" not in scan_block

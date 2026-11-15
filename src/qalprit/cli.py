@@ -640,3 +640,51 @@ def emulator_stop() -> None:
     res = EmulatorJobManager().stop()
     killed = res.get("killed_emulators") or []
     click.echo(f"Stopped emulator(s): {', '.join(killed) if killed else 'none running'}")
+
+
+@main.command("cleanup")
+@click.option("--list", "list_only", is_flag=True, help="List QAlprit tool/legacy folders and sizes without deleting.")
+@click.option("--targets", default="", help="Comma-separated target IDs to remove (see --list).")
+@click.option("--yes", is_flag=True, help="Skip interactive confirmation prompt when deleting selected targets.")
+@click.option("--json-output", is_flag=True, help="Print cleanup inspection or result as JSON.")
+@click.pass_context
+def cleanup_cmd(ctx: click.Context, list_only: bool, targets: str, yes: bool, json_output: bool) -> None:
+    """Inspect or selectively remove QAlprit SDKs, AVDs, caches, configs, and legacy leftovers."""
+    from qalprit.cleanup import execute_selective_cleanup, inspect_cleanup_targets
+    from qalprit.desktop import resolve_default_workspace
+
+    raw_ws = str((ctx.obj or {}).get("workspace") or "").strip()
+    ws = Path(raw_ws).resolve() if raw_ws else resolve_default_workspace()
+    plan = inspect_cleanup_targets(active_workspace=ws)
+
+    if list_only or not targets.strip():
+        if json_output:
+            click.echo(json.dumps(plan, indent=2))
+            return
+        click.echo(f"Active Workspace: {plan['active_workspace']}")
+        click.echo(f"Active Data Dir : {plan['data_dir']}")
+        click.echo("-" * 64)
+        for item in plan["items"]:
+            mb = round(item["size_bytes"] / (1024 * 1024), 1)
+            tag = "SAFE LEGACY/CACHE" if item["safe_for_new_install"] else "ACTIVE / USER DATA"
+            status = f"{mb} MB" if item["exists"] else "not present"
+            click.echo(f"[{item['id']}] ({tag} | {status}) - {item['label']}")
+            for p in item["paths"]:
+                click.echo(f"    path: {p}")
+            click.echo(f"    note: {item['description']}")
+        return
+
+    chosen = [t.strip() for t in targets.split(",") if t.strip()]
+    if not yes:
+        click.confirm(f"Delete selected QAlprit targets ({', '.join(chosen)})?", abort=True)
+
+    res = execute_selective_cleanup(chosen, active_workspace=ws)
+    if json_output:
+        click.echo(json.dumps(res, indent=2))
+        return
+    mb_freed = round(res["freed_bytes"] / (1024 * 1024), 1)
+    click.echo(f"Removed {len(res['removed_paths'])} item(s), freed ~{mb_freed} MB.")
+    for err in res.get("errors") or []:
+        click.echo(f"ERROR: {err}", err=True)
+    if res.get("errors"):
+        sys.exit(1)
