@@ -186,6 +186,19 @@
       gap: 16px;
       margin-bottom: 16px;
     }
+    .step1c-grid {
+      display: grid;
+      grid-template-columns: minmax(260px, 0.9fr) minmax(320px, 1.35fr);
+      gap: 16px;
+      margin-top: 12px;
+      margin-bottom: 0;
+    }
+    @media (max-width: 960px) {
+      .step1c-grid { grid-template-columns: 1fr; }
+    }
+    .grid-2 > *, .step1c-grid > *, .form-grid > * {
+      min-width: 0;
+    }
 
     .card {
       background: var(--surface);
@@ -194,6 +207,7 @@
       padding: 18px 20px;
       box-shadow: var(--shadow);
       margin-bottom: 16px;
+      min-width: 0;
     }
     .card h3 {
       margin: 0 0 6px;
@@ -302,8 +316,14 @@
     .status-error { background: var(--fail-bg); color: var(--fail); border-color: var(--fail); }
     .status-warn { background: var(--warn-bg); color: var(--warn); border-color: var(--warn); }
 
+    .table-scroll {
+      width: 100%;
+      max-width: 100%;
+      overflow-x: auto;
+    }
     table {
       width: 100%;
+      max-width: 100%;
       border-collapse: collapse;
       font-size: 0.84rem;
     }
@@ -312,6 +332,8 @@
       border-bottom: 1px solid var(--border);
       text-align: left;
       vertical-align: top;
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
     th {
       font-size: 0.73rem;
@@ -712,20 +734,25 @@
           </div>
           <div class="progress-track"><div class="progress-fill is-indeterminate" id="preflightProgressFill"></div></div>
         </div>
-        <div class="grid-2" style="margin-top:12px;margin-bottom:0;">
+        <div class="step1c-grid">
           <div>
             <h4 style="margin:0 0 8px;font-size:0.86rem;">Connected Devices &amp; Emulators</h4>
-            <table>
-              <thead><tr><th>Platform</th><th>Name</th><th>Identifier</th><th>State</th></tr></thead>
-              <tbody id="devicesTable"><tr><td colspan="4" class="muted">Click "Start All Checks" or "Scan Devices Only" to probe adb / simctl.</td></tr></tbody>
-            </table>
+            <div class="table-scroll">
+              <table>
+                <thead><tr><th>Platform</th><th>Name</th><th>Identifier</th><th>State</th></tr></thead>
+                <tbody id="devicesTable"><tr><td colspan="4" class="muted">Click "Start All Checks" or "Scan Devices Only" to probe adb / simctl.</td></tr></tbody>
+              </table>
+            </div>
+            <div id="deviceAuthBanner" class="status-banner status-warn" hidden aria-live="polite"></div>
           </div>
           <div>
             <h4 style="margin:0 0 8px;font-size:0.86rem;">Toolchain Health (<code>qalprit doctor</code>)</h4>
-            <table>
-              <thead><tr><th>Component</th><th>Status</th><th>Details</th></tr></thead>
-              <tbody id="doctorTable"><tr><td colspan="3" class="muted">Click "Start All Checks" or "Run System Doctor Only" to verify runtime tools.</td></tr></tbody>
-            </table>
+            <div class="table-scroll">
+              <table>
+                <thead><tr><th>Component</th><th>Status</th><th>Details</th></tr></thead>
+                <tbody id="doctorTable"><tr><td colspan="3" class="muted">Click "Start All Checks" or "Run System Doctor Only" to verify runtime tools.</td></tr></tbody>
+              </table>
+            </div>
           </div>
         </div>
         <details class="guide-details">
@@ -1147,6 +1174,8 @@
         doctorOk: false,
         devicesChecked: false,
         deviceCount: 0,
+        unauthorizedCount: 0,
+        liveDevices: [],
         uploadXhr: null,
         preflightController: null,
         captureController: null,
@@ -1244,10 +1273,12 @@
           "seqItem1b", "seqNum1b", "seqSub1b", "1B", pkgSaved, hasApp && !pkgSaved,
           pkgSaved ? ("Saved: " + qaPkg) : "Enter or confirm Package ID & save"
         );
+        const devSummary = STATE.deviceCount > 0
+          ? STATE.deviceCount + " device(s) ready"
+          : (STATE.unauthorizedCount > 0 ? STATE.unauthorizedCount + " unauthorized (tap Allow on phone)" : "No USB phone/emulator");
         const toolsSub = !STATE.doctorChecked && !STATE.devicesChecked
           ? "Click Start All Checks below"
-          : (toolsDone ? "Tools OK" : "Check Toolchain Health") + " · " +
-            (STATE.deviceCount > 0 ? STATE.deviceCount + " device(s) ready" : "No USB phone/emulator");
+          : (toolsDone ? "Tools OK" : "Check Toolchain Health") + " · " + devSummary;
         setSeq("seqItem1c", "seqNum1c", "seqSub1c", "1C", toolsDone && STATE.deviceCount > 0, hasApp && pkgSaved && !(toolsDone && STATE.deviceCount > 0), toolsSub);
 
         const hint = $("step1FooterHint");
@@ -1506,6 +1537,34 @@
         }
       }
 
+      function syncDeviceSelects() {
+        const devEntries = Object.entries((STATE.overview && STATE.overview.device_profiles) || {});
+        const liveReady = (STATE.liveDevices || []).filter(
+          (d) => !String(d.identifier || "").startsWith("avd:") && (d.state === "device" || d.state === "Booted")
+        );
+        const devOpts = liveReady.map((d) => ({
+          value: `live:${d.platform}:${d.identifier}`,
+          label: `Connected ${d.kind === "device" ? "USB Phone" : d.kind}: ${d.name} (${d.platform})`
+        }));
+        const yamlEntries = devEntries.length ? devEntries : [
+          ["android_device", { platform: "android", device_name: "Android Device" }],
+          ["android_emulator", { platform: "android", device_name: "Android Emulator" }]
+        ];
+        yamlEntries.forEach(([k, v]) => {
+          devOpts.push({
+            value: k,
+            label: `${k} (${v.platform}: ${v.device_name || k})`
+          });
+        });
+        ["inspectDeviceSelect", "runDeviceSelect"].forEach((selId) => {
+          const prev = ($(selId) && $(selId).value) || "";
+          populateSelect(selId, devOpts);
+          if (liveReady.length && !prev.startsWith("live:") && $(selId)) {
+            $(selId).value = devOpts[0].value;
+          }
+        });
+      }
+
       function renderOverview(data) {
         STATE.overview = data;
         if (Array.isArray(data.step_vocabulary) && data.step_vocabulary.length) {
@@ -1549,13 +1608,7 @@
           }
         }
 
-        const devEntries = Object.entries(data.device_profiles || {});
-        const devOpts = (devEntries.length ? devEntries : [["android_emulator", { platform: "android", device_name: "Android Emulator" }]]).map(([k, v]) => ({
-          value: k,
-          label: `${k} (${v.platform}: ${v.device_name || k})`
-        }));
-        populateSelect("inspectDeviceSelect", devOpts);
-        populateSelect("runDeviceSelect", devOpts);
+        syncDeviceSelects();
 
         // Screen datalist & table
         const screens = data.screens || [];
@@ -1750,10 +1803,15 @@
           if (opts.devices) {
             $("preflightProgressText").textContent = "Step 1/2: Scanning USB Android devices (adb) & emulators...";
             $("devicesTable").innerHTML = '<tr><td colspan="4" class="muted">Scanning USB &amp; emulators...</td></tr>';
+            showBanner("deviceAuthBanner", "", "");
             const data = await apiJson("/api/devices", undefined, ctrl.signal);
             const rows = (data.android || []).concat(data.ios || []);
+            const readyRows = rows.filter((d) => d.state === "device" || d.state === "Booted" || /available/i.test(d.state || ""));
+            const unauthRows = rows.filter((d) => String(d.state || "").toLowerCase() === "unauthorized");
             STATE.devicesChecked = true;
-            STATE.deviceCount = rows.filter((d) => d.state === "device" || d.state === "Booted" || /available/i.test(d.state || "")).length || rows.length;
+            STATE.liveDevices = rows;
+            STATE.deviceCount = readyRows.length;
+            STATE.unauthorizedCount = unauthRows.length;
             if (!rows.length) {
               const notes = [data.android_error, data.ios_error].filter(Boolean).join(" | ");
               $("devicesTable").innerHTML = `<tr><td colspan="4" class="muted">No devices found. ${esc(notes)}</td></tr>`;
@@ -1766,6 +1824,15 @@
                   <td><span class="badge ${d.state === "device" || d.state === "Booted" ? "b-ok" : "b-warn"}">${esc(d.state)}</span></td>
                 </tr>`).join("");
             }
+            if (unauthRows.length) {
+              const ids = unauthRows.map((d) => d.identifier).join(", ");
+              showBanner(
+                "deviceAuthBanner",
+                `Phone ${ids} says "unauthorized" — unlock your phone screen, tap "Allow" on the "Allow USB debugging?" prompt (check "Always allow from this computer"), then click "Scan Devices Only".`,
+                "warn"
+              );
+            }
+            syncDeviceSelects();
           }
 
           if (opts.doctor) {

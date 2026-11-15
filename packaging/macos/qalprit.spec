@@ -4,22 +4,56 @@
 import os
 import re
 from pathlib import Path
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+from PyInstaller.utils.hooks import collect_all, collect_data_files, collect_submodules, copy_metadata
 
 ROOT = Path(SPECPATH).resolve().parents[1]
+
+
+def _safe_copy_metadata(packages):
+    items = []
+    for pkg in packages:
+        try:
+            items.extend(copy_metadata(pkg))
+        except Exception:
+            pass
+    return items
+
 
 version = os.environ.get("QALPRIT_VERSION", "")
 if not version:
     pyproject_text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     m = re.search(r'version\s*=\s*"([^"]+)"', pyproject_text)
-    version = m.group(1) if m else "0.1.4"
+    version = m.group(1) if m else "0.1.9"
 
 icon_path = ROOT / "build" / "mac-icon" / "QAlprit.icns"
 icon_arg = str(icon_path) if icon_path.is_file() else None
 
-datas = collect_data_files("qalprit")
+ap_datas, ap_binaries, ap_hiddenimports = collect_all("appium")
+se_datas, se_binaries, se_hiddenimports = collect_all("selenium")
+
+meta_datas = _safe_copy_metadata(
+    [
+        "qalprit",
+        "Appium-Python-Client",
+        "selenium",
+        "urllib3",
+        "certifi",
+        "click",
+        "PyYAML",
+        "Jinja2",
+        "MarkupSafe",
+        "pydantic",
+        "Pillow",
+        "python-frontmatter",
+    ]
+)
+
+datas = collect_data_files("qalprit") + meta_datas + ap_datas + se_datas
+binaries = ap_binaries + se_binaries
 hiddenimports = (
     collect_submodules("qalprit")
+    + ap_hiddenimports
+    + se_hiddenimports
     + [
         "appium",
         "appium.webdriver",
@@ -39,7 +73,7 @@ hiddenimports = (
 a = Analysis(
     [str(ROOT / "src" / "qalprit" / "desktop.py")],
     pathex=[str(ROOT / "src")],
-    binaries=[],
+    binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
     hookspath=[],

@@ -448,3 +448,29 @@ def test_run_job_manager_stop_transitions_idle_and_active() -> None:
     st = mgr.status()
     assert st["status"] == "stopping"
     assert st["phase"] == "Stopping"
+
+
+def test_resolve_live_device_profile_handles_usb_and_emulator() -> None:
+    from qalprit.workbench_api import _resolve_device_profile
+
+    usb = _resolve_device_profile({}, "live:android:47031FDAP004CK", "android")
+    assert usb.platform == "android"
+    assert usb.target_type == "device"
+    assert usb.udid == "47031FDAP004CK"
+    assert usb.automation_name == "UiAutomator2"
+
+    emu = _resolve_device_profile({}, "live:android:emulator-5554", "android")
+    assert emu.target_type == "simulator"
+    assert emu.udid == "emulator-5554"
+
+    with pytest.raises(ValueError, match="not 'ios'"):
+        _resolve_device_profile({}, "live:android:47031FDAP004CK", "ios")
+
+
+def test_doctor_checks_appium_python_client_metadata() -> None:
+    from qalprit.doctor import run_doctor
+
+    checks = {c.name: c for c in run_doctor()}
+    assert "Appium Python client" in checks
+    assert checks["Appium Python client"].status == "ok"
+    assert checks["Appium Python client"].detail.startswith("v")

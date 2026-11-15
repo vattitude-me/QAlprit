@@ -18,6 +18,7 @@ import yaml
 
 from qalprit.appium_manager import AppiumManager
 from qalprit.config_loader import (
+    DeviceProfile,
     ScreensCatalog,
     load_devices,
     load_environments,
@@ -308,6 +309,43 @@ def inspect_xml_payload(
     }
 
 
+def _resolve_device_profile(
+    devices: dict[str, DeviceProfile],
+    device_profile: str,
+    platform: str,
+) -> DeviceProfile:
+    """Resolve a named YAML device profile or a live USB/emulator identifier (`live:<plat>:<serial>`)."""
+    if device_profile.startswith("live:"):
+        parts = device_profile.split(":", 2)
+        if len(parts) == 3 and parts[1] in {"android", "ios"} and parts[2].strip():
+            live_plat = parts[1]
+            serial = parts[2].strip()
+        elif len(parts) >= 2 and parts[1].strip():
+            live_plat = platform if platform in {"android", "ios"} else "android"
+            serial = parts[1].strip()
+        else:
+            raise ValueError(f"Invalid live device identifier '{device_profile}'.")
+        if live_plat != platform:
+            raise ValueError(f"Selected device '{serial}' is for '{live_plat}', not '{platform}'.")
+        is_emu = serial.startswith("emulator-") or (live_plat == "ios" and len(serial) == 36 and "-" in serial)
+        return DeviceProfile(
+            platform="android" if live_plat == "android" else "ios",
+            target_type="simulator" if is_emu else "device",
+            device_name=serial,
+            udid=serial,
+            automation_name="UiAutomator2" if live_plat == "android" else "XCUITest",
+            auto_accept_alerts=True,
+            capabilities={"appWaitActivity": "*"} if live_plat == "android" else {},
+        )
+
+    if device_profile not in devices:
+        raise ValueError(f"Unknown device profile '{device_profile}'.")
+    profile = devices[device_profile]
+    if profile.platform != platform:
+        raise ValueError(f"Device '{device_profile}' is for '{profile.platform}', not '{platform}'.")
+    return profile
+
+
 def inspect_live_screen(
     project_root: Path,
     *,
@@ -320,13 +358,9 @@ def inspect_live_screen(
 ) -> dict[str, Any]:
     """Attach to a connected device/emulator cleanly, dump XML, and rank elements."""
     val = validate_project(project_root, env_name=env_name)
-    if device_profile not in val.devices:
-        raise ValueError(f"Unknown device profile '{device_profile}'.")
     if env_name not in val.environments:
         raise ValueError(f"Unknown environment '{env_name}'.")
-    profile = val.devices[device_profile]
-    if profile.platform != platform:
-        raise ValueError(f"Device '{device_profile}' is for '{profile.platform}', not '{platform}'.")
+    profile = _resolve_device_profile(val.devices, device_profile, platform)
     env_cfg = val.environments[env_name]
 
     resolved_app: Path | None = None
@@ -615,11 +649,7 @@ class RunJobManager:
         )
         if not val.ok:
             raise ValueError("; ".join(e.message for e in val.errors[:5]))
-        if device_profile not in val.devices:
-            raise ValueError(f"Unknown device profile '{device_profile}'.")
-        profile = val.devices[device_profile]
-        if profile.platform != platform:
-            raise ValueError(f"Device profile '{device_profile}' is for '{profile.platform}', not '{platform}'.")
+        profile = _resolve_device_profile(val.devices, device_profile, platform)
         env_cfg = val.environments[env_name]
         specs: list[TestSpec] = list(val.specs)
         if not specs:

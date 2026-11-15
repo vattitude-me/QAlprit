@@ -288,6 +288,23 @@ def run_doctor(python_min: tuple[int, int] = (3, 10)) -> list[CheckItem]:
             )
         )
 
+    # 1b. Python Appium client + package metadata (critical for frozen PyInstaller bundles)
+    try:
+        from appium import webdriver as _ap_webdriver  # noqa: F401
+        from appium.options.android import UiAutomator2Options as _Uia2Opts  # noqa: F401
+        from appium.version import version as _ap_py_ver
+
+        checks.append(CheckItem("Appium Python client", "ok", f"v{_ap_py_ver}"))
+    except Exception as exc:
+        checks.append(
+            CheckItem(
+                "Appium Python client",
+                "fail",
+                str(exc),
+                "Install or bundle Appium-Python-Client package metadata",
+            )
+        )
+
     # 2. Node.js
     node_bin = find_node_bin()
     if node_bin:
