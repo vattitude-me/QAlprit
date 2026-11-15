@@ -605,8 +605,8 @@ def run_doctor(python_min: tuple[int, int] = (3, 10)) -> list[CheckItem]:
             CheckItem(
                 "Android emulator",
                 "warn",
-                "Not installed yet — click Setup Virtual Android Emulator in Step 1C (primary path)",
-                "Click 'Setup Virtual Android Emulator' in Step 1C or run: qalprit emulator setup",
+                "Not installed yet — click Setup Virtual Android Emulator in Step 1A (primary path)",
+                "Click 'Setup Virtual Android Emulator' in Step 1A or run: qalprit emulator setup",
             )
         )
 

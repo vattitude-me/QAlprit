@@ -99,6 +99,24 @@ def get_emulator_status() -> dict[str, Any]:
     }
 
 
+def _win_quote_bat_arg(arg: str) -> str:
+    """Quote an argument for Windows cmd.exe/.bat scripts so ';', '=', and spaces stay intact."""
+    text = str(arg).replace('"', '\\"')
+    if not text or any(ch in text for ch in ' \t"&|<>()^%;=,'):
+        return f'"{text}"'
+    return text
+
+
+def _win_bat_command_line(cmd: list[str]) -> str:
+    """Build a `cmd.exe /d /s /c "..."` string for invoking a .bat/.cmd script cleanly."""
+    quoted = [_win_quote_bat_arg(cmd[0])]
+    if not (quoted[0].startswith('"') and quoted[0].endswith('"')):
+        quoted[0] = f'"{quoted[0]}"'
+    quoted.extend(_win_quote_bat_arg(arg) for arg in cmd[1:])
+    inner = " ".join(quoted)
+    return f'cmd.exe /d /s /c "{inner}"'
+
+
 def _stream_command(
     cmd: list[str],
     *,
@@ -109,16 +127,16 @@ def _stream_command(
     proc_holder: list[subprocess.Popen[str]] | None = None,
 ) -> tuple[int, str]:
     """Run a subprocess streaming CR/LF lines cleanly with cancellation support."""
-    run_cmd = list(cmd)
+    popen_target: list[str] | str = list(cmd)
     if (
         platform.system() == "Windows"
-        and run_cmd
-        and str(run_cmd[0]).lower().endswith((".bat", ".cmd"))
+        and cmd
+        and str(cmd[0]).lower().endswith((".bat", ".cmd"))
     ):
-        run_cmd = ["cmd.exe", "/c", *run_cmd]
+        popen_target = _win_bat_command_line(list(cmd))
 
     proc = subprocess.Popen(
-        run_cmd,
+        popen_target,
         stdin=subprocess.PIPE if stdin_text else None,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
@@ -238,6 +256,13 @@ def setup_android_emulator_sync(
     )
     if rc != 0:
         raise RuntimeError(f"sdkmanager install failed (exit {rc}): {tail}")
+
+    expected_img_dir = sdk / Path(*pkg_img.split(";"))
+    if not (expected_img_dir / "source.properties").is_file() and not _has_system_image(sdk):
+        raise RuntimeError(
+            f"Android system image '{pkg_img}' was not installed into {sdk}. "
+            f"Last output: {tail}"
+        )
 
     # 3. Create Pixel AVD
     emit("Creating Virtual Phone", 88, f"Creating AVD '{avd_name}'...")
@@ -405,7 +430,13 @@ class EmulatorJobManager:
 
         def _worker() -> None:
             env = build_appium_env(dict(os.environ))
+            sdk = find_android_sdk()
+            if sdk is not None:
+                env["ANDROID_HOME"] = str(sdk)
+                env["ANDROID_SDK_ROOT"] = str(sdk)
+            log_path = (sdk or Path.home() / ".qalprit") / "emulator-boot.log"
             try:
+                log_path.parent.mkdir(parents=True, exist_ok=True)
                 cmd = [
                     emu_bin,
                     "-avd",
@@ -417,13 +448,17 @@ class EmulatorJobManager:
                 ]
                 creation_flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
                 proc_kwargs: dict[str, Any] = {"creationflags": creation_flags} if (platform.system() == "Windows" and creation_flags) else {}
-                proc = subprocess.Popen(
-                    cmd,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    env=env,
-                    **proc_kwargs,
-                )
+                log_fp = log_path.open("w", encoding="utf-8", errors="replace")
+                try:
+                    proc = subprocess.Popen(
+                        cmd,
+                        stdout=log_fp,
+                        stderr=subprocess.STDOUT,
+                        env=env,
+                        **proc_kwargs,
+                    )
+                finally:
+                    log_fp.close()
                 with self._lock:
                     self._emulator_proc = proc
 
@@ -435,7 +470,17 @@ class EmulatorJobManager:
                         self._finish("stopped", "Stopped", pct, "Emulator boot stopped by user.")
                         return
                     if proc.poll() is not None:
-                        raise RuntimeError(f"Android emulator exited early with code {proc.returncode}.")
+                        tail = ""
+                        try:
+                            tail = "\n".join(
+                                log_path.read_text(encoding="utf-8", errors="replace").splitlines()[-12:]
+                            ).strip()
+                        except OSError:
+                            tail = ""
+                        msg = f"Android emulator exited early with code {proc.returncode}."
+                        if tail:
+                            msg = f"{msg} Output: {tail}"
+                        raise RuntimeError(msg)
 
                     cur_devs, _ = list_android_devices()
                     online = [d.identifier for d in cur_devs if d.kind == "emulator" and d.state == "device"]

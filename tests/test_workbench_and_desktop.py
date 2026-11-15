@@ -559,8 +559,13 @@ def test_emulator_setup_sync_and_http_status_endpoint(
     def _fake_stream(cmd: list[str], **_kwargs: object) -> tuple[int, str]:
         recorded_cmds.append(list(cmd))
         on_line = _kwargs.get("on_line")
-        if "--install" in cmd and callable(on_line):
-            on_line("[======         ] 50% Downloading emulator...")
+        if "--install" in cmd:
+            pkg = cmd[-1]
+            img_dir = fake_sdk / Path(*pkg.split(";"))
+            img_dir.mkdir(parents=True, exist_ok=True)
+            (img_dir / "source.properties").write_text("Pkg.Revision=14\n", encoding="utf-8")
+            if callable(on_line):
+                on_line("[======         ] 50% Downloading emulator...")
         return 0, "done"
 
     monkeypatch.setattr(emu_mod, "_stream_command", _fake_stream)
@@ -622,7 +627,7 @@ def test_windows_sdk_sync_copies_real_dirs_and_heals_reparse_points(
 def test_stream_command_wraps_bat_files_on_windows(monkeypatch: pytest.MonkeyPatch) -> None:
     import qalprit.emulator_manager as emu_mod
 
-    recorded: list[list[str]] = []
+    recorded: list[list[str] | str] = []
 
     class _FakeProc:
         stdout = None
@@ -634,15 +639,55 @@ def test_stream_command_wraps_bat_files_on_windows(monkeypatch: pytest.MonkeyPat
         def wait(self) -> int:
             return 0
 
-    def _fake_popen(cmd: list[str], **_kwargs: object) -> _FakeProc:
-        recorded.append(list(cmd))
+    def _fake_popen(cmd: list[str] | str, **_kwargs: object) -> _FakeProc:
+        recorded.append(cmd)
         return _FakeProc()
 
     monkeypatch.setattr(emu_mod.platform, "system", lambda: "Windows")
     monkeypatch.setattr(emu_mod.subprocess, "Popen", _fake_popen)
-    rc, _ = emu_mod._stream_command([r"C:\sdk\cmdline-tools\latest\bin\sdkmanager.bat", "--licenses"], env={})
+    rc, _ = emu_mod._stream_command(
+        [
+            r"C:\Users\First Last\.qalprit\android-sdk\cmdline-tools\latest\bin\sdkmanager.bat",
+            r"--sdk_root=C:\Users\First Last\.qalprit\android-sdk",
+            "--install",
+            "emulator",
+            "system-images;android-34;google_apis;x86_64",
+        ],
+        env={},
+    )
     assert rc == 0
-    assert recorded[0][:3] == ["cmd.exe", "/c", r"C:\sdk\cmdline-tools\latest\bin\sdkmanager.bat"]
+    assert isinstance(recorded[0], str)
+    assert recorded[0].startswith('cmd.exe /d /s /c "')
+    assert r'"--sdk_root=C:\Users\First Last\.qalprit\android-sdk"' in recorded[0]
+    assert '"system-images;android-34;google_apis;x86_64"' in recorded[0]
+
+
+def test_setup_android_emulator_fails_early_when_system_image_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import qalprit.emulator_manager as emu_mod
+
+    fake_sdk = tmp_path / "sdk"
+    fake_sdk.mkdir()
+    monkeypatch.setattr(emu_mod, "prepare_writable_android_sdk", lambda: fake_sdk)
+    monkeypatch.setattr(emu_mod, "build_appium_env", lambda e=None: dict(e or {}))
+    monkeypatch.setattr(
+        emu_mod,
+        "find_android_tool",
+        lambda name: f"/fake/{name}" if name in {"sdkmanager", "avdmanager"} else None,
+    )
+
+    called: list[list[str]] = []
+
+    def _fake_stream_no_img(cmd: list[str], **_kwargs: object) -> tuple[int, str]:
+        called.append(list(cmd))
+        return 0, "Warning: Package x86_64 not found."
+
+    monkeypatch.setattr(emu_mod, "_stream_command", _fake_stream_no_img)
+
+    with pytest.raises(RuntimeError, match="was not installed"):
+        emu_mod.setup_android_emulator_sync("QAlprit_Pixel")
+    assert not any("avdmanager" in c[0] for c in called)
 
 
 def test_workspace_apps_detect_android_and_ios_packages_and_ui_layout(tmp_path: Path) -> None:
