@@ -150,8 +150,77 @@ class CheckItem:
     remediation: str = ""
 
 
+def get_user_android_sdk_dir() -> Path:
+    """Return persistent user-writable Android SDK path (`~/.qalprit/android-sdk`)."""
+    return (Path.home() / ".qalprit" / "android-sdk").resolve()
+
+
+def _link_or_copy_dir(src: Path, dst: Path) -> None:
+    """Expose bundled read-only SDK subfolders inside user-writable Android SDK."""
+    if not src.exists():
+        return
+    # Refresh stale/dangling symlinks/junctions if bundled app path changed after upgrade
+    if dst.is_symlink():
+        try:
+            if dst.resolve() == src.resolve():
+                return
+        except OSError:
+            pass
+        dst.unlink()
+    elif dst.exists():
+        return
+
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    if platform.system() == "Windows":
+        try:
+            proc = subprocess.run(
+                ["cmd", "/c", "mklink", "/J", str(dst), str(src)],
+                capture_output=True,
+                text=True,
+                **win_subprocess_kwargs(),
+            )
+            if proc.returncode == 0 and dst.exists():
+                return
+        except Exception:
+            pass
+        shutil.copytree(src, dst, dirs_exist_ok=True)
+    else:
+        try:
+            dst.symlink_to(src)
+        except OSError:
+            shutil.copytree(src, dst, dirs_exist_ok=True)
+
+
+def _sync_bundled_sdk_into(user_sdk: Path) -> None:
+    rt = find_bundled_runtime_dir()
+    if rt is None:
+        return
+    for cand_root in (rt / "android-sdk", rt / "android"):
+        if not cand_root.exists():
+            continue
+        for sub in ("platform-tools", "build-tools", "cmdline-tools"):
+            if (cand_root / sub).exists():
+                _link_or_copy_dir(cand_root / sub, user_sdk / sub)
+        break
+
+
+def prepare_writable_android_sdk() -> Path:
+    """Ensure `~/.qalprit/android-sdk` exists with links to bundled SDK tools."""
+    user_sdk = get_user_android_sdk_dir()
+    user_sdk.mkdir(parents=True, exist_ok=True)
+    _sync_bundled_sdk_into(user_sdk)
+    return user_sdk
+
+
 def find_android_sdk() -> Path | None:
     """Locate Android SDK directory across macOS, Windows, and Linux."""
+    user_sdk = get_user_android_sdk_dir()
+    if user_sdk.exists() and (
+        (user_sdk / "emulator").is_dir() or (user_sdk / "system-images").is_dir()
+    ):
+        _sync_bundled_sdk_into(user_sdk)
+        return user_sdk
+
     candidates: list[Path] = []
     rt = find_bundled_runtime_dir()
     if rt is not None:
@@ -186,27 +255,28 @@ def find_android_sdk() -> Path | None:
 
 
 def find_android_tool(name: str) -> str | None:
-    """Resolve an Android SDK binary (adb, aapt2, emulator, avdmanager)."""
+    """Resolve an Android SDK binary (adb, aapt2, sdkmanager, avdmanager, emulator)."""
+    sdk = find_android_sdk()
+    names = [f"{name}.exe", f"{name}.bat", f"{name}.cmd", name] if platform.system() == "Windows" else [name]
+    if sdk:
+        rel_dirs = [
+            sdk / "platform-tools",
+            sdk / "emulator",
+            sdk / "cmdline-tools" / "latest" / "bin",
+            sdk / "tools" / "bin",
+        ]
+        bt_dir = sdk / "build-tools"
+        if bt_dir.is_dir():
+            rel_dirs.extend(sorted((p for p in bt_dir.iterdir() if p.is_dir()), reverse=True))
+        for directory in rel_dirs:
+            for fname in names:
+                cand = directory / fname
+                if cand.exists():
+                    return str(cand)
+
     direct = shutil.which(name)
     if direct:
         return direct
-    sdk = find_android_sdk()
-    if not sdk:
-        return None
-    suffix = ".exe" if platform.system() == "Windows" else ""
-    rel_candidates = [
-        sdk / "platform-tools" / f"{name}{suffix}",
-        sdk / "emulator" / f"{name}{suffix}",
-        sdk / "cmdline-tools" / "latest" / "bin" / f"{name}{suffix}",
-        sdk / "tools" / "bin" / f"{name}{suffix}",
-    ]
-    bt_dir = sdk / "build-tools"
-    if bt_dir.is_dir():
-        for ver_dir in sorted((p for p in bt_dir.iterdir() if p.is_dir()), reverse=True):
-            rel_candidates.append(ver_dir / f"{name}{suffix}")
-    for cand in rel_candidates:
-        if cand.exists():
-            return str(cand)
     return None
 
 
@@ -218,22 +288,28 @@ def find_java_bin() -> str | None:
         cand = rt / "jdk" / "bin" / java_exe
         if cand.exists():
             return str(cand)
-    direct = shutil.which("java")
-    # On macOS, /usr/bin/java can be a stub when no JDK is linked
-    if direct and platform.system() == "Darwin" and direct == "/usr/bin/java":
-        probe = subprocess.run([direct, "-version"], capture_output=True, text=True)
-        if probe.returncode == 0:
-            return direct
-    elif direct:
-        return direct
-
     java_home = os.environ.get("JAVA_HOME")
-    if java_home:
-        cand = Path(java_home) / "bin" / ("java.exe" if platform.system() == "Windows" else "java")
+    if java_home and java_home.rstrip("/\\") != "/usr":
+        cand = Path(java_home) / "bin" / java_exe
         if cand.exists():
             return str(cand)
 
+    direct = shutil.which("java")
+    if direct and not (platform.system() == "Darwin" and direct == "/usr/bin/java"):
+        return direct
+
     if platform.system() == "Darwin":
+        # Resolve the real JDK Home rather than Apple's /usr/bin/java stub so
+        # callers deriving JAVA_HOME from bin/java never set JAVA_HOME=/usr.
+        try:
+            jh = subprocess.run(["/usr/libexec/java_home"], capture_output=True, text=True, timeout=5)
+            if jh.returncode == 0:
+                home_dir = Path((jh.stdout or "").strip())
+                cand = home_dir / "bin" / "java"
+                if cand.exists():
+                    return str(cand)
+        except Exception:
+            pass
         for cand in (
             Path("/opt/homebrew/opt/openjdk@17/bin/java"),
             Path("/opt/homebrew/opt/openjdk@21/bin/java"),
@@ -241,6 +317,10 @@ def find_java_bin() -> str | None:
         ):
             if cand.exists():
                 return str(cand)
+        if direct == "/usr/bin/java":
+            probe = subprocess.run([direct, "-version"], capture_output=True, text=True)
+            if probe.returncode == 0:
+                return direct
     return None
 
 
@@ -453,18 +533,32 @@ def run_doctor(python_min: tuple[int, int] = (3, 10)) -> list[CheckItem]:
             )
         )
 
+    sdkmgr_bin = find_android_tool("sdkmanager")
+    if sdkmgr_bin:
+        checks.append(CheckItem("Android cmdline-tools (sdkmanager)", "ok", sdkmgr_bin))
+    else:
+        checks.append(
+            CheckItem(
+                "Android cmdline-tools (sdkmanager)",
+                "warn",
+                "Not found",
+                "Required for 1-click Virtual Android Emulator setup",
+            )
+        )
+
     emu_bin = find_android_tool("emulator")
     if emu_bin:
         rc, avd_out = _run_quick([emu_bin, "-list-avds"])
         avds = [line.strip() for line in avd_out.splitlines() if line.strip()] if rc == 0 else []
-        detail = f"{len(avds)} AVD(s): {', '.join(avds)}" if avds else "No AVDs found"
+        detail = f"{len(avds)} AVD(s): {', '.join(avds)}" if avds else "No AVDs found — run Emulator Setup"
         checks.append(CheckItem("Android emulator", "ok" if avds else "warn", detail))
     else:
         checks.append(
             CheckItem(
                 "Android emulator",
-                "skip",
-                "Optional (connect a physical Android phone via USB with USB Debugging ON, or install Android Studio Emulator)",
+                "warn",
+                "Not installed yet — click Setup Virtual Android Emulator in Step 1C (primary path)",
+                "Click 'Setup Virtual Android Emulator' in Step 1C or run: qalprit emulator setup",
             )
         )
 

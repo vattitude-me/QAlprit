@@ -504,3 +504,90 @@ def test_find_android_tool_and_appium_env_include_build_tools(
     env = build_appium_env({})
     assert str(pt) in env["PATH"]
     assert str(bt_new) in env["PATH"]
+
+
+def test_prepare_writable_android_sdk_and_find_sdkmanager(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import qalprit.doctor as doctor_mod
+
+    fake_home = tmp_path / "home"
+    rt = tmp_path / "runtime"
+    ct_bin = rt / "android-sdk" / "cmdline-tools" / "latest" / "bin"
+    pt_dir = rt / "android-sdk" / "platform-tools"
+    ct_bin.mkdir(parents=True)
+    pt_dir.mkdir(parents=True)
+    (ct_bin / "sdkmanager").write_text("#!/bin/sh\necho ok\n", encoding="utf-8")
+    (pt_dir / "adb").write_text("#!/bin/sh\necho ok\n", encoding="utf-8")
+
+    monkeypatch.setattr(Path, "home", lambda: fake_home)
+    monkeypatch.setenv("QALPRIT_RUNTIME_DIR", str(rt))
+    monkeypatch.setattr(doctor_mod.shutil, "which", lambda _n: None)
+
+    assert doctor_mod.find_android_tool("sdkmanager") == str(ct_bin / "sdkmanager")
+
+    user_sdk = doctor_mod.prepare_writable_android_sdk()
+    assert user_sdk == (fake_home / ".qalprit" / "android-sdk").resolve()
+    assert (user_sdk / "cmdline-tools" / "latest" / "bin" / "sdkmanager").exists()
+
+    # Once emulator dir exists under ~/.qalprit/android-sdk, find_android_sdk prefers it cleanly
+    (user_sdk / "emulator").mkdir(parents=True)
+    assert doctor_mod.find_android_sdk() == user_sdk
+
+
+def test_emulator_setup_sync_and_http_status_endpoint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import json
+    import threading
+    import urllib.request
+    import qalprit.emulator_manager as emu_mod
+    from qalprit.ui_server import create_ui_server
+
+    fake_sdk = tmp_path / "sdk"
+    fake_sdk.mkdir()
+    monkeypatch.setattr(emu_mod, "prepare_writable_android_sdk", lambda: fake_sdk)
+    monkeypatch.setattr(emu_mod, "build_appium_env", lambda e=None: dict(e or {}))
+    monkeypatch.setattr(
+        emu_mod,
+        "find_android_tool",
+        lambda name: f"/fake/{name}" if name in {"sdkmanager", "avdmanager"} else None,
+    )
+
+    recorded_cmds: list[list[str]] = []
+
+    def _fake_stream(cmd: list[str], **_kwargs: object) -> tuple[int, str]:
+        recorded_cmds.append(list(cmd))
+        on_line = _kwargs.get("on_line")
+        if "--install" in cmd and callable(on_line):
+            on_line("[======         ] 50% Downloading emulator...")
+        return 0, "done"
+
+    monkeypatch.setattr(emu_mod, "_stream_command", _fake_stream)
+
+    progress_events: list[tuple[str, int]] = []
+    res = emu_mod.setup_android_emulator_sync(
+        "QAlprit_Pixel",
+        on_progress=lambda ph, pct, _msg: progress_events.append((ph, pct)),
+    )
+    assert res["ok"] is True
+    assert res["avd_name"] == "QAlprit_Pixel"
+    assert any("--licenses" in c for c in recorded_cmds)
+    assert any("--install" in c and "emulator" in c for c in recorded_cmds)
+    assert any("create" in c and "QAlprit_Pixel" in c for c in recorded_cmds)
+    assert any(pct == 100 for _, pct in progress_events)
+
+    # HTTP /api/emulator/status endpoint
+    ws = ensure_workspace(tmp_path / "ws")
+    server = create_ui_server(ws, host="127.0.0.1", port=0)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/emulator/status") as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+        assert "env_status" in payload
+        assert payload["env_status"]["default_avd"] == "QAlprit_Pixel"
+    finally:
+        server.shutdown()
+        server.server_close()

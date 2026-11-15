@@ -1,7 +1,7 @@
 ; Inno Setup script for QAlprit Windows Installer (per-user, no admin required)
 
 #ifndef QAlpritVersion
-  #define QAlpritVersion "0.1.10"
+  #define QAlpritVersion "0.1.11"
 #endif
 
 #ifndef DistDir
@@ -36,14 +36,15 @@ UninstallDisplayName=QAlprit {#QAlpritVersion}
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Types]
-Name: "full"; Description: "Full Installation (Recommended — QAlprit + Bundled Appium, Node.js, Java 17 & Android ADB)"
+Name: "full"; Description: "Full Installation (Recommended — QAlprit + Appium + Virtual Android Emulator)"
 Name: "compact"; Description: "QAlprit Workbench Core Only (Use existing system Node/Appium/Java/ADB)"
 Name: "custom"; Description: "Custom Installation (Choose components)"; Flags: iscustom
 
 [Components]
 Name: "core"; Description: "QAlprit Workbench Desktop App, CLI & Python Engine"; Types: full compact custom; Flags: fixed
-Name: "android_engine"; Description: "Appium 2.19 + UiAutomator2 + Node.js v20 + Android SDK (ADB & aapt2)"; Types: full custom
-Name: "java_runtime"; Description: "Eclipse Temurin Java 17 JRE (required for Android APK & UiAutomator2)"; Types: full custom
+Name: "android_engine"; Description: "Android Runtime (Appium 2.19, UiAutomator2, Node.js v20, ADB, aapt2, SDK Manager)"; Types: full custom
+Name: "java_runtime"; Description: "Eclipse Temurin Java 17 JRE (required for Android & SDK Manager)"; Types: full custom
+Name: "android_emulator"; Description: "Virtual Android Emulator (QAlprit_Pixel API 34 — Primary path, downloads ~1.8 GB on setup)"; Types: full custom
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a &Desktop shortcut for QAlprit Workbench"; GroupDescription: "Additional shortcuts:"
@@ -62,4 +63,5 @@ Name: "{group}\Uninstall QAlprit"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\QAlprit Workbench"; Filename: "{app}\QAlprit.exe"; WorkingDir: "{userdocs}"; Tasks: desktopicon
 
 [Run]
+Filename: "{app}\qalprit-cli.exe"; Parameters: "emulator setup --pause-on-error"; Description: "Download & configure QAlprit_Pixel Virtual Android Phone now (~1.8 GB)"; Components: android_emulator; Flags: postinstall skipifsilent waituntilterminated
 Filename: "{app}\QAlprit.exe"; Description: "Launch QAlprit Workbench"; Flags: nowait postinstall skipifsilent

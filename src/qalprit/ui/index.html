@@ -531,6 +531,22 @@
     }
     .guide-details ul { margin: 8px 0 0 18px; padding: 0; }
     .guide-details li { margin-bottom: 4px; }
+    .emu-panel {
+      padding: 14px 16px;
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--accent);
+      border-radius: 9px;
+      background: var(--surface-alt);
+      margin-bottom: 14px;
+    }
+    .emu-panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
 
     footer {
       max-width: 1260px;
@@ -722,8 +738,35 @@
       </div>
 
       <article class="card">
-        <h3><span class="substep-kicker">Step 1C</span> Verify Toolchain &amp; Connected Devices</h3>
-        <p class="card-help">Verify QAlprit's bundled Node, Appium, Java, Android ADB, and your connected phone or emulator before capturing screens or running tests.</p>
+        <h3><span class="substep-kicker">Step 1C</span> Virtual Emulator Setup (Primary) &amp; Toolchain Verification</h3>
+        <p class="card-help">Use QAlprit's built-in <strong>Virtual Android Phone (<code>QAlprit_Pixel</code>)</strong> or macOS <strong>iOS Simulator</strong> so QA teams need zero phone developer menus or helper approvals. Connect a physical USB phone optionally below.</p>
+
+        <div class="emu-panel">
+          <div class="emu-panel-head">
+            <strong>Primary Device: Virtual Emulator / Simulator</strong>
+            <span class="badge b-skip" id="emuStatusBadge">Checking emulator status...</span>
+          </div>
+          <p class="muted" id="emuStatusDesc" style="margin:0 0 8px;font-size:0.82rem;">Checks whether QAlprit_Pixel (Android 34) is installed or booted.</p>
+          <div class="btn-row">
+            <button type="button" class="btn btn-primary" id="btnEmuBoot" hidden>Boot Android Emulator</button>
+            <button type="button" class="btn btn-primary" id="btnEmuSetup">Setup Virtual Android Emulator (~1.8 GB)</button>
+            <button type="button" class="btn btn-danger" id="btnEmuStop" hidden>Stop Emulator</button>
+          </div>
+          <div id="iosSimRow" class="btn-row" style="margin-top:8px;" hidden>
+            <select id="iosSimSelect" style="max-width:320px;"></select>
+            <button type="button" class="btn" id="btnIosBoot">Boot iOS Simulator</button>
+          </div>
+          <div class="progress-box" id="emuProgressBox" hidden>
+            <div class="progress-head">
+              <strong id="emuProgressPhase">Preparing...</strong>
+              <span class="muted" id="emuProgressMeta">0% &middot; 0.0s</span>
+            </div>
+            <div class="progress-track"><div class="progress-fill" id="emuProgressFill"></div></div>
+          </div>
+          <div id="emuStatusBanner" class="status-banner" hidden aria-live="polite"></div>
+          <pre id="emuLiveLog" class="console" hidden></pre>
+        </div>
+
         <div class="btn-row" style="margin-bottom:8px;">
           <button type="button" class="btn btn-primary" id="btnRunPreflight">Start All Checks (Tools + Devices)</button>
           <button type="button" class="btn" id="btnRefreshDevices">Scan Devices Only</button>
@@ -759,12 +802,11 @@
           </div>
         </div>
         <details class="guide-details">
-          <summary>First-time setup help: Firewall, USB Debugging &amp; Appium Settings prompts</summary>
+          <summary>Optional: Connect a Physical USB Phone instead (or Firewall help)</summary>
           <ul>
-            <li><strong><code>adb.exe</code> Firewall prompt:</strong> <code>adb.exe</code> is Google's official Android Debug Bridge bundled with QAlprit. Windows Firewall asks once when it starts its local daemon on port 5037 — click <strong>Allow access</strong>.</li>
-            <li><strong>Testing on a real Android phone:</strong> Enable <em>Settings &rarr; About phone &rarr; Tap Build number 7 times</em>, open <em>Developer options &rarr; USB debugging</em>, plug in via USB, check <em>Always allow from this computer</em>, and tap <strong>Allow</strong> on the phone screen.</li>
-            <li><strong>Phone prompt: "Install Appium Settings" / Play Protect "Unsafe app":</strong> On the first live capture or test run, Appium installs its two helper APKs (<code>io.appium.settings</code> &amp; <code>io.appium.uiautomator2.server</code>) so it can read screens and tap controls. Tap <strong>More details &rarr; Install anyway</strong> once per phone.</li>
-            <li><strong>Testing on an Android Emulator (optional):</strong> Virtual emulators are 2–4 GB and require Android Studio. Physical USB phones need zero extra downloads.</li>
+            <li><strong>Recommended path (Virtual Emulator):</strong> Using the <strong>Virtual Android Emulator / iOS Simulator</strong> panel above avoids USB cables, Developer options, Play Protect warnings, and per-phone security approvals.</li>
+            <li><strong><code>adb.exe</code> Firewall prompt:</strong> <code>adb.exe</code> is Google's Android Debug Bridge. Windows Firewall asks once when it listens on port 5037 — click <strong>Allow access</strong>.</li>
+            <li><strong>Physical USB Android phone (optional):</strong> Enable <em>Settings &rarr; About phone &rarr; Tap Build number 7 times</em>, turn on <em>Developer options &rarr; USB debugging</em>, check <em>Always allow from this computer</em> and tap <strong>Allow</strong> on the phone, then approve <em>More details &rarr; Install anyway</em> once when Appium installs <code>io.appium.settings</code>.</li>
           </ul>
         </details>
       </article>
@@ -1174,6 +1216,7 @@
         overview: null,
         inspectCandidates: [],
         pollTimer: null,
+        emuPollTimer: null,
         doctorChecked: false,
         doctorOk: false,
         devicesChecked: false,
@@ -1543,16 +1586,16 @@
 
       function syncDeviceSelects() {
         const devEntries = Object.entries((STATE.overview && STATE.overview.device_profiles) || {});
-        const liveReady = (STATE.liveDevices || []).filter(
-          (d) => !String(d.identifier || "").startsWith("avd:") && (d.state === "device" || d.state === "Booted")
-        );
+        const liveReady = (STATE.liveDevices || [])
+          .filter((d) => !String(d.identifier || "").startsWith("avd:") && (d.state === "device" || d.state === "Booted"))
+          .sort((a, b) => (a.kind === "device" ? 1 : 0) - (b.kind === "device" ? 1 : 0));
         const devOpts = liveReady.map((d) => ({
           value: `live:${d.platform}:${d.identifier}`,
-          label: `Connected ${d.kind === "device" ? "USB Phone" : d.kind}: ${d.name} (${d.platform})`
+          label: `${d.kind === "device" ? "Optional USB Phone" : "Virtual Emulator/Sim"}: ${d.name} (${d.platform})`
         }));
         const yamlEntries = devEntries.length ? devEntries : [
-          ["android_device", { platform: "android", device_name: "Android Device" }],
-          ["android_emulator", { platform: "android", device_name: "Android Emulator" }]
+          ["android_emulator", { platform: "android", device_name: "Android Emulator" }],
+          ["android_device", { platform: "android", device_name: "Android Device" }]
         ];
         yamlEntries.forEach(([k, v]) => {
           devOpts.push({
@@ -1884,6 +1927,136 @@
       $("btnRunDoctor").addEventListener("click", () => runPreflightChecks({ devices: false, doctor: true }));
       $("btnStopPreflight").addEventListener("click", () => {
         if (STATE.preflightController) STATE.preflightController.abort();
+      });
+
+      function renderEmulatorStatus(st) {
+        const env = (st && st.env_status) || {};
+        const runningEmus = env.running_android_emulators || [];
+        const avds = env.avds || [];
+        const installed = Boolean(env.emulator_installed && avds.length);
+        const busy = Boolean(st && st.running);
+
+        const badge = $("emuStatusBadge");
+        const desc = $("emuStatusDesc");
+        if (runningEmus.length) {
+          badge.className = "badge b-ok";
+          badge.textContent = "Running: " + runningEmus[0];
+          desc.textContent = "Virtual Android phone is booted and ready for Step 2 & Step 5.";
+        } else if (installed) {
+          badge.className = "badge b-ok";
+          badge.textContent = "Installed: " + avds[0];
+          desc.textContent = `Ready to boot virtual device '${avds[0]}'. Click Boot Android Emulator below.`;
+        } else if (env.sdkmanager_ready) {
+          badge.className = "badge b-warn";
+          badge.textContent = "Not Installed Yet";
+          desc.textContent = `Downloads Google Emulator + ${env.system_image_package || "Android 34"} into ~/.qalprit/android-sdk (survives app updates).`;
+        } else {
+          badge.className = "badge b-warn";
+          badge.textContent = "SDK Tools Missing";
+          desc.textContent = "Install QAlprit with Android Runtime enabled (or install Android Studio SDK).";
+        }
+
+        $("btnEmuSetup").hidden = busy || installed;
+        $("btnEmuBoot").hidden = busy || !installed || runningEmus.length > 0;
+        $("btnEmuStop").hidden = !busy && runningEmus.length === 0;
+        $("btnEmuStop").textContent = busy ? "Stop" : "Stop Running Emulator";
+
+        if (env.ios_supported && (env.ios_simulators || []).length) {
+          $("iosSimRow").hidden = false;
+          populateSelect(
+            "iosSimSelect",
+            env.ios_simulators.map((s) => ({ value: s.identifier, label: `${s.name} (${s.state})` }))
+          );
+        } else {
+          $("iosSimRow").hidden = true;
+        }
+
+        if (st && (st.running || (st.status && st.status !== "idle"))) {
+          $("emuProgressBox").hidden = false;
+          $("emuProgressPhase").textContent = st.phase || st.status || "Working...";
+          const pct = Math.max(0, Math.min(100, Number(st.progress_pct || 0)));
+          const sec = Number(st.elapsed_sec || 0).toFixed(1);
+          $("emuProgressMeta").textContent = `${pct}% · ${sec}s`;
+          $("emuProgressFill").style.width = `${pct}%`;
+        }
+        if (st && st.logs && st.logs.length && (st.running || st.status === "failed" || st.status === "stopped")) {
+          $("emuLiveLog").hidden = false;
+          $("emuLiveLog").textContent = st.logs.join("\n");
+          $("emuLiveLog").scrollTop = $("emuLiveLog").scrollHeight;
+        }
+      }
+
+      async function pollEmulatorStatus() {
+        const st = await apiJson("/api/emulator/status");
+        renderEmulatorStatus(st);
+        if (!st.running && STATE.emuPollTimer) {
+          clearInterval(STATE.emuPollTimer);
+          STATE.emuPollTimer = null;
+          if (st.status === "completed") {
+            showBanner("emuStatusBanner", st.phase === "Booted & Ready" ? "Virtual Android phone is booted and selected!" : "Virtual Android Emulator setup complete!", "ok");
+            await runPreflightChecks({ devices: true, doctor: false });
+          } else if (st.status === "stopped") {
+            showBanner("emuStatusBanner", st.error || "Stopped by user.", "warn");
+          } else if (st.status === "failed") {
+            showBanner("emuStatusBanner", st.error || "Emulator operation failed.", "error");
+          }
+        }
+        return st;
+      }
+
+      function startEmulatorPolling() {
+        if (STATE.emuPollTimer) clearInterval(STATE.emuPollTimer);
+        STATE.emuPollTimer = setInterval(() => {
+          pollEmulatorStatus().catch(() => {});
+        }, 1200);
+        pollEmulatorStatus().catch(() => {});
+      }
+
+      $("btnEmuSetup").addEventListener("click", async () => {
+        showBanner("emuStatusBanner", "", "");
+        try {
+          await apiJson("/api/emulator/setup", {});
+          startEmulatorPolling();
+        } catch (err) {
+          showBanner("emuStatusBanner", err.message, "error");
+        }
+      });
+
+      $("btnEmuBoot").addEventListener("click", async () => {
+        showBanner("emuStatusBanner", "", "");
+        try {
+          const res = await apiJson("/api/emulator/boot", { target: "android" });
+          if (res.already_running) {
+            showBanner("emuStatusBanner", "Android emulator already running: " + res.serial, "ok");
+            await runPreflightChecks({ devices: true, doctor: false });
+            await pollEmulatorStatus();
+            return;
+          }
+          startEmulatorPolling();
+        } catch (err) {
+          showBanner("emuStatusBanner", err.message, "error");
+        }
+      });
+
+      $("btnEmuStop").addEventListener("click", async () => {
+        try {
+          await apiJson("/api/emulator/stop", {});
+          await pollEmulatorStatus();
+        } catch (err) {
+          showBanner("emuStatusBanner", err.message, "error");
+        }
+      });
+
+      $("btnIosBoot").addEventListener("click", async () => {
+        showBanner("emuStatusBanner", "", "");
+        try {
+          const res = await apiJson("/api/emulator/boot", { target: "ios", udid: $("iosSimSelect").value });
+          showBanner("emuStatusBanner", `iOS Simulator booted: ${res.name}`, "ok");
+          await runPreflightChecks({ devices: true, doctor: false });
+          await pollEmulatorStatus();
+        } catch (err) {
+          showBanner("emuStatusBanner", err.message, "error");
+        }
       });
 
       // ------------------------------------------------------------------
@@ -2262,6 +2435,9 @@
       loadOverview().catch((err) => {
         showBanner("corruptBanner", "Failed to load workspace overview: " + err.message, "error");
       });
+      pollEmulatorStatus().then((st) => {
+        if (st && st.running) startEmulatorPolling();
+      }).catch(() => {});
     })();
   </script>
 </body>
