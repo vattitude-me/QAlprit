@@ -116,6 +116,29 @@ if (-not (Test-Path (Join-Path $BuildToolsDest "aapt2.exe"))) {
     }
 }
 
+$CmdToolsDest = Join-Path $AndroidSdkDest "cmdline-tools\latest"
+if (-not (Test-Path (Join-Path $CmdToolsDest "bin\sdkmanager.bat"))) {
+    Write-Host "==> Downloading Android SDK cmdline-tools (sdkmanager / avdmanager)..."
+    $CtZip = Join-Path $BuildWork "commandlinetools-win-latest.zip"
+    Invoke-WebRequest -Uri "https://dl.google.com/android/repository/commandlinetools-win-16111833_latest.zip" -OutFile $CtZip
+    $CtExtract = Join-Path $BuildWork "ct-extract"
+    Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $CtExtract, $CmdToolsDest
+    Expand-Archive -Path $CtZip -DestinationPath $CtExtract -Force
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $CmdToolsDest) | Out-Null
+    if (Test-Path (Join-Path $CtExtract "cmdline-tools\bin\sdkmanager.bat")) {
+        Move-Item -Path (Join-Path $CtExtract "cmdline-tools") -Destination $CmdToolsDest
+    } elseif (Test-Path (Join-Path $CtExtract "bin\sdkmanager.bat")) {
+        Move-Item -Path $CtExtract -Destination $CmdToolsDest
+    } else {
+        $InnerCt = Get-ChildItem -Directory $CtExtract | Select-Object -First 1
+        Move-Item -Path $InnerCt.FullName -Destination $CmdToolsDest
+    }
+    Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $CtExtract
+    if (-not (Test-Path (Join-Path $CmdToolsDest "bin\sdkmanager.bat"))) {
+        throw "Expected sdkmanager.bat inside $CmdToolsDest\bin"
+    }
+}
+
 # 5. Build QAlprit.exe (windowed) and qalprit-cli.exe (console) with PyInstaller
 Write-Host "==> Installing QAlprit desktop dependencies and PyInstaller..."
 python -m pip install --upgrade pip setuptools wheel
@@ -189,15 +212,14 @@ $env:JAVA_HOME = $origJavaHome
 $env:APPIUM_HOME = $origAppiumHome
 Write-Host $docJson
 if ($docRc -ne 0) { throw "qalprit-cli.exe doctor failed when relying strictly on bundled runtime/" }
-$docJson | python -c '
-import json, sys
-by_name = {i["name"]: i for i in json.load(sys.stdin)}
-for req in ("Python", "Appium Python client", "Node.js", "Appium", "Appium driver: uiautomator2", "Java (JDK)", "Android SDK", "Android adb", "Android build-tools (aapt2)"):
-    assert req in by_name, f"Missing doctor check: {req}"
-    assert by_name[req]["status"] == "ok", f"Expected {req} ok, got {by_name[req]}"
-print("All bundled Windows runtime checks OK")
-'
-if ($LASTEXITCODE -ne 0) { throw "Bundled Windows runtime assertions failed" }
+$docItems = ($docJson -join "`n") | ConvertFrom-Json
+$byName = @{}
+foreach ($item in $docItems) { $byName[$item.name] = $item }
+foreach ($req in @("Python", "Appium Python client", "Node.js", "Appium", "Appium driver: uiautomator2", "Java (JDK)", "Android SDK", "Android adb", "Android build-tools (aapt2)", "Android cmdline-tools (sdkmanager)")) {
+    if (-not $byName.ContainsKey($req)) { throw "Missing doctor check: $req" }
+    if ($byName[$req].status -ne "ok") { throw "Expected $req status 'ok', got '$($byName[$req].status)' ($($byName[$req].detail))" }
+}
+Write-Host "All bundled Windows runtime checks OK"
 
 # 8. Build Inno Setup installer
 $Iscc = (Get-Command iscc.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source)

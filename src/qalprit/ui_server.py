@@ -17,6 +17,7 @@ from qalprit import __version__
 from qalprit.config_loader import load_screens
 from qalprit.devices import list_android_devices, list_ios_simulators
 from qalprit.doctor import run_doctor
+from qalprit.emulator_manager import DEFAULT_AVD_NAME, EmulatorJobManager
 from qalprit.results import load_results_json
 from qalprit.spec_loader import STEP_VOCABULARY, load_flows, load_specs
 from qalprit.workbench_api import (
@@ -262,11 +263,13 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
         project_root: Path,
         results_dir: Path,
         job_manager: RunJobManager | None = None,
+        emulator_manager: EmulatorJobManager | None = None,
         **kwargs: Any,
     ) -> None:
         self.project_root = project_root.resolve()
         self.results_dir = results_dir.resolve()
         self.job_manager = job_manager or RunJobManager()
+        self.emulator_manager = emulator_manager or EmulatorJobManager()
         super().__init__(*args, **kwargs)
 
     def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
@@ -354,6 +357,10 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
 
         if req_path == "/api/runs/status":
             self._send_json(self.job_manager.status())
+            return
+
+        if req_path == "/api/emulator/status":
+            self._send_json(self.emulator_manager.status())
             return
 
         if req_path == "/api/compare":
@@ -508,6 +515,34 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
                 self._send_json(self.job_manager.stop())
                 return
 
+            if req_path == "/api/emulator/setup":
+                self._send_json(
+                    self.emulator_manager.start_setup(
+                        avd_name=str(body.get("avd_name") or DEFAULT_AVD_NAME),
+                    )
+                )
+                return
+
+            if req_path == "/api/emulator/boot":
+                target = str(body.get("target") or "android").lower()
+                if target == "ios":
+                    self._send_json(
+                        self.emulator_manager.boot_ios_simulator(
+                            udid=str(body.get("udid") or ""),
+                        )
+                    )
+                else:
+                    self._send_json(
+                        self.emulator_manager.start_boot_android(
+                            avd_name=str(body.get("avd_name") or DEFAULT_AVD_NAME),
+                        )
+                    )
+                return
+
+            if req_path == "/api/emulator/stop":
+                self._send_json(self.emulator_manager.stop())
+                return
+
             self._send_json({"error": f"Unknown API endpoint: {req_path}"}, status=HTTPStatus.NOT_FOUND)
         except ValueError as exc:
             self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
@@ -527,7 +562,14 @@ def create_ui_server(
     root = project_root.resolve()
     res_dir = (results_dir or (root / "results")).resolve()
     job_manager = RunJobManager()
-    handler = partial(_WorkbenchHandler, project_root=root, results_dir=res_dir, job_manager=job_manager)
+    emulator_manager = EmulatorJobManager()
+    handler = partial(
+        _WorkbenchHandler,
+        project_root=root,
+        results_dir=res_dir,
+        job_manager=job_manager,
+        emulator_manager=emulator_manager,
+    )
     try:
         return ThreadingHTTPServer((host, port), handler)
     except OSError:

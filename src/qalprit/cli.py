@@ -545,3 +545,94 @@ def ui(
         click.echo("\nShutting down QAlprit Workbench.")
     finally:
         server.server_close()
+
+
+@main.group()
+def emulator() -> None:
+    """Install, boot, and manage virtual Android Emulators & iOS Simulators."""
+
+
+@emulator.command("status")
+@click.option("--json-output", is_flag=True, help="Print status as JSON.")
+def emulator_status(json_output: bool) -> None:
+    """Show installed virtual emulators and simulators."""
+    from qalprit.emulator_manager import get_emulator_status
+
+    info = get_emulator_status()
+    if json_output:
+        click.echo(json.dumps(info, indent=2))
+        return
+    click.echo(f"SDK Dir              : {info['sdk_dir'] or 'not set'}")
+    click.echo(f"sdkmanager ready     : {info['sdkmanager_ready']}")
+    click.echo(f"Emulator installed   : {info['emulator_installed']}")
+    click.echo(f"System image ready   : {info['system_image_installed']} ({info['system_image_package']})")
+    click.echo(f"AVDs                 : {', '.join(info['avds']) or 'None'}")
+    click.echo(f"Running Android Emus : {', '.join(info['running_android_emulators']) or 'None'}")
+    if info["ios_supported"]:
+        click.echo(f"iOS Simulators       : {len(info['ios_simulators'])} available")
+
+
+@emulator.command("setup")
+@click.option("--avd", default="QAlprit_Pixel", show_default=True, help="AVD name to create.")
+@click.option("--pause-on-error", is_flag=True, hidden=True, help="Wait for Enter on failure (installer).")
+def emulator_setup(avd: str, pause_on_error: bool) -> None:
+    """Download Google Android Emulator + API 34 system image and create AVD."""
+    from qalprit.emulator_manager import setup_android_emulator_sync
+
+    last_line = ""
+
+    def _cb(phase: str, pct: int, msg: str) -> None:
+        nonlocal last_line
+        text = f"[{pct:>3}%] {phase}: {msg}" if msg else f"[{pct:>3}%] {phase}"
+        if text != last_line:
+            click.echo(text)
+            last_line = text
+
+    try:
+        res = setup_android_emulator_sync(avd_name=avd, on_progress=_cb)
+        click.echo(f"Ready: AVD '{res['avd_name']}' created in {res['sdk_dir']}")
+    except Exception as exc:
+        click.echo(f"ERROR: {exc}", err=True)
+        if pause_on_error:
+            try:
+                input("\nPress Enter to continue...")
+            except EOFError:
+                pass
+        sys.exit(1)
+
+
+@emulator.command("boot")
+@click.option("--avd", default="QAlprit_Pixel", show_default=True, help="AVD name to boot.")
+def emulator_boot(avd: str) -> None:
+    """Boot the virtual Android Emulator and wait until ready."""
+    import time as _time
+    from qalprit.emulator_manager import EmulatorJobManager
+
+    mgr = EmulatorJobManager()
+    res = mgr.start_boot_android(avd_name=avd)
+    if res.get("already_running"):
+        click.echo(f"Android emulator already running: {res['serial']}")
+        return
+    last_idx = 0
+    while True:
+        st = mgr.status()
+        logs = st["logs"]
+        if len(logs) > last_idx:
+            for ln in logs[last_idx:]:
+                click.echo(ln)
+            last_idx = len(logs)
+        if not st["running"]:
+            if st["status"] != "completed":
+                raise click.ClickException(st.get("error") or "Emulator boot failed.")
+            return
+        _time.sleep(1.5)
+
+
+@emulator.command("stop")
+def emulator_stop() -> None:
+    """Shut down running virtual Android emulators."""
+    from qalprit.emulator_manager import EmulatorJobManager
+
+    res = EmulatorJobManager().stop()
+    killed = res.get("killed_emulators") or []
+    click.echo(f"Stopped emulator(s): {', '.join(killed) if killed else 'none running'}")

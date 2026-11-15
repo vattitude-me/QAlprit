@@ -172,6 +172,27 @@ if [ ! -x "${BUILD_TOOLS_DEST}/aapt2" ]; then
   chmod +x "${BUILD_TOOLS_DEST}/aapt2" "${BUILD_TOOLS_DEST}/aapt" "${BUILD_TOOLS_DEST}/zipalign" 2>/dev/null || true
 fi
 
+CMD_TOOLS_DEST="${ANDROID_SDK_DEST}/cmdline-tools/latest"
+if [ ! -x "${CMD_TOOLS_DEST}/bin/sdkmanager" ]; then
+  echo "==> Downloading Android SDK cmdline-tools (darwin)..."
+  CT_ZIP="${BUILD_WORK}/commandlinetools-mac-latest.zip"
+  curl -fsSL "https://dl.google.com/android/repository/commandlinetools-mac_arm64-16111833_latest.zip" -o "${CT_ZIP}"
+  CT_EXTRACT="${BUILD_WORK}/ct-extract"
+  rm -rf "${CT_EXTRACT}" "${CMD_TOOLS_DEST}"
+  mkdir -p "${CT_EXTRACT}" "$(dirname "${CMD_TOOLS_DEST}")"
+  unzip -q -o "${CT_ZIP}" -d "${CT_EXTRACT}"
+  if [ -d "${CT_EXTRACT}/cmdline-tools/bin" ]; then
+    mv "${CT_EXTRACT}/cmdline-tools" "${CMD_TOOLS_DEST}"
+  elif [ -d "${CT_EXTRACT}/bin" ]; then
+    mv "${CT_EXTRACT}" "${CMD_TOOLS_DEST}"
+  else
+    INNER_CT="$(find "${CT_EXTRACT}" -mindepth 1 -maxdepth 1 -type d | head -n1)"
+    mv "${INNER_CT}" "${CMD_TOOLS_DEST}"
+  fi
+  rm -rf "${CT_EXTRACT}"
+  chmod +x "${CMD_TOOLS_DEST}/bin/"* 2>/dev/null || true
+fi
+
 # 5. Build QAlprit.app with PyInstaller
 rm -rf "${DIST_APP}" "${REPO_ROOT}/dist/QAlprit"
 "${PYTHON_BIN}" -m PyInstaller --clean --noconfirm "${SCRIPT_DIR}/qalprit.spec"
@@ -205,7 +226,7 @@ echo "${DOC_JSON}" | "${PYTHON_BIN}" -c '
 import json, sys
 items = json.load(sys.stdin)
 by_name = {i["name"]: i for i in items}
-for req in ("Python", "Appium Python client", "Node.js", "Appium", "Appium driver: uiautomator2", "Appium driver: xcuitest", "Java (JDK)", "Android SDK", "Android adb", "Android build-tools (aapt2)"):
+for req in ("Python", "Appium Python client", "Node.js", "Appium", "Appium driver: uiautomator2", "Appium driver: xcuitest", "Java (JDK)", "Android SDK", "Android adb", "Android build-tools (aapt2)", "Android cmdline-tools (sdkmanager)"):
     assert req in by_name, f"Missing check: {req}"
     assert by_name[req]["status"] == "ok", f"Expected {req} ok, got {by_name[req]}"
 print("All bundled runtime checks OK")
