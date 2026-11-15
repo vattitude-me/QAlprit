@@ -281,3 +281,76 @@ def test_desktop_main_ignores_macos_launchservices_psn_arg(monkeypatch: pytest.M
 
     desktop_mod.main(["doctor", "--json-output"])
     assert called["cli"] == 1
+
+
+def test_desktop_main_browser_flag_disables_native_window(monkeypatch: pytest.MonkeyPatch) -> None:
+    import qalprit.desktop as desktop_mod
+
+    recorded: list[dict[str, object]] = []
+    monkeypatch.setattr(desktop_mod, "launch_workbench", lambda *a, **kw: recorded.append(dict(kw)))
+    desktop_mod.main(["--browser"])
+    assert recorded == [{"native_window": False}]
+
+
+def test_launch_workbench_native_window_serves_and_stops_cleanly(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import sys
+    import types
+    import webbrowser
+    import qalprit.desktop as desktop_mod
+
+    ws = ensure_workspace(tmp_path)
+    events: dict[str, object] = {"create": None, "start": None, "http_status": None, "browser": 0}
+    fake_webview = types.ModuleType("webview")
+    fake_webview.settings = {}  # type: ignore[attr-defined]
+
+    def _create_window(title: str, url: str, **kwargs: object) -> None:
+        events["create"] = {"title": title, "url": url, **kwargs}
+
+    def _start(**kwargs: object) -> None:
+        events["start"] = kwargs
+        url = events["create"]["url"]  # type: ignore[index]
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        with opener.open(f"{url}/api/overview", timeout=5) as resp:
+            events["http_status"] = resp.status
+
+    fake_webview.create_window = _create_window  # type: ignore[attr-defined]
+    fake_webview.start = _start  # type: ignore[attr-defined]
+
+    monkeypatch.delenv("QALPRIT_BROWSER", raising=False)
+    monkeypatch.setitem(sys.modules, "webview", fake_webview)
+    monkeypatch.setattr(webbrowser, "open", lambda _url: events.__setitem__("browser", int(events["browser"]) + 1))
+
+    desktop_mod.launch_workbench(ws, port=0, open_browser=True, native_window=True)
+
+    assert events["http_status"] == 200
+    assert events["browser"] == 0
+    assert fake_webview.settings["OPEN_EXTERNAL_LINKS_IN_BROWSER"] is True  # type: ignore[index]
+    assert events["start"]["private_mode"] is False  # type: ignore[index]
+    assert events["start"]["storage_path"] == str(ws / ".webview")  # type: ignore[index]
+    assert (ws / ".webview").is_dir()
+
+
+def test_native_window_falls_back_when_webview_errors_or_disabled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import sys
+    import types
+    import qalprit.desktop as desktop_mod
+
+    fake_webview = types.ModuleType("webview")
+    fake_webview.settings = {}  # type: ignore[attr-defined]
+    fake_webview.create_window = lambda *a, **kw: None  # type: ignore[attr-defined]
+
+    def _boom(**_kwargs: object) -> None:
+        raise RuntimeError("WebView2 runtime missing")
+
+    fake_webview.start = _boom  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "webview", fake_webview)
+
+    monkeypatch.setenv("QALPRIT_BROWSER", "1")
+    assert desktop_mod._launch_native_window("http://127.0.0.1:8765", tmp_path) is False
+
+    monkeypatch.delenv("QALPRIT_BROWSER", raising=False)
+    assert desktop_mod._launch_native_window("http://127.0.0.1:8765", tmp_path) is False

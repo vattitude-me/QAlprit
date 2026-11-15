@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import os
 import sys
+import threading
 import webbrowser
 from pathlib import Path
+from typing import Any
 
 from qalprit import __version__
 from qalprit.cli import main as cli_main
@@ -78,14 +80,62 @@ def ensure_workspace(project_root: Path | None = None) -> Path:
     return root
 
 
+def _env_prefers_browser() -> bool:
+    return os.environ.get("QALPRIT_BROWSER", "").strip().lower() in {"1", "true", "yes"}
+
+
+def _launch_native_window(url: str, workspace: Path) -> bool:
+    """Open the QAlprit Workbench in a native WebView app window if available."""
+    if _env_prefers_browser():
+        return False
+    try:
+        import webview  # type: ignore[import-not-found]
+    except ImportError:
+        return False
+
+    try:
+        settings = getattr(webview, "settings", None)
+        if isinstance(settings, dict):
+            settings["OPEN_EXTERNAL_LINKS_IN_BROWSER"] = True
+
+        storage_dir = workspace / ".webview"
+        storage_dir.mkdir(parents=True, exist_ok=True)
+        webview.create_window(
+            f"QAlprit Workbench v{__version__}",
+            url,
+            width=1360,
+            height=880,
+            min_size=(960, 640),
+        )
+        start_kwargs: dict[str, Any] = {
+            "private_mode": False,
+            "storage_path": str(storage_dir),
+        }
+        if sys.platform == "win32":
+            start_kwargs["gui"] = "edgechromium"
+        webview.start(**start_kwargs)
+        return True
+    except Exception as exc:
+        print(f"[QAlprit] Native app window unavailable ({exc}); falling back to browser.")
+        return False
+
+
+def _open_browser_fallback(url: str) -> None:
+    try:
+        webbrowser.open(url)
+    except Exception:
+        pass
+
+
 def launch_workbench(
     project_root: Path | None = None,
     *,
     host: str = "127.0.0.1",
     port: int = 8765,
     open_browser: bool = True,
+    native_window: bool = True,
 ) -> None:
-    """Bootstrap workspace if needed, start the QAlprit Workbench, and open it in browser."""
+    """Bootstrap workspace if needed, start the QAlprit Workbench, and open it."""
     workspace = ensure_workspace(project_root)
     server = create_ui_server(workspace, host=host, port=port)
     bound_host, bound_port = server.server_address[:2]
@@ -96,20 +146,45 @@ def launch_workbench(
     print("=" * 64)
     print(f"Workspace : {workspace}")
     print(f"UI URL    : {url}")
-    print("Keep this window open while using QAlprit. Press Ctrl+C to quit.")
+    print("Close the app window (or press Ctrl+C in terminal) to quit.")
     print("-" * 64)
 
-    if open_browser:
+    if not open_browser or not native_window:
+        if open_browser:
+            _open_browser_fallback(url)
         try:
-            webbrowser.open(url)
-        except Exception:
-            pass
+            server.serve_forever()
+        except KeyboardInterrupt:
+            print("\nShutting down QAlprit Workbench...")
+        finally:
+            server.server_close()
+        return
 
+    stop_event = threading.Event()
+    server.timeout = 0.2
+
+    def _serve_loop() -> None:
+        while not stop_event.is_set():
+            try:
+                server.handle_request()
+            except OSError:
+                if stop_event.is_set():
+                    break
+                raise
+
+    server_thread = threading.Thread(target=_serve_loop, daemon=True)
+    server_thread.start()
     try:
-        server.serve_forever()
+        opened_native = _launch_native_window(url, workspace)
+        if not opened_native:
+            _open_browser_fallback(url)
+            while server_thread.is_alive():
+                server_thread.join(timeout=0.5)
     except KeyboardInterrupt:
         print("\nShutting down QAlprit Workbench...")
     finally:
+        stop_event.set()
+        server_thread.join(timeout=2.0)
         server.server_close()
 
 
@@ -121,11 +196,15 @@ def main(argv: list[str] | None = None) -> None:
 
     if sys.stdout is None or sys.stderr is None:
         log_dir = ensure_workspace()
-        log_file = (log_dir / "desktop.log").open("a", encoding="utf-8")
+        log_file = (log_dir / "desktop.log").open("a", encoding="utf-8", buffering=1)
         if sys.stdout is None:
             sys.stdout = log_file
         if sys.stderr is None:
             sys.stderr = log_file
+
+    if args == ["--browser"]:
+        launch_workbench(native_window=False)
+        return
 
     if args:
         cli_main(args=args, prog_name="qalprit")
