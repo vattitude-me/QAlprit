@@ -1295,3 +1295,43 @@ def test_selective_cleanup_plan_execution_and_uninstaller_controls(
     assert "ChkUnWs" in iss_text
     scan_block = iss_text.split("procedure ScanSystemSoftware();", 1)[1].split("function ", 1)[0]
     assert "{app}" not in scan_block
+
+
+def test_sdkmanager_prefers_modern_cmdline_tools_over_legacy_tools_bin(tmp_path: Path, monkeypatch) -> None:
+    """Modern cmdline-tools (versioned or bundled) must always beat deprecated tools/bin/sdkmanager."""
+    from qalprit import doctor
+    from qalprit.paths import save_user_settings
+
+    data_dir = tmp_path / "appdata"
+    settings_path = data_dir / "settings.json"
+    sys_sdk = tmp_path / "system-sdk"
+    bundled_rt = tmp_path / "runtime"
+    writable_sdk = data_dir / "android-sdk"
+
+    (sys_sdk / "tools" / "bin").mkdir(parents=True)
+    legacy_mgr = sys_sdk / "tools" / "bin" / "sdkmanager"
+    legacy_mgr.write_text("#!/bin/sh\n", encoding="utf-8")
+
+    bundled_ct_bin = bundled_rt / "android-sdk" / "cmdline-tools" / "latest" / "bin"
+    bundled_ct_bin.mkdir(parents=True)
+    bundled_mgr = bundled_ct_bin / "sdkmanager"
+    bundled_mgr.write_text("#!/bin/sh\n", encoding="utf-8")
+
+    monkeypatch.setenv("QALPRIT_DATA_DIR", str(data_dir))
+    monkeypatch.setenv("QALPRIT_SETTINGS_PATH", str(settings_path))
+    monkeypatch.setenv("ANDROID_HOME", str(sys_sdk))
+    monkeypatch.setattr(doctor.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(doctor, "find_bundled_runtime_dir", lambda: bundled_rt)
+    save_user_settings({"prefer_existing_system_sdk": True})
+
+    # Even with prefer_existing_system_sdk=True, legacy tools/bin must NOT beat bundled cmdline-tools
+    resolved = doctor.find_android_tool("sdkmanager")
+    assert resolved == str(bundled_mgr)
+    assert doctor.find_cmdline_tool("sdkmanager", writable_sdk) == str(bundled_mgr)
+
+    # And if the system SDK installs versioned cmdline-tools/13.0/bin, find_android_tool picks it cleanly
+    ver_ct = sys_sdk / "cmdline-tools" / "13.0" / "bin"
+    ver_ct.mkdir(parents=True)
+    ver_mgr = ver_ct / "sdkmanager"
+    ver_mgr.write_text("#!/bin/sh\n", encoding="utf-8")
+    assert doctor.find_android_tool("sdkmanager") == str(ver_mgr)

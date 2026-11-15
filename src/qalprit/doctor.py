@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
+from qalprit import __version__
 from qalprit.paths import (
     DEFAULT_AVD_NAME,
     get_android_user_home,
@@ -237,7 +238,7 @@ def _sync_bundled_sdk_into(user_sdk: Path) -> None:
     for cand_root in (rt / "android-sdk", rt / "android"):
         if not cand_root.exists():
             continue
-        resolved_src = str(cand_root.resolve())
+        resolved_src = f"{cand_root.resolve()}|{__version__}"
         prev_src = ""
         try:
             if marker_file.is_file():
@@ -345,16 +346,69 @@ def find_android_sdk() -> Path | None:
     return None
 
 
+def _cmdline_tools_bin_dirs(sdk: Path) -> list[Path]:
+    """Return cmdline-tools bin directories ordered with 'latest' first, then versioned folders descending."""
+    ct_root = sdk / "cmdline-tools"
+    if not ct_root.is_dir():
+        return []
+    dirs: list[Path] = []
+    latest_bin = ct_root / "latest" / "bin"
+    if latest_bin.is_dir():
+        dirs.append(latest_bin)
+    try:
+        versioned = sorted(
+            (p / "bin" for p in ct_root.iterdir() if p.is_dir() and p.name != "latest" and (p / "bin").is_dir()),
+            reverse=True,
+        )
+        dirs.extend(versioned)
+    except OSError:
+        pass
+    return dirs
+
+
+def _tool_in_dirs(dirs: list[Path], names: list[str]) -> str | None:
+    for directory in dirs:
+        for fname in names:
+            cand = directory / fname
+            try:
+                if cand.exists():
+                    return str(cand)
+            except OSError:
+                continue
+    return None
+
+
+def _tool_binary_names(name: str) -> list[str]:
+    return [f"{name}.exe", f"{name}.bat", f"{name}.cmd", name] if platform.system() == "Windows" else [name]
+
+
+def find_cmdline_tool(name: str, preferred_sdk: Path | None = None) -> str | None:
+    """Resolve sdkmanager/avdmanager preferring modern cmdline-tools over deprecated legacy tools/bin."""
+    names = _tool_binary_names(name)
+    candidates: list[Path] = []
+    if preferred_sdk is not None:
+        candidates.extend(_cmdline_tools_bin_dirs(preferred_sdk))
+    candidates.extend(_cmdline_tools_bin_dirs(get_user_android_sdk_dir()))
+    rt = find_bundled_runtime_dir()
+    if rt is not None:
+        for sub in ("android-sdk", "android"):
+            candidates.extend(_cmdline_tools_bin_dirs(rt / sub))
+    found = _tool_in_dirs(candidates, names)
+    if found:
+        return found
+    return find_android_tool(name)
+
+
 def find_android_tool(name: str) -> str | None:
     """Resolve an Android SDK binary (adb, aapt2, sdkmanager, avdmanager, emulator)."""
     sdk = find_android_sdk()
-    names = [f"{name}.exe", f"{name}.bat", f"{name}.cmd", name] if platform.system() == "Windows" else [name]
+    names = _tool_binary_names(name)
+    is_cli_java_tool = name in {"sdkmanager", "avdmanager"}
     if sdk:
         rel_dirs = [
             sdk / "platform-tools",
             sdk / "emulator",
-            sdk / "cmdline-tools" / "latest" / "bin",
-            sdk / "tools" / "bin",
+            *_cmdline_tools_bin_dirs(sdk),
         ]
         bt_dir = sdk / "build-tools"
         try:
@@ -362,14 +416,25 @@ def find_android_tool(name: str) -> str | None:
                 rel_dirs.extend(sorted((p for p in bt_dir.iterdir() if p.is_dir()), reverse=True))
         except OSError:
             pass
-        for directory in rel_dirs:
-            for fname in names:
-                cand = directory / fname
-                try:
-                    if cand.exists():
-                        return str(cand)
-                except OSError:
-                    continue
+        found = _tool_in_dirs(rel_dirs, names)
+        if found:
+            return found
+
+    if is_cli_java_tool:
+        # Never fall back to deprecated pre-JDK11 sdk/tools/bin when QAlprit ships modern cmdline-tools.
+        modern_dirs: list[Path] = list(_cmdline_tools_bin_dirs(get_user_android_sdk_dir()))
+        rt = find_bundled_runtime_dir()
+        if rt is not None:
+            for sub in ("android-sdk", "android"):
+                modern_dirs.extend(_cmdline_tools_bin_dirs(rt / sub))
+        modern = _tool_in_dirs(modern_dirs, names)
+        if modern:
+            return modern
+
+    if sdk:
+        legacy = _tool_in_dirs([sdk / "tools" / "bin"], names)
+        if legacy:
+            return legacy
 
     direct = shutil.which(name)
     if direct:

@@ -17,6 +17,7 @@ from qalprit.devices import list_android_devices, list_ios_simulators
 from qalprit.doctor import (
     find_android_sdk,
     find_android_tool,
+    find_cmdline_tool,
     find_system_android_sdk,
     prepare_writable_android_sdk,
     win_subprocess_kwargs,
@@ -251,8 +252,8 @@ def setup_android_emulator_sync(
     env["ANDROID_AVD_HOME"] = str(avd_home)
     env["ANDROID_USER_HOME"] = str(android_user_home)
 
-    sdkmgr = find_android_tool("sdkmanager")
-    avdmgr = find_android_tool("avdmanager")
+    sdkmgr = find_cmdline_tool("sdkmanager", sdk)
+    avdmgr = find_cmdline_tool("avdmanager", sdk)
     if not sdkmgr or not avdmgr:
         raise RuntimeError(
             "Android cmdline-tools (sdkmanager / avdmanager) were not found. "
@@ -298,6 +299,12 @@ def setup_android_emulator_sync(
         proc_holder=proc_holder,
     )
     if rc != 0:
+        if "javax/xml/bind" in tail or "javax.xml.bind" in tail:
+            raise RuntimeError(
+                f"Legacy Android sdkmanager ({sdkmgr}) is incompatible with Java 17 (missing JAXB). "
+                "Update Android SDK Command-line Tools (latest) or re-run QAlprit installer with "
+                "Force reinstall runtime checked. Raw error: " + tail
+            )
         raise RuntimeError(f"sdkmanager install failed (exit {rc}): {tail}")
 
     expected_img_dir = sdk / Path(*pkg_img.split(";"))
