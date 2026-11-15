@@ -84,7 +84,7 @@ if (-not (Test-Path (Join-Path $JdkDest "bin\java.exe"))) {
     Remove-Item -Recurse -Force $JreExtract
 }
 
-# 4. Android platform-tools (adb.exe)
+# 4. Android platform-tools (adb.exe) & build-tools (aapt2.exe / apksigner / zipalign)
 $AndroidSdkDest = Join-Path $BuildWork "android-sdk"
 if (-not (Test-Path (Join-Path $AndroidSdkDest "platform-tools\adb.exe"))) {
     Write-Host "==> Downloading Android SDK platform-tools..."
@@ -92,6 +92,28 @@ if (-not (Test-Path (Join-Path $AndroidSdkDest "platform-tools\adb.exe"))) {
     Invoke-WebRequest -Uri "https://dl.google.com/android/repository/platform-tools-latest-windows.zip" -OutFile $PtZip
     New-Item -ItemType Directory -Force -Path $AndroidSdkDest | Out-Null
     Expand-Archive -Path $PtZip -DestinationPath $AndroidSdkDest -Force
+}
+
+$BuildToolsVer = "35.0.1"
+$BuildToolsDest = Join-Path $AndroidSdkDest "build-tools\$BuildToolsVer"
+if (-not (Test-Path (Join-Path $BuildToolsDest "aapt2.exe"))) {
+    Write-Host "==> Downloading Android SDK build-tools $BuildToolsVer..."
+    $BtZip = Join-Path $BuildWork "build-tools_r$BuildToolsVer-windows.zip"
+    Invoke-WebRequest -Uri "https://dl.google.com/android/repository/build-tools_r35.0.1_windows.zip" -OutFile $BtZip
+    $BtExtract = Join-Path $BuildWork "bt-extract"
+    Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $BtExtract, $BuildToolsDest
+    Expand-Archive -Path $BtZip -DestinationPath $BtExtract -Force
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $BuildToolsDest) | Out-Null
+    if (Test-Path (Join-Path $BtExtract "aapt2.exe")) {
+        Move-Item -Path $BtExtract -Destination $BuildToolsDest
+    } else {
+        $InnerBt = Get-ChildItem -Directory $BtExtract | Select-Object -First 1
+        Move-Item -Path $InnerBt.FullName -Destination $BuildToolsDest
+        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $BtExtract
+    }
+    if (-not (Test-Path (Join-Path $BuildToolsDest "aapt2.exe"))) {
+        throw "Expected aapt2.exe inside $BuildToolsDest"
+    }
 }
 
 # 5. Build QAlprit.exe (windowed) and qalprit-cli.exe (console) with PyInstaller
@@ -167,6 +189,15 @@ $env:JAVA_HOME = $origJavaHome
 $env:APPIUM_HOME = $origAppiumHome
 Write-Host $docJson
 if ($docRc -ne 0) { throw "qalprit-cli.exe doctor failed when relying strictly on bundled runtime/" }
+$docJson | python -c '
+import json, sys
+by_name = {i["name"]: i for i in json.load(sys.stdin)}
+for req in ("Python", "Appium Python client", "Node.js", "Appium", "Appium driver: uiautomator2", "Java (JDK)", "Android SDK", "Android adb", "Android build-tools (aapt2)"):
+    assert req in by_name, f"Missing doctor check: {req}"
+    assert by_name[req]["status"] == "ok", f"Expected {req} ok, got {by_name[req]}"
+print("All bundled Windows runtime checks OK")
+'
+if ($LASTEXITCODE -ne 0) { throw "Bundled Windows runtime assertions failed" }
 
 # 8. Build Inno Setup installer
 $Iscc = (Get-Command iscc.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source)

@@ -332,6 +332,8 @@
       border-bottom: 1px solid var(--border);
       text-align: left;
       vertical-align: top;
+    }
+    td {
       overflow-wrap: anywhere;
       word-break: break-word;
     }
@@ -341,6 +343,7 @@
       letter-spacing: 0.04em;
       color: var(--muted);
       background: var(--surface-alt);
+      white-space: nowrap;
     }
     code, pre {
       font-family: var(--mono);
@@ -756,10 +759,11 @@
           </div>
         </div>
         <details class="guide-details">
-          <summary>First-time setup help: What is <code>adb.exe</code> &amp; how do I connect my Android device?</summary>
+          <summary>First-time setup help: Firewall, USB Debugging &amp; Appium Settings prompts</summary>
           <ul>
             <li><strong><code>adb.exe</code> Firewall prompt:</strong> <code>adb.exe</code> is Google's official Android Debug Bridge bundled with QAlprit. Windows Firewall asks once when it starts its local daemon on port 5037 — click <strong>Allow access</strong>.</li>
-            <li><strong>Testing on a real Android phone:</strong> Enable <em>Settings &rarr; About phone &rarr; Tap Build number 7 times</em>, open <em>Developer options &rarr; USB debugging</em>, plug in via USB, and tap <strong>Allow USB debugging</strong> on the phone screen.</li>
+            <li><strong>Testing on a real Android phone:</strong> Enable <em>Settings &rarr; About phone &rarr; Tap Build number 7 times</em>, open <em>Developer options &rarr; USB debugging</em>, plug in via USB, check <em>Always allow from this computer</em>, and tap <strong>Allow</strong> on the phone screen.</li>
+            <li><strong>Phone prompt: "Install Appium Settings" / Play Protect "Unsafe app":</strong> On the first live capture or test run, Appium installs its two helper APKs (<code>io.appium.settings</code> &amp; <code>io.appium.uiautomator2.server</code>) so it can read screens and tap controls. Tap <strong>More details &rarr; Install anyway</strong> once per phone.</li>
             <li><strong>Testing on an Android Emulator (optional):</strong> Virtual emulators are 2–4 GB and require Android Studio. Physical USB phones need zero extra downloads.</li>
           </ul>
         </details>

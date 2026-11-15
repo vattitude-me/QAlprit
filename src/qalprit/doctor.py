@@ -186,7 +186,7 @@ def find_android_sdk() -> Path | None:
 
 
 def find_android_tool(name: str) -> str | None:
-    """Resolve an Android SDK binary (adb, emulator, avdmanager)."""
+    """Resolve an Android SDK binary (adb, aapt2, emulator, avdmanager)."""
     direct = shutil.which(name)
     if direct:
         return direct
@@ -200,6 +200,10 @@ def find_android_tool(name: str) -> str | None:
         sdk / "cmdline-tools" / "latest" / "bin" / f"{name}{suffix}",
         sdk / "tools" / "bin" / f"{name}{suffix}",
     ]
+    bt_dir = sdk / "build-tools"
+    if bt_dir.is_dir():
+        for ver_dir in sorted((p for p in bt_dir.iterdir() if p.is_dir()), reverse=True):
+            rel_candidates.append(ver_dir / f"{name}{suffix}")
     for cand in rel_candidates:
         if cand.exists():
             return str(cand)
@@ -434,6 +438,19 @@ def run_doctor(python_min: tuple[int, int] = (3, 10)) -> list[CheckItem]:
     else:
         checks.append(
             CheckItem("Android adb", "fail", "Not found", "Install Android platform-tools")
+        )
+
+    aapt2_bin = find_android_tool("aapt2")
+    if aapt2_bin:
+        checks.append(CheckItem("Android build-tools (aapt2)", "ok", aapt2_bin))
+    else:
+        checks.append(
+            CheckItem(
+                "Android build-tools (aapt2)",
+                "warn",
+                "Not found",
+                "Install Android SDK build-tools for APK inspection with Appium",
+            )
         )
 
     emu_bin = find_android_tool("emulator")

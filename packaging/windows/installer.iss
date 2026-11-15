@@ -1,7 +1,7 @@
 ; Inno Setup script for QAlprit Windows Installer (per-user, no admin required)
 
 #ifndef QAlpritVersion
-  #define QAlpritVersion "0.1.9"
+  #define QAlpritVersion "0.1.10"
 #endif
 
 #ifndef DistDir
@@ -42,7 +42,7 @@ Name: "custom"; Description: "Custom Installation (Choose components)"; Flags: i
 
 [Components]
 Name: "core"; Description: "QAlprit Workbench Desktop App, CLI & Python Engine"; Types: full compact custom; Flags: fixed
-Name: "android_engine"; Description: "Appium 2.19 + UiAutomator2 + Node.js v20 + Android ADB (USB & Device Automation)"; Types: full custom
+Name: "android_engine"; Description: "Appium 2.19 + UiAutomator2 + Node.js v20 + Android SDK (ADB & aapt2)"; Types: full custom
 Name: "java_runtime"; Description: "Eclipse Temurin Java 17 JRE (required for Android APK & UiAutomator2)"; Types: full custom
 
 [Tasks]
