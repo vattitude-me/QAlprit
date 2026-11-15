@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import plistlib
 import re
 import shutil
 import struct
@@ -152,6 +153,54 @@ def _detect_apk_package(apk_path: Path) -> str:
     return ""
 
 
+_APP_META_CACHE: dict[tuple[str, int, int], str] = {}
+
+
+def _detect_ios_bundle_id(app_path: Path) -> str:
+    """Extract CFBundleIdentifier from .app, .ipa, or zipped .app bundle."""
+    try:
+        if app_path.is_dir():
+            plist_file = app_path / "Info.plist"
+            if plist_file.is_file():
+                data = plistlib.loads(plist_file.read_bytes())
+                return str(data.get("CFBundleIdentifier") or "").strip()
+            return ""
+        with zipfile.ZipFile(app_path, "r") as zf:
+            plists = [
+                name
+                for name in zf.namelist()
+                if name.endswith("/Info.plist") and ".app/" in name
+            ]
+            if not plists:
+                return ""
+            # Prefer shallowest .app/Info.plist (the main bundle rather than PlugIns/Frameworks)
+            plists.sort(key=lambda n: (n.count("/"), len(n)))
+            data = plistlib.loads(zf.read(plists[0]))
+            return str(data.get("CFBundleIdentifier") or "").strip()
+    except Exception:
+        return ""
+
+
+def _detect_app_identifier(app_path: Path, kind: str) -> str:
+    """Detect Android package ID or iOS bundle ID, caching by path/size/mtime."""
+    try:
+        st = app_path.stat()
+        cache_key = (str(app_path.resolve()), st.st_size, st.st_mtime_ns)
+    except OSError:
+        cache_key = None
+    if cache_key is not None and cache_key in _APP_META_CACHE:
+        return _APP_META_CACHE[cache_key]
+
+    ident = ""
+    if kind == "apk":
+        ident = _detect_apk_package(app_path)
+    elif kind in {"ipa", "zip", "app"}:
+        ident = _detect_ios_bundle_id(app_path)
+    if cache_key is not None:
+        _APP_META_CACHE[cache_key] = ident
+    return ident
+
+
 def list_workspace_apps(project_root: Path) -> list[dict[str, Any]]:
     """List mobile binaries placed in workspace `apps/`."""
     apps_dir = project_root / "apps"
@@ -163,12 +212,14 @@ def list_workspace_apps(project_root: Path) -> list[dict[str, Any]]:
             continue
         ext = entry.suffix.lower()
         if entry.is_file() and ext in {".apk", ".ipa", ".zip"}:
+            kind = ext.lstrip(".")
             items.append(
                 {
                     "name": entry.name,
                     "rel_path": f"apps/{entry.name}",
-                    "kind": ext.lstrip("."),
+                    "kind": kind,
                     "size_bytes": entry.stat().st_size,
+                    "detected_package": _detect_app_identifier(entry, kind),
                 }
             )
         elif entry.is_dir() and ext == ".app":
@@ -178,6 +229,7 @@ def list_workspace_apps(project_root: Path) -> list[dict[str, Any]]:
                     "rel_path": f"apps/{entry.name}",
                     "kind": "app",
                     "size_bytes": 0,
+                    "detected_package": _detect_app_identifier(entry, "app"),
                 }
             )
     return items
@@ -236,11 +288,12 @@ def save_uploaded_app(project_root: Path, filename: str, raw_bytes: bytes) -> di
         raise ValueError("Resolved upload path escapes apps/ directory.")
 
     dest.write_bytes(raw_bytes)
-    detected_pkg = _detect_apk_package(dest) if ext == ".apk" else ""
+    detected_pkg = _detect_app_identifier(dest, ext.lstrip("."))
     return {
         "ok": True,
         "name": safe_name,
         "rel_path": f"apps/{safe_name}",
+        "kind": ext.lstrip("."),
         "size_bytes": len(raw_bytes),
         "detected_package": detected_pkg,
     }

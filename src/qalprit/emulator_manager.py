@@ -109,8 +109,16 @@ def _stream_command(
     proc_holder: list[subprocess.Popen[str]] | None = None,
 ) -> tuple[int, str]:
     """Run a subprocess streaming CR/LF lines cleanly with cancellation support."""
+    run_cmd = list(cmd)
+    if (
+        platform.system() == "Windows"
+        and run_cmd
+        and str(run_cmd[0]).lower().endswith((".bat", ".cmd"))
+    ):
+        run_cmd = ["cmd.exe", "/c", *run_cmd]
+
     proc = subprocess.Popen(
-        cmd,
+        run_cmd,
         stdin=subprocess.PIPE if stdin_text else None,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
@@ -176,7 +184,7 @@ def setup_android_emulator_sync(
         if on_progress is not None:
             on_progress(phase, pct, log_line)
 
-    emit("Preparing SDK", 5, "Preparing writable Android SDK at ~/.qalprit/android-sdk...")
+    emit("Preparing SDK", 5, "Preparing writable Android SDK at ~/.qalprit/android-sdk (first run copies SDK tools)...")
     sdk = prepare_writable_android_sdk()
     env = build_appium_env(dict(os.environ))
     env["ANDROID_HOME"] = str(sdk)
@@ -190,6 +198,7 @@ def setup_android_emulator_sync(
             "Reinstall QAlprit with the Android Runtime component enabled."
         )
 
+    emit("SDK Tools Ready", 8, f"Writable SDK: {sdk}")
     pkg_img = system_image_package()
     sdk_root_arg = f"--sdk_root={sdk}"
 
@@ -199,6 +208,7 @@ def setup_android_emulator_sync(
         [sdkmgr, sdk_root_arg, "--licenses"],
         env=env,
         stdin_text=("y\n" * 25),
+        on_line=lambda ln: emit("Accepting Licenses", 12, ln),
         cancel_event=cancel_event,
         proc_holder=proc_holder,
     )
