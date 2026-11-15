@@ -1290,6 +1290,7 @@ def test_selective_cleanup_plan_execution_and_uninstaller_controls(
     iss_text = (Path(__file__).resolve().parents[1] / "packaging" / "windows" / "installer.iss").read_text(encoding="utf-8")
     assert "InitializeUninstall" in iss_text
     assert "CurUninstallStepChanged" in iss_text
+    assert "CreateCustomForm(ScaleX(" in iss_text
     assert "ChkUnSdk" in iss_text
     assert "ChkUnWs" in iss_text
     scan_block = iss_text.split("procedure ScanSystemSoftware();", 1)[1].split("function ", 1)[0]

@@ -1,7 +1,7 @@
 ; Inno Setup script for QAlprit Windows Installer (per-user, no admin required)
 
 #ifndef QAlpritVersion
-  #define QAlpritVersion "0.1.18"
+  #define QAlpritVersion "0.1.19"
 #endif
 
 #ifndef DistDir
@@ -405,16 +405,16 @@ begin
   ChkUnWs.Checked := False;
 end;
 
-function InitializeUninstall(): Boolean;
+function PromptUninstallDataCleanup(): Boolean;
 var
   Form: TSetupForm;
   IntroLbl, NoteLbl: TNewStaticText;
   BtnAll, BtnKeep, BtnOk, BtnCancel: TNewButton;
   TopY: Integer;
 begin
-  Result := True;
+  Result := False;
   LoadConfiguredPathsForUninstall();
-  RemoveSettingsFlag := True;
+  RemoveSettingsFlag := False;
   RemoveSdkFlag := False;
   RemoveAvdFlag := False;
   RemoveWorkspaceFlag := False;
@@ -422,12 +422,9 @@ begin
   if UninstallSilent() then
     Exit;
 
-  Form := CreateCustomForm;
+  Form := CreateCustomForm(ScaleX(560), ScaleY(340), False, False);
   try
-    Form.Caption := 'QAlprit Uninstall — Choose Data to Remove or Keep';
-    Form.ClientWidth := ScaleX(560);
-    Form.ClientHeight := ScaleY(340);
-    Form.Position := poScreenCenter;
+    Form.Caption := 'QAlprit Uninstalled — Choose Data to Remove or Keep';
 
     IntroLbl := TNewStaticText.Create(Form);
     IntroLbl.Parent := Form;
@@ -437,7 +434,7 @@ begin
     IntroLbl.AutoSize := False;
     IntroLbl.Height := ScaleY(38);
     IntroLbl.WordWrap := True;
-    IntroLbl.Caption := 'QAlprit Workbench application binaries will be removed. Select which additional tool data, configs, emulator files, or workspaces should also be deleted (unchecked items are retained):';
+    IntroLbl.Caption := 'QAlprit Workbench application binaries were removed. Select any additional tool data, configs, emulator files, or workspaces you also want to delete (unchecked items are retained):';
 
     TopY := ScaleY(62);
     ChkUnSettings := TNewCheckBox.Create(Form);
@@ -500,16 +497,16 @@ begin
     BtnKeep.Top := ScaleY(246);
     BtnKeep.Width := ScaleX(170);
     BtnKeep.Height := ScaleY(26);
-    BtnKeep.Caption := 'Keep My Data (App Only)';
+    BtnKeep.Caption := 'Uncheck All (Keep Data)';
     BtnKeep.OnClick := @OnUninstAppOnlyClick;
 
     BtnOk := TNewButton.Create(Form);
     BtnOk.Parent := Form;
-    BtnOk.Left := ScaleX(338);
+    BtnOk.Left := ScaleX(322);
     BtnOk.Top := ScaleY(294);
-    BtnOk.Width := ScaleX(100);
+    BtnOk.Width := ScaleX(116);
     BtnOk.Height := ScaleY(28);
-    BtnOk.Caption := 'Uninstall';
+    BtnOk.Caption := 'Delete Checked';
     BtnOk.ModalResult := mrOk;
     BtnOk.Default := True;
 
@@ -519,23 +516,27 @@ begin
     BtnCancel.Top := ScaleY(294);
     BtnCancel.Width := ScaleX(98);
     BtnCancel.Height := ScaleY(28);
-    BtnCancel.Caption := 'Cancel';
+    BtnCancel.Caption := 'Keep Everything';
     BtnCancel.ModalResult := mrCancel;
     BtnCancel.Cancel := True;
 
+    Form.FlipAndCenterIfNeeded(False, UninstallProgressForm, False);
     if Form.ShowModal <> mrOk then
-    begin
-      Result := False;
       Exit;
-    end;
 
     RemoveSettingsFlag := ChkUnSettings.Checked;
     RemoveSdkFlag := ChkUnSdk.Checked;
     RemoveAvdFlag := ChkUnAvd.Checked;
     RemoveWorkspaceFlag := ChkUnWs.Checked;
+    Result := True;
   finally
     Form.Free;
   end;
+end;
+
+function InitializeUninstall(): Boolean;
+begin
+  Result := True;
 end;
 
 procedure SafeDelDir(Path: String);
@@ -549,6 +550,9 @@ var
   UserHome, LegacyQalprit, LegacyAndroidAvd, StandardData: String;
 begin
   if CurUninstallStep <> usPostUninstall then
+    Exit;
+
+  if not PromptUninstallDataCleanup() then
     Exit;
 
   UserHome := AddBackslash(GetEnv('USERPROFILE'));
