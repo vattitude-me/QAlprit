@@ -98,7 +98,7 @@ if (-not (Test-Path (Join-Path $AndroidSdkDest "platform-tools\adb.exe"))) {
 Write-Host "==> Installing QAlprit desktop dependencies and PyInstaller..."
 python -m pip install --upgrade pip setuptools wheel
 python -m pip install -e ".[desktop]" "pythonnet>=3.0.0" pyinstaller
-python -c "import webview, clr, webview.platforms.edgechromium; print('pywebview:', webview.__version__)"
+python -c "import webview, clr, webview.platforms.edgechromium; from importlib.metadata import version; print('pywebview:', version('pywebview'))"
 if ($LASTEXITCODE -ne 0) { throw "pywebview / pythonnet verification failed" }
 
 $WinIconDir = Join-Path $RepoRoot "build\win-icon"
@@ -143,8 +143,8 @@ $QAlpritCliExe = Join-Path $DistApp "qalprit-cli.exe"
 if (-not (Test-Path $QAlpritGuiExe)) { throw "Expected GUI executable not found at $QAlpritGuiExe" }
 if (-not (Test-Path $QAlpritCliExe)) { throw "Expected CLI executable not found at $QAlpritCliExe" }
 
-$wvFiles = Get-ChildItem -Recurse -Path $DistApp -Filter "*WebView2*" -ErrorAction SilentlyContinue
-if (-not $wvFiles) { throw "Expected WebView2 runtime assemblies in $DistApp" }
+$wvFiles = @(Get-ChildItem -Recurse -Path $DistApp -Filter "*WebView2*" -ErrorAction SilentlyContinue)
+if ($wvFiles.Count -eq 0) { throw "Expected WebView2 runtime assemblies in $DistApp" }
 Write-Host "Bundled WebView2 files: $($wvFiles.Count)"
 
 $verOut = & $QAlpritCliExe --version
