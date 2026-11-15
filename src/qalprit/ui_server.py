@@ -96,8 +96,11 @@ def collect_workspace_overview(
                 corrupt_runs.append({"run_id": entry.name, "error": str(exc)})
                 continue
 
-    specs, _ = load_specs(root / "specs")
-    flows, _ = load_flows(root / "flows")
+    parse_warnings: list[str] = []
+    specs, spec_warnings = load_specs(root / "specs")
+    flows, flow_warnings = load_flows(root / "flows")
+    parse_warnings.extend(spec_warnings)
+    parse_warnings.extend(flow_warnings)
 
     screens_list: list[dict[str, Any]] = []
     screens_path = root / "screens" / "screens.yaml"
@@ -121,8 +124,8 @@ def collect_workspace_overview(
                         "platforms": platforms,
                     }
                 )
-        except Exception:
-            pass
+        except Exception as exc:
+            parse_warnings.append(f"screens/screens.yaml: {exc}")
 
     apps = list_workspace_apps(root)
     environments, device_profiles = list_workspace_configs(root)
@@ -139,6 +142,7 @@ def collect_workspace_overview(
         "step_vocabulary": sorted(STEP_VOCABULARY),
         "runs": runs,
         "corrupt_runs": corrupt_runs,
+        "parse_warnings": parse_warnings,
         "specs": [
             {
                 "id": s.id,
