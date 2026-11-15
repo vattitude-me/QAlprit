@@ -5,6 +5,7 @@ __pycache__/
 *.egg-info/
 dist/
 dist-win/
+dist-mac/
 build/
 runtime/
 .pytest_cache/

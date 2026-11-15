@@ -114,8 +114,19 @@ def launch_workbench(
 
 
 def main(argv: list[str] | None = None) -> None:
-    """Entry point for desktop bundles (`QAlprit.exe`) and `qalprit-desktop`."""
-    args = sys.argv[1:] if argv is None else list(argv)
+    """Entry point for desktop bundles (`QAlprit.exe` / `QAlprit.app`) and `qalprit-desktop`."""
+    raw_args = sys.argv[1:] if argv is None else list(argv)
+    # macOS LaunchServices passes -psn_0_... when double-clicking a .app bundle.
+    args = [arg for arg in raw_args if not arg.startswith("-psn_")]
+
+    if sys.stdout is None or sys.stderr is None:
+        log_dir = ensure_workspace()
+        log_file = (log_dir / "desktop.log").open("a", encoding="utf-8")
+        if sys.stdout is None:
+            sys.stdout = log_file
+        if sys.stderr is None:
+            sys.stderr = log_file
+
     if args:
         cli_main(args=args, prog_name="qalprit")
         return

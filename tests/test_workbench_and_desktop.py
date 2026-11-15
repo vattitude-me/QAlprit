@@ -266,3 +266,18 @@ def test_workbench_http_endpoints(tmp_path: Path) -> None:
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_desktop_main_ignores_macos_launchservices_psn_arg(monkeypatch: pytest.MonkeyPatch) -> None:
+    import qalprit.desktop as desktop_mod
+
+    called = {"workbench": 0, "cli": 0}
+    monkeypatch.setattr(desktop_mod, "launch_workbench", lambda *a, **kw: called.__setitem__("workbench", called["workbench"] + 1))
+    monkeypatch.setattr(desktop_mod, "cli_main", lambda *a, **kw: called.__setitem__("cli", called["cli"] + 1))
+
+    desktop_mod.main(["-psn_0_987654"])
+    assert called["workbench"] == 1
+    assert called["cli"] == 0
+
+    desktop_mod.main(["doctor", "--json-output"])
+    assert called["cli"] == 1
