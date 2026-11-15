@@ -14,6 +14,74 @@ _SENSITIVE_FIELD_RE = re.compile(
     r"(password|passcode|pin|cvv|cvc|ssn|secret|token|otp|security.?code)",
     re.IGNORECASE,
 )
+_ANDROID_BOUNDS_RE = re.compile(r"\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]")
+_CRYPTIC_ID_RE = re.compile(
+    r"^(?:[a-z]{1,4}_?\d+|view_?\d*|item_?\d*|container_?\d*|root|content|layout_?\d*|text\d*|edittext\d*)$",
+    re.IGNORECASE,
+)
+_HUNGARIAN_PREFIX_RE = re.compile(
+    r"^(?:et|edt|txt|tv|btn|bt|iv|img|cb|chk|sw|fld|lbl|rb|sp)_+",
+    re.IGNORECASE,
+)
+
+
+def _slugify(raw: str, max_len: int = 40) -> str:
+    return re.sub(r"[^a-zA-Z0-9]+", "_", raw).strip("_").lower()[:max_len].strip("_")
+
+
+def _parse_bounds_rect(bounds: str, attrs: dict[str, str]) -> list[int] | None:
+    """Parse Android `[x1,y1][x2,y2]` or iOS x/y/width/height into `[x1, y1, x2, y2]`."""
+    m = _ANDROID_BOUNDS_RE.search(bounds or "")
+    if m:
+        x1, y1, x2, y2 = (int(m.group(i)) for i in range(1, 5))
+        if x2 > x1 and y2 > y1:
+            return [x1, y1, x2, y2]
+    try:
+        if "x" in attrs and "y" in attrs and "width" in attrs and "height" in attrs:
+            x1 = int(float(attrs["x"]))
+            y1 = int(float(attrs["y"]))
+            x2 = x1 + int(float(attrs["width"]))
+            y2 = y1 + int(float(attrs["height"]))
+            if x2 > x1 and y2 > y1:
+                return [x1, y1, x2, y2]
+    except (TypeError, ValueError):
+        pass
+    return None
+
+
+def _clean_resource_id(res_id: str) -> str:
+    tail = (res_id or "").split("/")[-1].strip()
+    if not tail or _CRYPTIC_ID_RE.match(tail):
+        return ""
+    stripped = _HUNGARIAN_PREFIX_RE.sub("", tail)
+    return stripped if len(stripped) >= 2 else tail
+
+
+def _infer_role(
+    tag: str,
+    clickable: bool,
+    editable: bool,
+    checkable: bool,
+    password: bool,
+) -> tuple[str, str]:
+    low = (tag or "").lower()
+    if password or "securetextfield" in low:
+        return "input", "Password Field"
+    if editable or any(k in low for k in ("edittext", "textfield", "textinput", "searchview")):
+        return "input", "Text Input"
+    if checkable or any(k in low for k in ("checkbox", "switch", "toggle", "radiobutton")):
+        return "toggle", "Toggle / Check"
+    if "tab" in low:
+        return "tab", "Tab"
+    if clickable or any(k in low for k in ("button", "imagebutton", "floatingactionbutton")):
+        return "button", "Button"
+    return "label", "Text / Element"
+
+
+def _human_title(raw: str) -> str:
+    cleaned = re.sub(r"[_\-]+", " ", (raw or "").strip())
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned[:48]
 
 
 @dataclass
@@ -28,18 +96,90 @@ class InspectedElement:
     visible: bool
     password: bool = False
     xpath: str = ""
+    hint: str = ""
+    context_label: str = ""
+    editable: bool = False
+    checkable: bool = False
+    rect: list[int] | None = None
+
+    @property
+    def role_slug(self) -> str:
+        slug, _ = _infer_role(self.tag, self.clickable, self.editable, self.checkable, self.password)
+        return slug
+
+    @property
+    def role_label(self) -> str:
+        _, label = _infer_role(self.tag, self.clickable, self.editable, self.checkable, self.password)
+        return label
 
     def suggested_key(self) -> str:
-        raw = self.accessibility_id or self.resource_id.split("/")[-1] or self.text or self.tag
-        slug = re.sub(r"[^a-zA-Z0-9]+", "_", raw).strip("_").lower()
+        role, _ = _infer_role(self.tag, self.clickable, self.editable, self.checkable, self.password)
+        clean_id = _clean_resource_id(self.resource_id)
+        acc = self.accessibility_id.strip()
+        hint_or_ctx = (self.hint or self.context_label).strip()
+        short_text = self.text.strip() if len(self.text.strip()) <= 36 else ""
+
+        if role == "input":
+            base_raw = acc or hint_or_ctx or clean_id or short_text or "text"
+        elif role == "button":
+            base_raw = short_text or acc or clean_id or hint_or_ctx or "button"
+        elif role == "toggle":
+            base_raw = short_text or self.context_label or acc or clean_id or "toggle"
+        else:
+            base_raw = acc or short_text or clean_id or hint_or_ctx or role
+
+        slug = _slugify(base_raw, max_len=34) or role
+        suffix_map = {
+            "input": ("_input", ("_input", "_field", "_box")),
+            "button": ("_btn", ("_btn", "_button")),
+            "toggle": ("_toggle", ("_toggle", "_switch", "_checkbox", "_chk")),
+            "tab": ("_tab", ("_tab",)),
+        }
+        if role in suffix_map:
+            suffix, accepted = suffix_map[role]
+            if not slug.endswith(accepted):
+                slug = f"{slug}{suffix}"[:40].strip("_")
         return slug[:40] or "element"
+
+    def display_label(self, masker: SecretMasker | None = None) -> str:
+        if self.suggested_sensitive:
+            label_text = self.hint or self.context_label or _clean_resource_id(self.resource_id) or "Secret"
+            return f"{_human_title(label_text)} · {self.role_label}"
+        raw_label = (
+            self.text
+            or self.hint
+            or self.context_label
+            or self.accessibility_id
+            or _clean_resource_id(self.resource_id)
+            or _human_title(self.suggested_key())
+        )
+        safe_label = masker.mask(raw_label) if masker else raw_label
+        return f"{_human_title(safe_label) or 'Element'} · {self.role_label}"
 
     @property
     def suggested_sensitive(self) -> bool:
         if self.password or "SecureTextField" in self.tag:
             return True
-        combined = f"{self.accessibility_id} {self.resource_id} {self.text}"
+        combined = f"{self.accessibility_id} {self.resource_id} {self.text} {self.hint} {self.context_label}"
         return bool(_SENSITIVE_FIELD_RE.search(combined))
+
+
+def _first_descendant_text(node: ET.Element, depth: int = 0) -> str:
+    if depth > 3:
+        return ""
+    for child in node:
+        txt = (
+            child.attrib.get("text")
+            or child.attrib.get("label")
+            or child.attrib.get("content-desc")
+            or ""
+        ).strip()
+        if txt and len(txt) <= 42:
+            return txt
+        nested = _first_descendant_text(child, depth + 1)
+        if nested:
+            return nested
+    return ""
 
 
 def parse_page_source_elements(xml_text: str) -> tuple[list[InspectedElement], bool, list[str]]:
@@ -50,6 +190,7 @@ def parse_page_source_elements(xml_text: str) -> tuple[list[InspectedElement], b
         return elements, webview_detected, webview_details
 
     root = ET.fromstring(xml_text)
+    parent_map = {child: parent for parent in root.iter() for child in parent}
     tag_counts: dict[str, int] = {}
     for node in root.iter():
         tag_counts[node.tag] = tag_counts.get(node.tag, 0) + 1
@@ -68,6 +209,12 @@ def parse_page_source_elements(xml_text: str) -> tuple[list[InspectedElement], b
             or attrs.get("value")
             or ""
         ).strip()
+        hint = (
+            attrs.get("hint")
+            or attrs.get("placeholderValue")
+            or attrs.get("placeholder")
+            or ""
+        ).strip()
         bounds = (
             attrs.get("bounds")
             or (
@@ -77,12 +224,43 @@ def parse_page_source_elements(xml_text: str) -> tuple[list[InspectedElement], b
             )
         )
         clickable = str(attrs.get("clickable", "")).lower() == "true"
+        checkable = str(attrs.get("checkable", "")).lower() == "true"
         enabled = str(attrs.get("enabled", "true")).lower() != "false"
         visible = str(attrs.get("visible", attrs.get("displayed", "true"))).lower() != "false"
         password = str(attrs.get("password", "")).lower() == "true"
+        tag_low = node.tag.lower()
+        editable = bool(
+            hint
+            or password
+            or any(k in tag_low for k in ("edittext", "textfield", "securetextfield", "autocompletetextview"))
+        )
+        rect = _parse_bounds_rect(bounds, attrs)
         xpath = f"(//{node.tag})[{idx}]"
 
-        if acc_id or res_id or text or clickable or password:
+        context_label = ""
+        if not text and not hint:
+            child_txt = _first_descendant_text(node)
+            if child_txt:
+                context_label = child_txt
+            elif node in parent_map:
+                parent = parent_map[node]
+                siblings = list(parent)
+                try:
+                    pos = siblings.index(node)
+                except ValueError:
+                    pos = -1
+                if pos > 0:
+                    prev_sib = siblings[pos - 1]
+                    sib_txt = (
+                        prev_sib.attrib.get("text")
+                        or prev_sib.attrib.get("label")
+                        or prev_sib.attrib.get("content-desc")
+                        or _first_descendant_text(prev_sib)
+                    ).strip()
+                    if sib_txt and len(sib_txt) <= 42:
+                        context_label = sib_txt
+
+        if acc_id or res_id or text or hint or clickable or editable or checkable or password:
             elements.append(
                 InspectedElement(
                     tag=node.tag,
@@ -95,6 +273,11 @@ def parse_page_source_elements(xml_text: str) -> tuple[list[InspectedElement], b
                     visible=visible,
                     password=password,
                     xpath=xpath,
+                    hint=hint,
+                    context_label=context_label,
+                    editable=editable,
+                    checkable=checkable,
+                    rect=rect,
                 )
             )
     return elements, webview_detected, webview_details
@@ -118,6 +301,7 @@ def extract_interactive_elements(
         if el.text:
             text_counts[el.text] = text_counts.get(el.text, 0) + 1
 
+    used_keys: dict[str, int] = {}
     ranked: list[dict[str, Any]] = []
     for el in elements:
         candidates: list[dict[str, Any]] = []
@@ -176,10 +360,23 @@ def extract_interactive_elements(
         if best["strategy"] == "xpath":
             warnings.append("Only positional XPath available; consider adding an accessibility_id")
 
+        base_key = el.suggested_key()
+        occ = used_keys.get(base_key, 0) + 1
+        used_keys[base_key] = occ
+        unique_key = base_key if occ == 1 else f"{base_key[:35]}_{occ}"
+
         display_text = SecretMasker.REPLACEMENT if el.suggested_sensitive else (masker.mask(el.text) if masker else el.text)
+        safe_hint = SecretMasker.REPLACEMENT if el.suggested_sensitive and el.hint else (masker.mask(el.hint) if masker else el.hint)
         ranked.append(
             {
-                "key": el.suggested_key(),
+                "key": unique_key,
+                "display_label": el.display_label(masker=masker),
+                "role": el.role_slug,
+                "role_label": el.role_label,
+                "editable": el.editable,
+                "hint": safe_hint,
+                "context_label": el.context_label,
+                "rect": el.rect,
                 "tag": el.tag,
                 "platform": platform,
                 "recommended_strategy": best["strategy"],
