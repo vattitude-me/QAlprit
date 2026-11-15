@@ -993,6 +993,29 @@
             </div>
             <div id="prefStatusBanner" class="status-banner" hidden aria-live="polite"></div>
           </form>
+
+          <hr style="border:none;border-top:1px solid var(--border);margin:14px 0;" />
+          <div class="card-head-row" style="margin-bottom:6px;">
+            <div>
+              <h4 style="margin:0;font-size:0.88rem;">Clean Up Previous Deployment Leftovers &amp; Tool Data</h4>
+              <p class="card-help" style="margin:2px 0 0;">Check items to delete cleanly. Legacy leftovers are labeled so you never break your active installation or lose test suites unintentionally.</p>
+            </div>
+            <button type="button" class="btn btn-sm" id="btnRefreshCleanup">&#x21bb; Rescan Sizes</button>
+          </div>
+          <div class="table-scroll" style="margin-bottom:10px;">
+            <table>
+              <thead>
+                <tr><th style="width:42px;">Clean</th><th>Folder / Item</th><th>Safety Impact</th><th>Size</th></tr>
+              </thead>
+              <tbody id="cleanupTargetsBody">
+                <tr><td colspan="4" class="muted">Scanning QAlprit data folders...</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="btn-row">
+            <button type="button" class="btn btn-danger btn-sm" id="btnCleanupSelected">Delete Checked Cleanup Items</button>
+          </div>
+          <div id="cleanupStatusBanner" class="status-banner" hidden aria-live="polite"></div>
         </details>
       </article>
 
@@ -1000,7 +1023,7 @@
       <div class="grid-2">
         <article class="card">
           <h3><span class="substep-kicker">Step 1B</span> Choose Active App for This Session (<code>apps/</code>)</h3>
-          <p class="card-help">Test <strong>one active app per session</strong>. Pick any already-uploaded binary below or upload a new build &mdash; QAlprit syncs it into Steps 1C, 2, and 5 automatically.</p>
+          <p class="card-help">Test <strong>one active app per session</strong>. Pick any already-uploaded binary below or upload a new build &mdash; QAlprit syncs it into Steps 1C, 2, and 4 automatically.</p>
 
           <div class="active-app-box">
             <div class="field" style="margin-bottom:0;">
@@ -4063,11 +4086,81 @@
         }
       }
 
+      function renderCleanupTargets(plan) {
+        STATE.cleanupPlan = plan;
+        const body = $("cleanupTargetsBody");
+        if (!body) return;
+        const items = (plan && plan.items) || [];
+        body.innerHTML = items.length
+          ? items.map((item) => {
+              const badge = item.safe_for_new_install
+                ? '<span class="badge b-ok">Safe leftover / cache</span>'
+                : '<span class="badge b-warn">Active / user data</span>';
+              const sizeLabel = item.exists ? fmtBytes(item.size_bytes || 0) : '<span class="muted">Not present</span>';
+              const checked = item.exists && item.default_checked ? "checked" : "";
+              const disabled = item.exists ? "" : "disabled";
+              const pathLine = (item.existing_paths && item.existing_paths.length ? item.existing_paths : item.paths || []).join(", ");
+              return `
+                <tr>
+                  <td><input type="checkbox" class="cleanup-chk" value="${esc(item.id)}" ${checked} ${disabled} aria-label="Select ${esc(item.label)}" /></td>
+                  <td>
+                    <strong>${esc(item.label)}</strong>
+                    <div class="muted" style="font-size:0.74rem;"><code>${esc(pathLine)}</code></div>
+                    <div class="muted" style="font-size:0.75rem;">${esc(item.description || "")}</div>
+                  </td>
+                  <td>${badge}</td>
+                  <td>${sizeLabel}</td>
+                </tr>`;
+            }).join("")
+          : '<tr><td colspan="4" class="muted">No QAlprit data folders found.</td></tr>';
+      }
+
+      async function loadCleanupTargets() {
+        try {
+          const plan = await apiJson("/api/system/cleanup");
+          renderCleanupTargets(plan);
+        } catch (_) {}
+      }
+
       async function loadSystemPreflight() {
         try {
           const pf = await apiJson("/api/system/preflight");
           renderSystemPreflight(pf);
         } catch (_) {}
+        loadCleanupTargets();
+      }
+
+      if ($("btnRefreshCleanup")) {
+        $("btnRefreshCleanup").addEventListener("click", () => loadCleanupTargets());
+      }
+
+      if ($("btnCleanupSelected")) {
+        $("btnCleanupSelected").addEventListener("click", async () => {
+          const checkedBoxes = Array.from(document.querySelectorAll(".cleanup-chk:checked"));
+          if (!checkedBoxes.length) {
+            showBanner("cleanupStatusBanner", "Check at least one existing item above to delete.", "error");
+            return;
+          }
+          const ids = checkedBoxes.map((b) => b.value);
+          const items = (STATE.cleanupPlan && STATE.cleanupPlan.items) || [];
+          const chosen = items.filter((it) => ids.includes(it.id));
+          const totalBytes = chosen.reduce((acc, it) => acc + (it.size_bytes || 0), 0);
+          const lines = chosen.map((it) => "• " + it.label + " (" + fmtBytes(it.size_bytes || 0) + ")").join("\n");
+          if (!window.confirm("Permanently delete these checked items (~" + fmtBytes(totalBytes) + ")?\n\n" + lines)) {
+            return;
+          }
+          showBanner("cleanupStatusBanner", "Cleaning up selected folders...", "");
+          try {
+            const res = await apiJson("/api/system/cleanup", { target_ids: ids });
+            renderCleanupTargets(res.remaining);
+            showBanner("cleanupStatusBanner", `Removed ${res.removed_paths.length} item(s), freed ${fmtBytes(res.freed_bytes || 0)}.`, res.errors && res.errors.length ? "warn" : "ok");
+            await loadSystemPreflight();
+            await pollEmulatorStatus();
+            await loadOverview({ skipAutoSync: true });
+          } catch (err) {
+            showBanner("cleanupStatusBanner", err.message, "error");
+          }
+        });
       }
 
       if ($("storagePrefsForm")) {
@@ -4082,6 +4175,7 @@
             });
             renderSystemPreflight(res.preflight);
             showBanner("prefStatusBanner", `Saved storage settings. Active workspace: ${res.workspace_dir}`, "ok");
+            await loadCleanupTargets();
             await loadOverview({ skipAutoSync: true });
             await pollEmulatorStatus();
           } catch (err) {

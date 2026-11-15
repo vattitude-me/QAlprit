@@ -15,6 +15,7 @@ from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse
 
 from qalprit import __version__
+from qalprit.cleanup import execute_selective_cleanup, inspect_cleanup_targets
 from qalprit.config_loader import load_screens
 from qalprit.devices import list_android_devices, list_ios_simulators
 from qalprit.doctor import discover_system_software, run_doctor
@@ -388,6 +389,10 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
             self._send_json(discover_system_software(self.project_root))
             return
 
+        if req_path == "/api/system/cleanup":
+            self._send_json(inspect_cleanup_targets(self.project_root))
+            return
+
         if req_path == "/api/devices":
             android_devs, android_err = list_android_devices()
             ios_devs, ios_err = list_ios_simulators()
@@ -627,6 +632,18 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
                 new_ws = Path(res["workspace_dir"]).resolve()
                 self.workspace_state["project_root"] = new_ws
                 self.workspace_state["results_dir"] = (new_ws / "results").resolve()
+                self._send_json(res)
+                return
+
+            if req_path == "/api/system/cleanup":
+                target_ids = list(body.get("target_ids") or [])
+                res = execute_selective_cleanup(target_ids, active_workspace=self.project_root)
+                if "active_workspace" in target_ids:
+                    from qalprit.desktop import ensure_workspace
+
+                    recreated = ensure_workspace(self.project_root)
+                    self.workspace_state["project_root"] = recreated
+                    self.workspace_state["results_dir"] = (recreated / "results").resolve()
                 self._send_json(res)
                 return
 

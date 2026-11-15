@@ -1,7 +1,7 @@
 ; Inno Setup script for QAlprit Windows Installer (per-user, no admin required)
 
 #ifndef QAlpritVersion
-  #define QAlpritVersion "0.1.17"
+  #define QAlpritVersion "0.1.18"
 #endif
 
 #ifndef DistDir
@@ -115,7 +115,7 @@ begin
   DetectedNode := FirstExistingFile([
     ProgFiles + '\nodejs\node.exe',
     LocalApp + '\Programs\nodejs\node.exe',
-    ExpandConstant('{app}\runtime\node\node.exe')
+    LocalApp + '\Programs\QAlprit\runtime\node\node.exe'
   ]);
 
   DetectedPython := FirstExistingFile([
@@ -132,7 +132,7 @@ begin
   if DetectedJava = '' then
     DetectedJava := FirstExistingFile([
       ProgFiles + '\Android\Android Studio\jbr\bin\java.exe',
-      ExpandConstant('{app}\runtime\jdk\bin\java.exe')
+      LocalApp + '\Programs\QAlprit\runtime\jdk\bin\java.exe'
     ]);
 
   DetectedAndroidSdk := '';
@@ -321,4 +321,278 @@ begin
   StoragePage.Add('Android SDK & Virtual Emulator Data (~2-5 GB if emulator is downloaded):');
   StoragePage.Values[0] := DefaultWs;
   StoragePage.Values[1] := DefaultData;
+end;
+
+{ ---- Selective Uninstall Cleanup (Settings, SDK, Virtual Phone, Workspace) ---- }
+var
+  UninstConfiguredWs: String;
+  UninstConfiguredData: String;
+  RemoveSettingsFlag: Boolean;
+  RemoveSdkFlag: Boolean;
+  RemoveAvdFlag: Boolean;
+  RemoveWorkspaceFlag: Boolean;
+  ChkUnSettings: TNewCheckBox;
+  ChkUnSdk: TNewCheckBox;
+  ChkUnAvd: TNewCheckBox;
+  ChkUnWs: TNewCheckBox;
+
+function ExtractJsonField(JsonText, KeyName: String): String;
+var
+  Marker, Tail, OutStr: String;
+  P, Q, I: Integer;
+begin
+  Result := '';
+  Marker := '"' + KeyName + '"';
+  P := Pos(Marker, JsonText);
+  if P = 0 then Exit;
+  Tail := Copy(JsonText, P + Length(Marker), Length(JsonText));
+  Q := Pos(':', Tail);
+  if Q = 0 then Exit;
+  Tail := Trim(Copy(Tail, Q + 1, Length(Tail)));
+  if (Length(Tail) = 0) or (Tail[1] <> '"') then Exit;
+  OutStr := '';
+  I := 2;
+  while I <= Length(Tail) do
+  begin
+    if (Tail[I] = '\') and (I < Length(Tail)) then
+    begin
+      OutStr := OutStr + Tail[I + 1];
+      I := I + 2;
+    end
+    else if Tail[I] = '"' then
+      Break
+    else
+    begin
+      OutStr := OutStr + Tail[I];
+      I := I + 1;
+    end;
+  end;
+  Result := OutStr;
+end;
+
+procedure LoadConfiguredPathsForUninstall();
+var
+  SettingsFile: String;
+  RawAnsi: AnsiString;
+  JsonText: String;
+begin
+  UninstConfiguredData := ExpandConstant('{localappdata}\QAlprit');
+  UninstConfiguredWs := ExpandConstant('{userdocs}\QAlpritWorkspace');
+  SettingsFile := UninstConfiguredData + '\settings.json';
+  if FileExists(SettingsFile) and LoadStringFromFile(SettingsFile, RawAnsi) then
+  begin
+    JsonText := String(RawAnsi);
+    if ExtractJsonField(JsonText, 'data_dir') <> '' then
+      UninstConfiguredData := ExtractJsonField(JsonText, 'data_dir');
+    if ExtractJsonField(JsonText, 'workspace_dir') <> '' then
+      UninstConfiguredWs := ExtractJsonField(JsonText, 'workspace_dir');
+  end;
+end;
+
+procedure OnUninstSelectAllClick(Sender: TObject);
+begin
+  ChkUnSettings.Checked := True;
+  ChkUnSdk.Checked := True;
+  ChkUnAvd.Checked := True;
+  ChkUnWs.Checked := True;
+end;
+
+procedure OnUninstAppOnlyClick(Sender: TObject);
+begin
+  ChkUnSettings.Checked := False;
+  ChkUnSdk.Checked := False;
+  ChkUnAvd.Checked := False;
+  ChkUnWs.Checked := False;
+end;
+
+function InitializeUninstall(): Boolean;
+var
+  Form: TSetupForm;
+  IntroLbl, NoteLbl: TNewStaticText;
+  BtnAll, BtnKeep, BtnOk, BtnCancel: TNewButton;
+  TopY: Integer;
+begin
+  Result := True;
+  LoadConfiguredPathsForUninstall();
+  RemoveSettingsFlag := True;
+  RemoveSdkFlag := False;
+  RemoveAvdFlag := False;
+  RemoveWorkspaceFlag := False;
+
+  if UninstallSilent() then
+    Exit;
+
+  Form := CreateCustomForm;
+  try
+    Form.Caption := 'QAlprit Uninstall — Choose Data to Remove or Keep';
+    Form.ClientWidth := ScaleX(560);
+    Form.ClientHeight := ScaleY(340);
+    Form.Position := poScreenCenter;
+
+    IntroLbl := TNewStaticText.Create(Form);
+    IntroLbl.Parent := Form;
+    IntroLbl.Left := ScaleX(16);
+    IntroLbl.Top := ScaleY(14);
+    IntroLbl.Width := ScaleX(528);
+    IntroLbl.AutoSize := False;
+    IntroLbl.Height := ScaleY(38);
+    IntroLbl.WordWrap := True;
+    IntroLbl.Caption := 'QAlprit Workbench application binaries will be removed. Select which additional tool data, configs, emulator files, or workspaces should also be deleted (unchecked items are retained):';
+
+    TopY := ScaleY(62);
+    ChkUnSettings := TNewCheckBox.Create(Form);
+    ChkUnSettings.Parent := Form;
+    ChkUnSettings.Left := ScaleX(16);
+    ChkUnSettings.Top := TopY;
+    ChkUnSettings.Width := ScaleX(528);
+    ChkUnSettings.Checked := True;
+    ChkUnSettings.Caption := 'Settings, logs & Appium caches (settings.json, logs, android-home, appium_home)';
+
+    TopY := TopY + ScaleY(30);
+    ChkUnSdk := TNewCheckBox.Create(Form);
+    ChkUnSdk.Parent := Form;
+    ChkUnSdk.Left := ScaleX(16);
+    ChkUnSdk.Top := TopY;
+    ChkUnSdk.Width := ScaleX(528);
+    ChkUnSdk.Checked := False;
+    ChkUnSdk.Caption := 'QAlprit-downloaded Android SDK & Emulator (~2-5 GB, including legacy .qalprit)';
+
+    TopY := TopY + ScaleY(30);
+    ChkUnAvd := TNewCheckBox.Create(Form);
+    ChkUnAvd.Parent := Form;
+    ChkUnAvd.Left := ScaleX(16);
+    ChkUnAvd.Top := TopY;
+    ChkUnAvd.Width := ScaleX(528);
+    ChkUnAvd.Checked := False;
+    ChkUnAvd.Caption := 'QAlprit Virtual Android Phone (QAlprit_Pixel.avd only; preserves other AVDs)';
+
+    TopY := TopY + ScaleY(30);
+    ChkUnWs := TNewCheckBox.Create(Form);
+    ChkUnWs.Parent := Form;
+    ChkUnWs.Left := ScaleX(16);
+    ChkUnWs.Top := TopY;
+    ChkUnWs.Width := ScaleX(528);
+    ChkUnWs.Checked := False;
+    ChkUnWs.Caption := 'Test Workspace (recorded flows, specs, apps & HTML reports)';
+
+    NoteLbl := TNewStaticText.Create(Form);
+    NoteLbl.Parent := Form;
+    NoteLbl.Left := ScaleX(16);
+    NoteLbl.Top := TopY + ScaleY(34);
+    NoteLbl.Width := ScaleX(528);
+    NoteLbl.AutoSize := False;
+    NoteLbl.Height := ScaleY(52);
+    NoteLbl.WordWrap := True;
+    NoteLbl.Caption := 'Data Folder: ' + UninstConfiguredData + #13#10 + 'Workspace: ' + UninstConfiguredWs;
+
+    BtnAll := TNewButton.Create(Form);
+    BtnAll.Parent := Form;
+    BtnAll.Left := ScaleX(16);
+    BtnAll.Top := ScaleY(246);
+    BtnAll.Width := ScaleX(160);
+    BtnAll.Height := ScaleY(26);
+    BtnAll.Caption := 'Select All (Full Wipe)';
+    BtnAll.OnClick := @OnUninstSelectAllClick;
+
+    BtnKeep := TNewButton.Create(Form);
+    BtnKeep.Parent := Form;
+    BtnKeep.Left := ScaleX(184);
+    BtnKeep.Top := ScaleY(246);
+    BtnKeep.Width := ScaleX(170);
+    BtnKeep.Height := ScaleY(26);
+    BtnKeep.Caption := 'Keep My Data (App Only)';
+    BtnKeep.OnClick := @OnUninstAppOnlyClick;
+
+    BtnOk := TNewButton.Create(Form);
+    BtnOk.Parent := Form;
+    BtnOk.Left := ScaleX(338);
+    BtnOk.Top := ScaleY(294);
+    BtnOk.Width := ScaleX(100);
+    BtnOk.Height := ScaleY(28);
+    BtnOk.Caption := 'Uninstall';
+    BtnOk.ModalResult := mrOk;
+    BtnOk.Default := True;
+
+    BtnCancel := TNewButton.Create(Form);
+    BtnCancel.Parent := Form;
+    BtnCancel.Left := ScaleX(446);
+    BtnCancel.Top := ScaleY(294);
+    BtnCancel.Width := ScaleX(98);
+    BtnCancel.Height := ScaleY(28);
+    BtnCancel.Caption := 'Cancel';
+    BtnCancel.ModalResult := mrCancel;
+    BtnCancel.Cancel := True;
+
+    if Form.ShowModal <> mrOk then
+    begin
+      Result := False;
+      Exit;
+    end;
+
+    RemoveSettingsFlag := ChkUnSettings.Checked;
+    RemoveSdkFlag := ChkUnSdk.Checked;
+    RemoveAvdFlag := ChkUnAvd.Checked;
+    RemoveWorkspaceFlag := ChkUnWs.Checked;
+  finally
+    Form.Free;
+  end;
+end;
+
+procedure SafeDelDir(Path: String);
+begin
+  if (Path <> '') and DirExists(Path) then
+    DelTree(Path, True, True, True);
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  UserHome, LegacyQalprit, LegacyAndroidAvd, StandardData: String;
+begin
+  if CurUninstallStep <> usPostUninstall then
+    Exit;
+
+  UserHome := AddBackslash(GetEnv('USERPROFILE'));
+  LegacyQalprit := UserHome + '.qalprit';
+  LegacyAndroidAvd := UserHome + '.android\avd';
+  StandardData := ExpandConstant('{localappdata}\QAlprit');
+
+  if RemoveSettingsFlag then
+  begin
+    if FileExists(StandardData + '\settings.json') then
+      DeleteFile(StandardData + '\settings.json');
+    SafeDelDir(UninstConfiguredData + '\logs');
+    SafeDelDir(UninstConfiguredData + '\android-home');
+    SafeDelDir(UninstConfiguredData + '\appium_home');
+    SafeDelDir(LegacyQalprit + '\logs');
+    SafeDelDir(LegacyQalprit + '\appium_home');
+  end;
+
+  if RemoveSdkFlag then
+  begin
+    SafeDelDir(UninstConfiguredData + '\android-sdk');
+    SafeDelDir(LegacyQalprit + '\android-sdk');
+  end;
+
+  if RemoveAvdFlag then
+  begin
+    SafeDelDir(UninstConfiguredData + '\avd\QAlprit_Pixel.avd');
+    if FileExists(UninstConfiguredData + '\avd\QAlprit_Pixel.ini') then
+      DeleteFile(UninstConfiguredData + '\avd\QAlprit_Pixel.ini');
+    SafeDelDir(LegacyAndroidAvd + '\QAlprit_Pixel.avd');
+    if FileExists(LegacyAndroidAvd + '\QAlprit_Pixel.ini') then
+      DeleteFile(LegacyAndroidAvd + '\QAlprit_Pixel.ini');
+  end;
+
+  if RemoveWorkspaceFlag then
+  begin
+    SafeDelDir(UninstConfiguredWs);
+    SafeDelDir(UserHome + 'QAlpritWorkspace');
+  end;
+
+  { Remove empty container directories cleanly if nothing was kept inside them }
+  RemoveDir(UninstConfiguredData + '\avd');
+  RemoveDir(UninstConfiguredData);
+  if StandardData <> UninstConfiguredData then
+    RemoveDir(StandardData);
+  RemoveDir(LegacyQalprit);
 end;
