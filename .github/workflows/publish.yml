@@ -62,3 +62,36 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release upload "${{ github.ref_name }}" dist-win\QAlprit-Setup-*.exe dist-win\SHA256SUMS.txt --clobber
+
+  build-macos-dmg:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Build Standalone macOS App & DMG
+        shell: bash
+        run: |
+          chmod +x packaging/macos/build_mac.sh
+          TAG="${{ github.ref_name }}"
+          if [[ "${{ github.event_name }}" == "release" && "${TAG}" == v* ]]; then
+            ./packaging/macos/build_mac.sh "${TAG#v}"
+          else
+            ./packaging/macos/build_mac.sh
+          fi
+      - name: Upload macOS DMG Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: qalprit-macos-dmg
+          path: |
+            dist-mac/QAlprit-*.dmg
+            dist-mac/SHA256SUMS-mac.txt
+      - name: Attach macOS DMG to GitHub Release
+        if: github.event_name == 'release'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ github.ref_name }}" dist-mac/QAlprit-*.dmg dist-mac/SHA256SUMS-mac.txt --clobber
