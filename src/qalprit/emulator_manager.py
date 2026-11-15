@@ -193,6 +193,7 @@ def _stream_command(
 def setup_android_emulator_sync(
     avd_name: str = DEFAULT_AVD_NAME,
     *,
+    if_missing: bool = False,
     on_progress: Callable[[str, int, str], None] | None = None,
     cancel_event: threading.Event | None = None,
     proc_holder: list[subprocess.Popen[str]] | None = None,
@@ -201,6 +202,26 @@ def setup_android_emulator_sync(
     def emit(phase: str, pct: int, log_line: str = "") -> None:
         if on_progress is not None:
             on_progress(phase, pct, log_line)
+
+    if if_missing:
+        current = get_emulator_status()
+        if (
+            current.get("emulator_installed")
+            and current.get("system_image_installed")
+            and avd_name in (current.get("avds") or [])
+        ):
+            emit(
+                "Already Installed",
+                100,
+                f"Virtual Android phone '{avd_name}' is already installed — skipping download.",
+            )
+            return {
+                "ok": True,
+                "avd_name": avd_name,
+                "sdk_dir": current.get("sdk_dir") or "",
+                "system_image": current.get("system_image_package") or system_image_package(),
+                "skipped": True,
+            }
 
     emit("Preparing SDK", 5, "Preparing writable Android SDK at ~/.qalprit/android-sdk (first run copies SDK tools)...")
     sdk = prepare_writable_android_sdk()

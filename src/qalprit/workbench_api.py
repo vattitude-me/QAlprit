@@ -8,6 +8,7 @@ import re
 import shutil
 import struct
 import subprocess
+import sys
 import threading
 import time
 import zipfile
@@ -15,6 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import frontmatter
 import yaml
 
 from qalprit.appium_manager import AppiumManager
@@ -580,6 +582,249 @@ def save_test_journey(project_root: Path, payload: dict[str, Any]) -> dict[str, 
     return {"ok": True, "id": spec_id, "suite": suite, "source_path": dest.relative_to(project_root).as_posix()}
 
 
+def _suite_id_prefix(suite: str) -> str:
+    clean = re.sub(r"[^a-zA-Z0-9]", "", (suite or "").upper())
+    mapping = {
+        "SMOKE": "SMK",
+        "REGRESSION": "REG",
+        "AUTH": "AUTH",
+        "CHECKOUT": "CHK",
+        "SANITY": "SAN",
+    }
+    if clean in mapping:
+        return mapping[clean]
+    if len(clean) >= 3:
+        return clean[:4]
+    return clean or "TEST"
+
+
+def next_journey_id(project_root: Path, suite: str = "smoke") -> str:
+    """Return the next unused automated Test Journey ID for a suite (e.g. SMK-001, SMK-002)."""
+    prefix = _suite_id_prefix(suite)
+    specs, _ = load_specs(project_root / "specs")
+    pat = re.compile(rf"^{re.escape(prefix)}-(\d+)$", re.IGNORECASE)
+    used_nums: set[int] = set()
+    used_ids = {s.id.upper() for s in specs}
+    for s in specs:
+        m = pat.match(s.id.strip())
+        if m:
+            used_nums.add(int(m.group(1)))
+    num = (max(used_nums) + 1) if used_nums else 1
+    while f"{prefix}-{num:03d}" in used_ids:
+        num += 1
+    return f"{prefix}-{num:03d}"
+
+
+def upload_flow_markdown(project_root: Path, filename: str, content_text: str) -> dict[str, Any]:
+    """Import an existing workflow `.md` file into `flows/` and validate it parses cleanly."""
+    raw_name = Path(filename or "imported_flow.md").stem
+    text = (content_text or "").strip()
+    if not text:
+        raise ValueError("Uploaded workflow file is empty.")
+    post = frontmatter.loads(text)
+    meta = dict(post.metadata or {})
+    flow_name_raw = str(meta.get("name") or raw_name).strip()
+    clean_parts = [_safe_slug(part, "flow") for part in flow_name_raw.replace("\\", "/").split("/") if part.strip()]
+    if not clean_parts:
+        clean_parts = [_safe_slug(raw_name, "imported_flow")]
+    rel_name = "/".join(clean_parts)
+    meta["name"] = rel_name
+    if "steps" not in meta or not meta["steps"]:
+        raise ValueError("Workflow markdown frontmatter must include a non-empty 'steps' list.")
+
+    flows_dir = (project_root / "flows").resolve()
+    flows_dir.mkdir(parents=True, exist_ok=True)
+    dest = (flows_dir / f"{rel_name}.md").resolve()
+    if not dest.is_relative_to(flows_dir):
+        raise ValueError("Workflow path escapes flows/ directory.")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    prev_text = dest.read_text(encoding="utf-8") if dest.exists() else None
+    dest.write_text(_dump_frontmatter_md(meta, post.content or f"Imported workflow `{rel_name}`."), encoding="utf-8")
+    flows, errors = load_flows(flows_dir)
+    if rel_name not in flows or errors:
+        if prev_text is not None:
+            dest.write_text(prev_text, encoding="utf-8")
+        else:
+            dest.unlink(missing_ok=True)
+        raise ValueError(f"Invalid workflow file: {'; '.join(errors) or 'parse error'}")
+    return {"ok": True, "name": rel_name, "source_path": dest.relative_to(project_root).as_posix()}
+
+
+def duplicate_flow_spec(project_root: Path, name: str, new_name: str = "") -> dict[str, Any]:
+    """Duplicate an existing workflow `flows/<name>.md` to a new unique workflow name."""
+    flows_dir = (project_root / "flows").resolve()
+    flows, _ = load_flows(flows_dir)
+    if name not in flows:
+        raise ValueError(f"Workflow '{name}' was not found.")
+    src_flow = flows[name]
+    target_raw = (new_name or "").strip()
+    if not target_raw:
+        candidate = f"{name}_copy"
+        idx = 2
+        while candidate in flows:
+            candidate = f"{name}_copy_{idx}"
+            idx += 1
+        target_raw = candidate
+
+    clean_parts = [_safe_slug(part, "flow") for part in target_raw.replace("\\", "/").split("/") if part.strip()]
+    if not clean_parts:
+        raise ValueError("New workflow name is required.")
+    rel_name = "/".join(clean_parts)
+    if rel_name in flows:
+        raise ValueError(f"Workflow '{rel_name}' already exists.")
+
+    post = frontmatter.loads(src_flow.source_path.read_text(encoding="utf-8"))
+    meta = dict(post.metadata or {})
+    meta["name"] = rel_name
+    dest = (flows_dir / f"{rel_name}.md").resolve()
+    if not dest.is_relative_to(flows_dir):
+        raise ValueError("Workflow path escapes flows/ directory.")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(_dump_frontmatter_md(meta, post.content or f"Duplicated from `{name}`."), encoding="utf-8")
+    return {"ok": True, "name": rel_name, "source_path": dest.relative_to(project_root).as_posix()}
+
+
+def delete_flow_spec(project_root: Path, name: str) -> dict[str, Any]:
+    """Delete an existing workflow file inside `flows/` safely."""
+    flows_dir = (project_root / "flows").resolve()
+    flows, _ = load_flows(flows_dir)
+    target_path: Path | None = None
+    if name in flows:
+        target_path = flows[name].source_path.resolve()
+    else:
+        cand = (flows_dir / f"{name}.md").resolve()
+        if cand.is_file():
+            target_path = cand
+    if target_path is None or not target_path.is_file():
+        raise ValueError(f"Workflow '{name}' was not found.")
+    if not target_path.is_relative_to(flows_dir):
+        raise ValueError("Refusing to delete file outside flows/ directory.")
+    rel_path = target_path.relative_to(project_root).as_posix()
+    target_path.unlink()
+    return {"ok": True, "name": name, "deleted_path": rel_path}
+
+
+def upload_spec_markdown(
+    project_root: Path,
+    filename: str,
+    content_text: str,
+    suite: str = "",
+) -> dict[str, Any]:
+    """Import an existing test journey `.md` file into `specs/<suite>/` and validate it."""
+    raw_stem = Path(filename or "TEST-001.md").stem
+    text = (content_text or "").strip()
+    if not text:
+        raise ValueError("Uploaded test journey file is empty.")
+    post = frontmatter.loads(text)
+    meta = dict(post.metadata or {})
+    spec_id = _safe_slug(str(meta.get("id") or raw_stem), "TEST-001")
+    meta["id"] = spec_id
+    if not str(meta.get("title") or "").strip():
+        meta["title"] = raw_stem.replace("_", " ").replace("-", " ").strip() or spec_id
+    if "steps" not in meta or not meta["steps"]:
+        raise ValueError("Journey markdown frontmatter must include a non-empty 'steps' list.")
+
+    target_suite = _safe_slug(suite or "smoke", "smoke")
+    specs_dir = (project_root / "specs").resolve()
+    suite_dir = (specs_dir / target_suite).resolve()
+    if not suite_dir.is_relative_to(specs_dir):
+        raise ValueError("Suite path escapes specs/ directory.")
+    suite_dir.mkdir(parents=True, exist_ok=True)
+    dest = (suite_dir / f"{spec_id}.md").resolve()
+    if not dest.is_relative_to(specs_dir):
+        raise ValueError("Spec path escapes specs/ directory.")
+    prev_text = dest.read_text(encoding="utf-8") if dest.exists() else None
+    dest.write_text(_dump_frontmatter_md(meta, post.content or f"# {spec_id}: {meta['title']}"), encoding="utf-8")
+    specs, errors = load_specs(specs_dir)
+    if not any(s.id == spec_id for s in specs) or errors:
+        if prev_text is not None:
+            dest.write_text(prev_text, encoding="utf-8")
+        else:
+            dest.unlink(missing_ok=True)
+        raise ValueError(f"Invalid test journey file: {'; '.join(errors) or 'parse error'}")
+    return {"ok": True, "id": spec_id, "suite": target_suite, "source_path": dest.relative_to(project_root).as_posix()}
+
+
+def duplicate_test_journey(
+    project_root: Path,
+    source_path: str,
+    new_id: str = "",
+    suite: str = "",
+) -> dict[str, Any]:
+    """Duplicate an existing test journey `.md` under `specs/` with a fresh Journey ID."""
+    root = project_root.resolve()
+    specs_dir = (root / "specs").resolve()
+    src = (root / (source_path or "").lstrip("/")).resolve()
+    if not src.is_relative_to(specs_dir) or not src.is_file():
+        raise ValueError(f"Test journey file not found: {source_path}")
+
+    post = frontmatter.loads(src.read_text(encoding="utf-8"))
+    meta = dict(post.metadata or {})
+    orig_id = str(meta.get("id") or src.stem)
+    target_suite = _safe_slug(suite or src.parent.name or "smoke", "smoke")
+    if target_suite == "specs":
+        target_suite = "smoke"
+
+    target_id = _safe_slug(new_id, "") if (new_id or "").strip() else next_journey_id(root, target_suite)
+    meta["id"] = target_id
+    if meta.get("title"):
+        meta["title"] = f"{meta['title']} (Copy)"
+
+    suite_dir = (specs_dir / target_suite).resolve()
+    suite_dir.mkdir(parents=True, exist_ok=True)
+    dest = (suite_dir / f"{target_id}.md").resolve()
+    if not dest.is_relative_to(specs_dir):
+        raise ValueError("Destination escapes specs/ directory.")
+    if dest.exists():
+        raise ValueError(f"Test journey '{target_id}' already exists.")
+    dest.write_text(
+        _dump_frontmatter_md(meta, post.content or f"# {target_id} (copied from {orig_id})"),
+        encoding="utf-8",
+    )
+    return {"ok": True, "id": target_id, "suite": target_suite, "source_path": dest.relative_to(root).as_posix()}
+
+
+def delete_test_journey(project_root: Path, source_path: str) -> dict[str, Any]:
+    """Delete an existing test journey `.md` file inside `specs/` safely."""
+    root = project_root.resolve()
+    specs_dir = (root / "specs").resolve()
+    target = (root / (source_path or "").lstrip("/")).resolve()
+    if not target.is_relative_to(specs_dir):
+        raise ValueError("Refusing to delete file outside specs/ directory.")
+    if not target.is_file():
+        raise ValueError(f"Test journey file not found: {source_path}")
+    rel = target.relative_to(root).as_posix()
+    target.unlink()
+    return {"ok": True, "deleted_path": rel}
+
+
+def reveal_in_file_manager(project_root: Path, rel_path: str = "") -> dict[str, Any]:
+    """Open the workspace directory (or reveal a file inside it) in Explorer / Finder."""
+    root = project_root.resolve()
+    cleaned = (rel_path or "").strip().lstrip("/\\")
+    target = (root / cleaned).resolve() if cleaned else root
+    if not target.is_relative_to(root):
+        raise ValueError("Path escapes workspace directory.")
+    if not target.exists():
+        target.mkdir(parents=True, exist_ok=True) if not target.suffix else target.parent.mkdir(parents=True, exist_ok=True)
+
+    if sys.platform == "win32":
+        if target.is_file():
+            subprocess.Popen(["explorer", "/select,", str(target)])
+        else:
+            subprocess.Popen(["explorer", str(target)])
+    elif sys.platform == "darwin":
+        if target.is_file():
+            subprocess.Popen(["open", "-R", str(target)])
+        else:
+            subprocess.Popen(["open", str(target)])
+    else:
+        dir_target = target if target.is_dir() else target.parent
+        subprocess.Popen(["xdg-open", str(dir_target)])
+
+    return {"ok": True, "opened_path": str(target)}
+
+
 def run_workspace_validation(
     project_root: Path,
     *,
@@ -681,6 +926,7 @@ class RunJobManager:
         device_profile = str(payload.get("device_profile") or "android_emulator")
         env_name = str(payload.get("env_name") or "qa")
         suite = str(payload.get("suite") or "").strip() or None
+        spec_id = str(payload.get("spec_id") or "").strip() or None
         retries = max(0, int(payload.get("retries") or 0))
         dry_run = bool(payload.get("dry_run", False))
         app_raw = str(payload.get("app_path") or "").strip()
@@ -699,6 +945,7 @@ class RunJobManager:
             suite=suite,
             platform=platform,
             app_path=resolved_app if not dry_run else None,
+            spec_id=spec_id,
         )
         if not val.ok:
             raise ValueError("; ".join(e.message for e in val.errors[:5]))
@@ -706,6 +953,8 @@ class RunJobManager:
         env_cfg = val.environments[env_name]
         specs: list[TestSpec] = list(val.specs)
         if not specs:
+            if spec_id:
+                raise ValueError(f"Journey '{spec_id}' did not match platform '{platform}' or suite '{suite or 'all'}'.")
             raise ValueError("No matching test journeys found to run.")
 
         if dry_run:
@@ -714,6 +963,7 @@ class RunJobManager:
                 "platform": platform,
                 "device_profile": device_profile,
                 "env_name": env_name,
+                "spec_id": spec_id or "",
                 "specs": [
                     {
                         "id": s.id,

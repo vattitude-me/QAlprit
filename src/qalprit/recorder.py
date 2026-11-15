@@ -602,7 +602,7 @@ class RecorderManager:
             elif act == "assert_text":
                 elem = driver.find_element(strat, loc_val)
                 expected = value or str(target_el.get("text") or "")
-                actual = str(getattr(elem, "text", "") or "")
+                actual = str(getattr(elem, "text", "") or target_el.get("text") or "")
                 if expected and expected not in actual:
                     raise ValueError(f"Element text '{actual}' does not contain '{expected}'.")
                 step = {
@@ -610,7 +610,7 @@ class RecorderManager:
                     "target": loc["target"],
                     "value": expected,
                     "secret": is_secret,
-                    "label": f"Verify {loc['target']} contains '{expected}'",
+                    "label": f"Verify '{loc['display_label']}' contains '{expected}'",
                 }
             elif act == "type":
                 elem = driver.find_element(strat, loc_val)

@@ -389,6 +389,7 @@ def validate_project(
     tags: list[str] | None = None,
     platform: str | None = None,
     app_path: Path | None = None,
+    spec_id: str | None = None,
 ) -> ValidationResult:
     """Validate project configs, screens, flows, specs, locators, and env vars."""
     result = ValidationResult()
@@ -475,9 +476,11 @@ def validate_project(
         else:
             seen_ids[spec.id] = spec.source_path
 
-    # Filter specs if suite/tags/platform requested
+    # Filter specs if suite/tags/platform/spec_id requested
     selected_specs: list[TestSpec] = []
     for spec in all_specs:
+        if spec_id and spec.id != spec_id:
+            continue
         if suite and spec.suite != suite:
             continue
         if platform and platform not in spec.platforms:
@@ -487,7 +490,7 @@ def validate_project(
         selected_specs.append(spec)
     result.specs = selected_specs
 
-    if suite is None and tags is None:
+    if suite is None and tags is None and spec_id is None:
         flows_to_validate = list(flows.values())
     else:
         referenced_flow_names = {
