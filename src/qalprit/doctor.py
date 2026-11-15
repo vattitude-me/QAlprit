@@ -11,7 +11,16 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
+
+
+def win_subprocess_kwargs() -> dict[str, Any]:
+    """Return Windows creationflags preventing stray console popups from GUI builds."""
+    if platform.system() == "Windows":
+        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        if flags:
+            return {"creationflags": flags}
+    return {}
 
 
 def find_bundled_runtime_dir() -> Path | None:
@@ -42,13 +51,74 @@ def find_node_bin() -> str | None:
     return shutil.which("node")
 
 
+def ensure_portable_appium_home(appium_home: Path) -> Path:
+    """Rewrite bundled Appium extensions.yaml installPath entries to match local runtime path."""
+    ext_rel = Path("node_modules") / ".cache" / "appium" / "extensions.yaml"
+    ext_file = appium_home / ext_rel
+    if not ext_file.is_file():
+        return appium_home
+
+    try:
+        import yaml
+
+        data = yaml.safe_load(ext_file.read_text(encoding="utf-8")) or {}
+    except Exception:
+        return appium_home
+
+    if not isinstance(data, dict):
+        return appium_home
+
+    changed = False
+    resolved_mods = (appium_home / "node_modules").resolve()
+    for section in ("drivers", "plugins"):
+        entries = data.get(section)
+        if not isinstance(entries, dict):
+            continue
+        for entry in entries.values():
+            if not isinstance(entry, dict):
+                continue
+            pkg_name = str(entry.get("pkgName") or "").strip()
+            if not pkg_name:
+                continue
+            local_pkg = resolved_mods / pkg_name
+            expected = str(local_pkg)
+            if local_pkg.is_dir() and str(entry.get("installPath") or "") != expected:
+                entry["installPath"] = expected
+                changed = True
+
+    if not changed:
+        return appium_home
+
+    rendered = yaml.safe_dump(data, sort_keys=False)
+    try:
+        ext_file.write_text(rendered, encoding="utf-8")
+        return appium_home
+    except OSError:
+        fallback_home = Path.home() / ".qalprit" / "appium_home"
+        fallback_mods = fallback_home / "node_modules"
+        fallback_ext = fallback_home / ext_rel
+        try:
+            fallback_mods.mkdir(parents=True, exist_ok=True)
+            for item in resolved_mods.iterdir():
+                if item.name == ".cache":
+                    continue
+                target = fallback_mods / item.name
+                if not target.exists():
+                    target.symlink_to(item, target_is_directory=item.is_dir())
+            fallback_ext.parent.mkdir(parents=True, exist_ok=True)
+            fallback_ext.write_text(rendered, encoding="utf-8")
+            return fallback_home
+        except Exception:
+            return appium_home
+
+
 def find_appium_home() -> Path | None:
     """Locate bundled APPIUM_HOME containing pre-installed Appium drivers."""
     rt = find_bundled_runtime_dir()
     if rt is not None:
         cand = rt / "appium_home"
         if cand.is_dir():
-            return cand
+            return ensure_portable_appium_home(cand)
     return None
 
 
@@ -170,7 +240,7 @@ def find_java_bin() -> str | None:
     return None
 
 
-def _run_quick(cmd: list[str], env: dict[str, str] | None = None, timeout: float = 5.0) -> tuple[int, str]:
+def _run_quick(cmd: list[str], env: dict[str, str] | None = None, timeout: float = 10.0) -> tuple[int, str]:
     try:
         proc = subprocess.run(
             cmd,
@@ -178,6 +248,7 @@ def _run_quick(cmd: list[str], env: dict[str, str] | None = None, timeout: float
             text=True,
             env=env,
             timeout=timeout,
+            **win_subprocess_kwargs(),
         )
         output = (proc.stdout or "") + ("\n" + proc.stderr if proc.stderr else "")
         return proc.returncode, output.strip()
@@ -234,7 +305,7 @@ def run_doctor(python_min: tuple[int, int] = (3, 10)) -> list[CheckItem]:
     if appium_home is not None:
         app_env.setdefault("APPIUM_HOME", str(appium_home))
     if appium_cmd:
-        rc, ver_out = _run_quick(appium_cmd + ["--version"], env=app_env)
+        rc, ver_out = _run_quick(appium_cmd + ["--version"], env=app_env, timeout=25.0)
         ver_str = ver_out.splitlines()[0] if ver_out else "unknown"
         major = 0
         m = re.match(r"(\d+)\.", ver_str.strip())
@@ -251,7 +322,11 @@ def run_doctor(python_min: tuple[int, int] = (3, 10)) -> list[CheckItem]:
         )
 
         # Installed drivers
-        rc_d, drv_out = _run_quick(appium_cmd + ["driver", "list", "--installed", "--json"], env=app_env)
+        rc_d, drv_out = _run_quick(
+            appium_cmd + ["driver", "list", "--installed", "--json"],
+            env=app_env,
+            timeout=25.0,
+        )
         installed_drivers: set[str] = set()
         if rc_d == 0 and drv_out:
             try:
@@ -352,7 +427,11 @@ def run_doctor(python_min: tuple[int, int] = (3, 10)) -> list[CheckItem]:
         checks.append(CheckItem("Android emulator", "ok" if avds else "warn", detail))
     else:
         checks.append(
-            CheckItem("Android emulator", "warn", "Not found", "Install Android emulator package")
+            CheckItem(
+                "Android emulator",
+                "skip",
+                "Optional (connect a physical Android phone via USB with USB Debugging ON, or install Android Studio Emulator)",
+            )
         )
 
     # 6. Xcode & iOS Simulator (macOS only)

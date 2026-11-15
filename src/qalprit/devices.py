@@ -9,7 +9,7 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
-from qalprit.doctor import find_android_tool
+from qalprit.doctor import find_android_tool, win_subprocess_kwargs
 
 
 @dataclass
@@ -29,7 +29,13 @@ def list_android_devices() -> tuple[list[DiscoveredDevice], str | None]:
     adb_bin = find_android_tool("adb")
     if adb_bin:
         try:
-            proc = subprocess.run([adb_bin, "devices", "-l"], capture_output=True, text=True, timeout=6)
+            proc = subprocess.run(
+                [adb_bin, "devices", "-l"],
+                capture_output=True,
+                text=True,
+                timeout=12,
+                **win_subprocess_kwargs(),
+            )
             if proc.returncode == 0:
                 for line in proc.stdout.splitlines()[1:]:
                     line = line.strip()
@@ -56,7 +62,13 @@ def list_android_devices() -> tuple[list[DiscoveredDevice], str | None]:
     emu_bin = find_android_tool("emulator")
     if emu_bin:
         try:
-            proc = subprocess.run([emu_bin, "-list-avds"], capture_output=True, text=True, timeout=5)
+            proc = subprocess.run(
+                [emu_bin, "-list-avds"],
+                capture_output=True,
+                text=True,
+                timeout=8,
+                **win_subprocess_kwargs(),
+            )
             if proc.returncode == 0:
                 for line in proc.stdout.splitlines():
                     avd = line.strip()

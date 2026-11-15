@@ -20,6 +20,7 @@ from qalprit.doctor import (
     find_appium_home,
     find_java_bin,
     find_node_bin,
+    win_subprocess_kwargs,
 )
 from qalprit.env_loader import SecretMasker
 
@@ -114,7 +115,7 @@ class AppiumManager:
         self,
         log_path: Path,
         appium_url: str | None = None,
-        startup_timeout: float = 30.0,
+        startup_timeout: float = 45.0,
         host: str = "127.0.0.1",
         port: int | None = None,
         masker: SecretMasker | None = None,
@@ -157,6 +158,7 @@ class AppiumManager:
             stdout=self._log_file,
             stderr=subprocess.STDOUT,
             env=env,
+            **win_subprocess_kwargs(),
         )
 
         deadline = time.monotonic() + self.startup_timeout

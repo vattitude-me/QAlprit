@@ -504,6 +504,10 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
                 self._send_json(self.job_manager.start(self.project_root, self.results_dir, body))
                 return
 
+            if req_path == "/api/runs/stop":
+                self._send_json(self.job_manager.stop())
+                return
+
             self._send_json({"error": f"Unknown API endpoint: {req_path}"}, status=HTTPStatus.NOT_FOUND)
         except ValueError as exc:
             self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)

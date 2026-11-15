@@ -385,6 +385,128 @@
       border-top: 1px solid var(--border);
     }
 
+    .btn-danger {
+      background: var(--fail-bg);
+      color: var(--fail);
+      border-color: var(--fail);
+    }
+    .btn-danger:hover {
+      filter: brightness(0.95);
+      border-color: var(--fail);
+    }
+
+    .seq-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .seq-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      background: var(--surface);
+      font-size: 0.83rem;
+    }
+    .seq-item.is-done {
+      border-color: var(--pass);
+      background: var(--pass-bg);
+    }
+    .seq-item.is-next {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent);
+    }
+    .seq-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 26px;
+      height: 26px;
+      border-radius: 999px;
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      font-size: 0.76rem;
+      font-weight: 800;
+      flex-shrink: 0;
+    }
+    .seq-item.is-done .seq-num {
+      background: var(--pass);
+      border-color: var(--pass);
+      color: #ffffff;
+    }
+    .substep-kicker {
+      display: inline-block;
+      padding: 2px 8px;
+      margin-right: 6px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent-ink);
+      font-size: 0.72rem;
+      font-weight: 800;
+      vertical-align: middle;
+    }
+
+    .progress-box {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface-alt);
+    }
+    .progress-box[hidden] { display: none; }
+    .progress-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.82rem;
+      margin-bottom: 6px;
+    }
+    .progress-track {
+      width: 100%;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--border);
+      overflow: hidden;
+      position: relative;
+    }
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      border-radius: 999px;
+      background: var(--accent);
+      transition: width 0.25s ease;
+    }
+    .progress-fill.is-indeterminate {
+      width: 38% !important;
+      position: absolute;
+      animation: qalprit-indeterminate 1.2s ease-in-out infinite;
+    }
+    @keyframes qalprit-indeterminate {
+      0% { left: -38%; }
+      100% { left: 100%; }
+    }
+
+    .guide-details {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+      background: var(--surface-alt);
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+    .guide-details summary {
+      cursor: pointer;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .guide-details ul { margin: 8px 0 0 18px; padding: 0; }
+    .guide-details li { margin-bottom: 4px; }
+
     footer {
       max-width: 1260px;
       margin: 0 auto 36px;
@@ -477,13 +599,37 @@
     <!-- ================================================================ -->
     <section class="wizard-step" id="step-1" data-step-panel="1" aria-labelledby="heading-step-1">
       <div class="step-header">
-        <h2 id="heading-step-1" tabindex="-1">1. Upload Your App Binary &amp; Verify Devices</h2>
-        <p>Start here when a new <code>.apk</code>, <code>.ipa</code>, or <code>.zip</code> arrives. QAlprit stores binaries in <code>apps/</code>, detects Android package names automatically when possible, and checks that Appium and your connected phone/emulator are ready.</p>
+        <h2 id="heading-step-1" tabindex="-1">1. Follow 1A &rarr; 1B &rarr; 1C to Prepare Your App &amp; Device</h2>
+        <p>Complete these three steps in order before mapping screens: upload your app binary, confirm its package ID, and verify QAlprit's tools and phone/emulator connection.</p>
+      </div>
+
+      <div class="seq-strip" aria-label="Step 1 Setup Checklist">
+        <div class="seq-item is-next" id="seqItem1a">
+          <span class="seq-num" id="seqNum1a">1A</span>
+          <div>
+            <strong>Upload App Binary</strong>
+            <div class="muted" id="seqSub1a">Upload an .apk, .ipa, or .zip file</div>
+          </div>
+        </div>
+        <div class="seq-item" id="seqItem1b">
+          <span class="seq-num" id="seqNum1b">1B</span>
+          <div>
+            <strong>Save Package ID</strong>
+            <div class="muted" id="seqSub1b">Confirm detected package ID &amp; save</div>
+          </div>
+        </div>
+        <div class="seq-item" id="seqItem1c">
+          <span class="seq-num" id="seqNum1c">1C</span>
+          <div>
+            <strong>Tools &amp; Device Check</strong>
+            <div class="muted" id="seqSub1c">Click Run All Checks below</div>
+          </div>
+        </div>
       </div>
 
       <div class="grid-2">
         <article class="card">
-          <h3>Upload App Binary (<code>apps/</code>)</h3>
+          <h3><span class="substep-kicker">Step 1A</span> Upload App Binary (<code>apps/</code>)</h3>
           <p class="card-help">Choose an Android <code>.apk</code> or iOS simulator <code>.zip</code> / <code>.ipa</code> file from your computer (up to 300 MB).</p>
           <form id="uploadAppForm" method="POST">
             <div class="form-grid">
@@ -493,7 +639,15 @@
               </div>
             </div>
             <div class="btn-row">
-              <button type="submit" class="btn btn-primary" id="btnUploadApp">Upload App to Workspace</button>
+              <button type="submit" class="btn btn-primary" id="btnUploadApp">Start Upload</button>
+              <button type="button" class="btn btn-danger" id="btnCancelUpload" hidden>Stop Upload</button>
+            </div>
+            <div class="progress-box" id="uploadProgressBox" hidden>
+              <div class="progress-head">
+                <strong id="uploadProgressText">Uploading...</strong>
+                <span class="muted" id="uploadProgressPct">0%</span>
+              </div>
+              <div class="progress-track"><div class="progress-fill" id="uploadProgressFill"></div></div>
             </div>
             <div id="uploadStatus" class="status-banner" hidden aria-live="polite"></div>
           </form>
@@ -510,7 +664,7 @@
         </article>
 
         <article class="card">
-          <h3>App Target Package &amp; Environment</h3>
+          <h3><span class="substep-kicker">Step 1B</span> Confirm Package ID &amp; Save Environment</h3>
           <p class="card-help">Tell QAlprit which Android package ID (or iOS bundle ID) this environment tests against.</p>
           <form id="envSaveForm" method="POST">
             <div class="form-grid">
@@ -527,7 +681,7 @@
               <div class="field">
                 <label for="envAndroidPkg">Android Package ID</label>
                 <input id="envAndroidPkg" type="text" placeholder="com.example.myapp" />
-                <span class="hint">Auto-filled when APK metadata is readable via aapt2.</span>
+                <span class="hint">Auto-filled directly from your <code>.apk</code>'s <code>AndroidManifest.xml</code> upon upload.</span>
               </div>
               <div class="field">
                 <label for="envIosBundle">iOS Bundle ID (optional)</label>
@@ -535,7 +689,7 @@
               </div>
             </div>
             <div class="btn-row">
-              <button type="submit" class="btn btn-primary">Save Environment Config</button>
+              <button type="submit" class="btn btn-primary" id="btnSaveEnv">Save Environment Config</button>
             </div>
             <div id="envStatus" class="status-banner" hidden aria-live="polite"></div>
           </form>
@@ -543,32 +697,49 @@
       </div>
 
       <article class="card">
-        <h3>Device &amp; Toolchain Check</h3>
-        <p class="card-help">Verify that Node, Appium, Java, Android SDK, and at least one phone/emulator (USB Debugging enabled) are detected before capturing screens or running tests.</p>
-        <div class="btn-row" style="margin-bottom:12px;">
-          <button type="button" class="btn btn-primary" id="btnRefreshDevices">Scan Connected Devices</button>
-          <button type="button" class="btn" id="btnRunDoctor">Run System Doctor</button>
+        <h3><span class="substep-kicker">Step 1C</span> Verify Toolchain &amp; Connected Devices</h3>
+        <p class="card-help">Verify QAlprit's bundled Node, Appium, Java, Android ADB, and your connected phone or emulator before capturing screens or running tests.</p>
+        <div class="btn-row" style="margin-bottom:8px;">
+          <button type="button" class="btn btn-primary" id="btnRunPreflight">Start All Checks (Tools + Devices)</button>
+          <button type="button" class="btn" id="btnRefreshDevices">Scan Devices Only</button>
+          <button type="button" class="btn" id="btnRunDoctor">Run System Doctor Only</button>
+          <button type="button" class="btn btn-danger" id="btnStopPreflight" hidden>Stop Check</button>
         </div>
-        <div class="grid-2" style="margin-bottom:0;">
+        <div class="progress-box" id="preflightProgressBox" hidden>
+          <div class="progress-head">
+            <strong id="preflightProgressText">Running diagnostics...</strong>
+            <span class="muted" id="preflightProgressElapsed">0.0s</span>
+          </div>
+          <div class="progress-track"><div class="progress-fill is-indeterminate" id="preflightProgressFill"></div></div>
+        </div>
+        <div class="grid-2" style="margin-top:12px;margin-bottom:0;">
           <div>
             <h4 style="margin:0 0 8px;font-size:0.86rem;">Connected Devices &amp; Emulators</h4>
             <table>
               <thead><tr><th>Platform</th><th>Name</th><th>Identifier</th><th>State</th></tr></thead>
-              <tbody id="devicesTable"><tr><td colspan="4" class="muted">Click "Scan Connected Devices" to probe adb / simctl.</td></tr></tbody>
+              <tbody id="devicesTable"><tr><td colspan="4" class="muted">Click "Start All Checks" or "Scan Devices Only" to probe adb / simctl.</td></tr></tbody>
             </table>
           </div>
           <div>
             <h4 style="margin:0 0 8px;font-size:0.86rem;">Toolchain Health (<code>qalprit doctor</code>)</h4>
             <table>
               <thead><tr><th>Component</th><th>Status</th><th>Details</th></tr></thead>
-              <tbody id="doctorTable"><tr><td colspan="3" class="muted">Click "Run System Doctor" to verify runtime tools.</td></tr></tbody>
+              <tbody id="doctorTable"><tr><td colspan="3" class="muted">Click "Start All Checks" or "Run System Doctor Only" to verify runtime tools.</td></tr></tbody>
             </table>
           </div>
         </div>
+        <details class="guide-details">
+          <summary>First-time setup help: What is <code>adb.exe</code> &amp; how do I connect my Android device?</summary>
+          <ul>
+            <li><strong><code>adb.exe</code> Firewall prompt:</strong> <code>adb.exe</code> is Google's official Android Debug Bridge bundled with QAlprit. Windows Firewall asks once when it starts its local daemon on port 5037 — click <strong>Allow access</strong>.</li>
+            <li><strong>Testing on a real Android phone:</strong> Enable <em>Settings &rarr; About phone &rarr; Tap Build number 7 times</em>, open <em>Developer options &rarr; USB debugging</em>, plug in via USB, and tap <strong>Allow USB debugging</strong> on the phone screen.</li>
+            <li><strong>Testing on an Android Emulator (optional):</strong> Virtual emulators are 2–4 GB and require Android Studio. Physical USB phones need zero extra downloads.</li>
+          </ul>
+        </details>
       </article>
 
       <div class="step-footer-nav">
-        <span class="muted">Workspace ready once an app binary or environment is set.</span>
+        <span class="muted" id="step1FooterHint">Complete 1A &rarr; 1B &rarr; 1C above, then continue to Screen Identification.</span>
         <button type="button" class="btn btn-primary" data-next-step="2">Next: Screen Identification &rarr;</button>
       </div>
     </section>
@@ -615,7 +786,15 @@
               </div>
             </div>
             <div class="btn-row">
-              <button type="submit" class="btn btn-primary" id="btnCaptureLive">Capture Live Screen Elements</button>
+              <button type="submit" class="btn btn-primary" id="btnCaptureLive">Start Live Screen Capture</button>
+              <button type="button" class="btn btn-danger" id="btnStopCapture" hidden>Stop Capture</button>
+            </div>
+            <div class="progress-box" id="captureProgressBox" hidden>
+              <div class="progress-head">
+                <strong id="captureProgressText">Launching Appium &amp; capturing UI hierarchy...</strong>
+                <span class="muted" id="captureProgressElapsed">0.0s</span>
+              </div>
+              <div class="progress-track"><div class="progress-fill is-indeterminate" id="captureProgressFill"></div></div>
             </div>
           </form>
         </article>
@@ -878,7 +1057,15 @@
           <div class="btn-row">
             <button type="button" class="btn" id="btnDryRun">Preview Execution Plan (Dry Run)</button>
             <button type="submit" class="btn btn-primary" id="btnStartLiveRun">Start Live Test Run</button>
+            <button type="button" class="btn btn-danger" id="btnStopLiveRun" hidden>Stop Test Run</button>
             <a id="openFinishedReportLink" class="btn btn-primary" href="#" target="_blank" rel="noopener" hidden>Open Finished HTML Report &rarr;</a>
+          </div>
+          <div class="progress-box" id="runProgressBox" hidden>
+            <div class="progress-head">
+              <strong id="runProgressPhase">Starting...</strong>
+              <span class="muted" id="runProgressMeta">0% &middot; 0.0s</span>
+            </div>
+            <div class="progress-track"><div class="progress-fill" id="runProgressFill"></div></div>
           </div>
           <div id="runStatusBanner" class="status-banner" hidden aria-live="polite"></div>
           <pre id="runLiveLog" class="console" hidden></pre>
@@ -956,6 +1143,13 @@
         overview: null,
         inspectCandidates: [],
         pollTimer: null,
+        doctorChecked: false,
+        doctorOk: false,
+        devicesChecked: false,
+        deviceCount: 0,
+        uploadXhr: null,
+        preflightController: null,
+        captureController: null,
         stepVocab: [
           "tap", "tap_if_visible", "type", "clear", "wait_for_visible",
           "wait_for_enabled", "wait_for_text", "wait_for_keyboard",
@@ -997,17 +1191,72 @@
         el.hidden = !msg;
       }
 
-      async function apiJson(url, payload) {
+      async function apiJson(url, payload, signal) {
         const res = await fetch(url, {
           method: payload !== undefined ? "POST" : "GET",
           headers: payload !== undefined ? { "Content-Type": "application/json" } : undefined,
-          body: payload !== undefined ? JSON.stringify(payload) : undefined
+          body: payload !== undefined ? JSON.stringify(payload) : undefined,
+          signal: signal
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
           throw new Error(data.error || ("Request failed with HTTP " + res.status));
         }
         return data;
+      }
+
+      function startElapsedTimer(elId) {
+        const started = performance.now();
+        const tick = () => {
+          const el = $(elId);
+          if (el) el.textContent = ((performance.now() - started) / 1000).toFixed(1) + "s";
+        };
+        tick();
+        const timer = setInterval(tick, 200);
+        return () => clearInterval(timer);
+      }
+
+      function updateStep1Checklist() {
+        const data = STATE.overview || {};
+        const apps = data.apps || [];
+        const hasApp = apps.length > 0;
+        const envs = data.environments || {};
+        const qaPkg = (envs.qa && envs.qa.android_package) || "";
+        const pkgSaved = Boolean(qaPkg && qaPkg !== "com.example.app");
+        const toolsDone = STATE.doctorChecked && STATE.doctorOk;
+
+        const setSeq = (id, numId, subId, numText, done, next, subText) => {
+          const item = $(id);
+          const num = $(numId);
+          const sub = $(subId);
+          if (!item) return;
+          item.classList.toggle("is-done", done);
+          item.classList.toggle("is-next", !done && next);
+          if (num) num.textContent = done ? "✓" : numText;
+          if (sub) sub.textContent = subText;
+        };
+
+        setSeq(
+          "seqItem1a", "seqNum1a", "seqSub1a", "1A", hasApp, !hasApp,
+          hasApp ? ("Ready: " + apps[0].name) : "Upload an .apk, .ipa, or .zip file"
+        );
+        setSeq(
+          "seqItem1b", "seqNum1b", "seqSub1b", "1B", pkgSaved, hasApp && !pkgSaved,
+          pkgSaved ? ("Saved: " + qaPkg) : "Enter or confirm Package ID & save"
+        );
+        const toolsSub = !STATE.doctorChecked && !STATE.devicesChecked
+          ? "Click Start All Checks below"
+          : (toolsDone ? "Tools OK" : "Check Toolchain Health") + " · " +
+            (STATE.deviceCount > 0 ? STATE.deviceCount + " device(s) ready" : "No USB phone/emulator");
+        setSeq("seqItem1c", "seqNum1c", "seqSub1c", "1C", toolsDone && STATE.deviceCount > 0, hasApp && pkgSaved && !(toolsDone && STATE.deviceCount > 0), toolsSub);
+
+        const hint = $("step1FooterHint");
+        if (hint) {
+          if (!hasApp) hint.textContent = "Next: upload your .apk in Step 1A.";
+          else if (!pkgSaved) hint.textContent = "Next: confirm the Android Package ID in Step 1B and click Save Environment Config.";
+          else if (!STATE.doctorChecked) hint.textContent = "Next: click Start All Checks in Step 1C to verify tools and devices.";
+          else hint.textContent = "Workspace configured. Click Next to identify screens (live device or sample XML).";
+        }
       }
 
       // ------------------------------------------------------------------
@@ -1383,6 +1632,7 @@
           $("compareBase").value = runs[1].dir_name;
           $("compareTarget").value = runs[0].dir_name;
         }
+        updateStep1Checklist();
       }
 
       async function loadOverview() {
@@ -1392,8 +1642,14 @@
       }
 
       // ------------------------------------------------------------------
-      // Step 1 Event Handlers
+      // Step 1 Event Handlers (1A Upload -> 1B Package ID -> 1C Checks)
       // ------------------------------------------------------------------
+      $("btnCancelUpload").addEventListener("click", () => {
+        if (STATE.uploadXhr) {
+          STATE.uploadXhr.abort();
+        }
+      });
+
       $("uploadAppForm").addEventListener("submit", async (e) => {
         e.preventDefault();
         const file = $("appFileInput").files[0];
@@ -1402,18 +1658,48 @@
           return;
         }
         $("btnUploadApp").disabled = true;
-        showBanner("uploadStatus", "Uploading " + file.name + "...", "");
+        $("btnCancelUpload").hidden = false;
+        $("uploadProgressBox").hidden = false;
+        $("uploadProgressFill").classList.remove("is-indeterminate");
+        $("uploadProgressFill").style.width = "0%";
+        $("uploadProgressText").textContent = "Uploading " + file.name + "...";
+        $("uploadProgressPct").textContent = "0%";
+        showBanner("uploadStatus", "", "");
+
         try {
-          const res = await fetch("/api/apps/upload?filename=" + encodeURIComponent(file.name), {
-            method: "POST",
-            body: file
+          const data = await new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            STATE.uploadXhr = xhr;
+            xhr.open("POST", "/api/apps/upload?filename=" + encodeURIComponent(file.name));
+            xhr.upload.onprogress = (ev) => {
+              if (!ev.lengthComputable) return;
+              const pct = Math.min(99, Math.round((ev.loaded / ev.total) * 100));
+              $("uploadProgressFill").style.width = pct + "%";
+              $("uploadProgressText").textContent = `Uploading ${file.name} (${fmtBytes(ev.loaded)} / ${fmtBytes(ev.total)})`;
+              $("uploadProgressPct").textContent = pct + "%";
+            };
+            xhr.upload.onload = () => {
+              $("uploadProgressFill").style.width = "100%";
+              $("uploadProgressText").textContent = "Extracting package metadata...";
+              $("uploadProgressPct").textContent = "100%";
+            };
+            xhr.onload = () => {
+              let parsed = {};
+              try { parsed = JSON.parse(xhr.responseText || "{}"); } catch (_) {}
+              if (xhr.status >= 200 && xhr.status < 300) resolve(parsed);
+              else reject(new Error(parsed.error || ("Upload failed with HTTP " + xhr.status)));
+            };
+            xhr.onerror = () => reject(new Error("Network error while uploading binary."));
+            xhr.onabort = () => reject(new Error("Upload stopped by user."));
+            xhr.send(file);
           });
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.error || "Upload failed");
+
           let msg = "Saved to " + data.rel_path + " (" + fmtBytes(data.size_bytes) + ").";
           if (data.detected_package) {
             $("envAndroidPkg").value = data.detected_package;
-            msg += " Detected Android package: " + data.detected_package + " (pre-filled on the right — click Save Environment Config).";
+            msg += " Detected Android package: " + data.detected_package + " (auto-filled in Step 1B — click Save Environment Config).";
+          } else {
+            msg += " Enter your Android Package ID in Step 1B and click Save Environment Config.";
           }
           showBanner("uploadStatus", msg, "ok");
           $("appFileInput").value = "";
@@ -1421,9 +1707,12 @@
           $("inspectAppSelect").value = data.rel_path;
           $("runAppSelect").value = data.rel_path;
         } catch (err) {
-          showBanner("uploadStatus", err.message, "error");
+          showBanner("uploadStatus", err.message, err.message.includes("stopped") ? "warn" : "error");
         } finally {
+          STATE.uploadXhr = null;
           $("btnUploadApp").disabled = false;
+          $("btnCancelUpload").hidden = true;
+          setTimeout(() => { $("uploadProgressBox").hidden = true; }, 800);
         }
       });
 
@@ -1443,40 +1732,87 @@
         }
       });
 
-      $("btnRefreshDevices").addEventListener("click", async () => {
-        $("devicesTable").innerHTML = '<tr><td colspan="4" class="muted">Scanning USB &amp; emulators...</td></tr>';
-        try {
-          const data = await apiJson("/api/devices");
-          const rows = (data.android || []).concat(data.ios || []);
-          if (!rows.length) {
-            const notes = [data.android_error, data.ios_error].filter(Boolean).join(" | ");
-            $("devicesTable").innerHTML = `<tr><td colspan="4" class="muted">No devices found. ${esc(notes)}</td></tr>`;
-            return;
-          }
-          $("devicesTable").innerHTML = rows.map((d) => `
-            <tr>
-              <td>${esc(d.platform)}</td>
-              <td>${esc(d.name)}</td>
-              <td><code>${esc(d.identifier)}</code></td>
-              <td><span class="badge ${d.state === "device" || d.state === "Booted" ? "b-ok" : "b-warn"}">${esc(d.state)}</span></td>
-            </tr>`).join("");
-        } catch (err) {
-          $("devicesTable").innerHTML = `<tr><td colspan="4" class="muted">${esc(err.message)}</td></tr>`;
+      async function runPreflightChecks(opts) {
+        if (STATE.preflightController) {
+          STATE.preflightController.abort();
         }
-      });
+        const ctrl = new AbortController();
+        STATE.preflightController = ctrl;
+        const stopTimer = startElapsedTimer("preflightProgressElapsed");
+        $("btnRunPreflight").disabled = true;
+        $("btnRefreshDevices").disabled = true;
+        $("btnRunDoctor").disabled = true;
+        $("btnStopPreflight").hidden = false;
+        $("preflightProgressBox").hidden = false;
+        $("preflightProgressFill").classList.add("is-indeterminate");
 
-      $("btnRunDoctor").addEventListener("click", async () => {
-        $("doctorTable").innerHTML = '<tr><td colspan="3" class="muted">Running diagnostics...</td></tr>';
         try {
-          const data = await apiJson("/api/doctor");
-          $("doctorTable").innerHTML = (data.checks || []).map((c) => {
-            const cls = c.status === "ok" ? "b-ok" : c.status === "fail" ? "b-fail" : c.status === "warn" ? "b-warn" : "b-skip";
-            const fix = c.remediation ? `<div class="muted" style="font-size:0.75rem;">${esc(c.remediation)}</div>` : "";
-            return `<tr><td>${esc(c.name)}</td><td><span class="badge ${cls}">${esc(c.status)}</span></td><td>${esc(c.detail || "")}${fix}</td></tr>`;
-          }).join("");
+          if (opts.devices) {
+            $("preflightProgressText").textContent = "Step 1/2: Scanning USB Android devices (adb) & emulators...";
+            $("devicesTable").innerHTML = '<tr><td colspan="4" class="muted">Scanning USB &amp; emulators...</td></tr>';
+            const data = await apiJson("/api/devices", undefined, ctrl.signal);
+            const rows = (data.android || []).concat(data.ios || []);
+            STATE.devicesChecked = true;
+            STATE.deviceCount = rows.filter((d) => d.state === "device" || d.state === "Booted" || /available/i.test(d.state || "")).length || rows.length;
+            if (!rows.length) {
+              const notes = [data.android_error, data.ios_error].filter(Boolean).join(" | ");
+              $("devicesTable").innerHTML = `<tr><td colspan="4" class="muted">No devices found. ${esc(notes)}</td></tr>`;
+            } else {
+              $("devicesTable").innerHTML = rows.map((d) => `
+                <tr>
+                  <td>${esc(d.platform)}</td>
+                  <td>${esc(d.name)}</td>
+                  <td><code>${esc(d.identifier)}</code></td>
+                  <td><span class="badge ${d.state === "device" || d.state === "Booted" ? "b-ok" : "b-warn"}">${esc(d.state)}</span></td>
+                </tr>`).join("");
+            }
+          }
+
+          if (opts.doctor) {
+            $("preflightProgressText").textContent = opts.devices
+              ? "Step 2/2: Verifying Python, Node.js, Appium 2, Java 17 & Android SDK..."
+              : "Running System Doctor (probing Node, Appium 2, Java 17, adb)...";
+            $("doctorTable").innerHTML = '<tr><td colspan="3" class="muted">Running diagnostics...</td></tr>';
+            const data = await apiJson("/api/doctor", undefined, ctrl.signal);
+            const checks = data.checks || [];
+            STATE.doctorChecked = true;
+            STATE.doctorOk = checks.every((c) => c.status !== "fail");
+            $("doctorTable").innerHTML = checks.map((c) => {
+              const cls = c.status === "ok" ? "b-ok" : c.status === "fail" ? "b-fail" : c.status === "warn" ? "b-warn" : "b-skip";
+              const fix = c.remediation ? `<div class="muted" style="font-size:0.75rem;">${esc(c.remediation)}</div>` : "";
+              return `<tr><td>${esc(c.name)}</td><td><span class="badge ${cls}">${esc(c.status)}</span></td><td>${esc(c.detail || "")}${fix}</td></tr>`;
+            }).join("");
+          }
+
+          $("preflightProgressFill").classList.remove("is-indeterminate");
+          $("preflightProgressFill").style.width = "100%";
+          $("preflightProgressText").textContent = "Preflight check complete.";
+          updateStep1Checklist();
         } catch (err) {
-          $("doctorTable").innerHTML = `<tr><td colspan="3" class="muted">${esc(err.message)}</td></tr>`;
+          const stopped = err.name === "AbortError";
+          $("preflightProgressFill").classList.remove("is-indeterminate");
+          $("preflightProgressText").textContent = stopped ? "Check stopped by user." : ("Check failed: " + err.message);
+          if (stopped && opts.devices) {
+            $("devicesTable").innerHTML = '<tr><td colspan="4" class="muted">Device scan stopped.</td></tr>';
+          }
+          if (stopped && opts.doctor) {
+            $("doctorTable").innerHTML = '<tr><td colspan="3" class="muted">System Doctor stopped.</td></tr>';
+          }
+        } finally {
+          stopTimer();
+          STATE.preflightController = null;
+          $("btnRunPreflight").disabled = false;
+          $("btnRefreshDevices").disabled = false;
+          $("btnRunDoctor").disabled = false;
+          $("btnStopPreflight").hidden = true;
         }
+      }
+
+      $("btnRunPreflight").addEventListener("click", () => runPreflightChecks({ devices: true, doctor: true }));
+      $("btnRefreshDevices").addEventListener("click", () => runPreflightChecks({ devices: true, doctor: false }));
+      $("btnRunDoctor").addEventListener("click", () => runPreflightChecks({ devices: false, doctor: true }));
+      $("btnStopPreflight").addEventListener("click", () => {
+        if (STATE.preflightController) STATE.preflightController.abort();
       });
 
       // ------------------------------------------------------------------
@@ -1529,10 +1865,23 @@
         }
       });
 
+      $("btnStopCapture").addEventListener("click", () => {
+        if (STATE.captureController) STATE.captureController.abort();
+      });
+
       $("inspectLiveForm").addEventListener("submit", async (e) => {
         e.preventDefault();
+        if (STATE.captureController) STATE.captureController.abort();
+        const ctrl = new AbortController();
+        STATE.captureController = ctrl;
+        const stopTimer = startElapsedTimer("captureProgressElapsed");
+
         $("btnCaptureLive").disabled = true;
-        showBanner("inspectStatus", "Connecting via Appium to capture live UI hierarchy (may take a few seconds)...", "");
+        $("btnStopCapture").hidden = false;
+        $("captureProgressBox").hidden = false;
+        $("captureProgressFill").classList.add("is-indeterminate");
+        $("captureProgressText").textContent = "Launching Appium & capturing live UI hierarchy...";
+        showBanner("inspectStatus", "", "");
         try {
           const data = await apiJson("/api/inspect/live", {
             platform: $("inspectPlatform").value,
@@ -1540,13 +1889,22 @@
             env_name: $("inspectEnvSelect").value,
             app_path: $("inspectAppSelect").value,
             screen_name: $("inspectScreenName").value.trim() || "screen"
-          });
+          }, ctrl.signal);
+          $("captureProgressFill").classList.remove("is-indeterminate");
+          $("captureProgressFill").style.width = "100%";
+          $("captureProgressText").textContent = `Captured ${(data.elements || []).length} element(s).`;
           renderInspectCandidates(data.elements || []);
           showBanner("inspectStatus", `Captured ${(data.elements || []).length} live element(s) from '${data.screen}'.`, "ok");
         } catch (err) {
-          showBanner("inspectStatus", err.message, "error");
+          const stopped = err.name === "AbortError";
+          $("captureProgressFill").classList.remove("is-indeterminate");
+          $("captureProgressText").textContent = stopped ? "Capture stopped by user." : "Capture failed.";
+          showBanner("inspectStatus", stopped ? "Live capture stopped by user." : err.message, stopped ? "warn" : "error");
         } finally {
+          stopTimer();
+          STATE.captureController = null;
           $("btnCaptureLive").disabled = false;
+          $("btnStopCapture").hidden = true;
         }
       });
 
@@ -1693,9 +2051,34 @@
       // ------------------------------------------------------------------
       // Step 5 Event Handlers (Runs & Reports)
       // ------------------------------------------------------------------
+      function renderRunProgress(st) {
+        const box = $("runProgressBox");
+        if (!box) return;
+        const pct = Number(st.progress_pct || 0);
+        const phase = st.phase || st.status || "Idle";
+        const elapsed = Number(st.elapsed_sec || 0).toFixed(1) + "s";
+        box.hidden = st.status === "idle";
+        $("runProgressPhase").textContent = st.run_id ? `${phase} (${st.run_id})` : phase;
+        $("runProgressMeta").textContent = `${pct}% · ${elapsed}`;
+        $("runProgressFill").style.width = pct + "%";
+        $("runProgressFill").classList.toggle("is-indeterminate", Boolean(st.running && pct < 20));
+      }
+
+      $("btnStopLiveRun").addEventListener("click", async () => {
+        $("btnStopLiveRun").disabled = true;
+        $("btnStopLiveRun").textContent = "Stopping...";
+        try {
+          await apiJson("/api/runs/stop", {});
+          await pollRunStatus();
+        } catch (err) {
+          showBanner("runStatusBanner", err.message, "error");
+        }
+      });
+
       async function pollRunStatus() {
         try {
           const st = await apiJson("/api/runs/status");
+          renderRunProgress(st);
           const logEl = $("runLiveLog");
           if (st.logs && st.logs.length) {
             logEl.hidden = false;
@@ -1703,7 +2086,11 @@
             logEl.scrollTop = logEl.scrollHeight;
           }
           if (st.running) {
-            showBanner("runStatusBanner", `Running ${st.run_id}...`, "");
+            $("btnStartLiveRun").disabled = true;
+            $("btnStopLiveRun").hidden = false;
+            $("btnStopLiveRun").disabled = st.status === "stopping";
+            $("btnStopLiveRun").textContent = st.status === "stopping" ? "Stopping..." : "Stop Test Run";
+            showBanner("runStatusBanner", `${st.phase || "Running"} ${st.run_id}...`, "");
             return;
           }
           if (STATE.pollTimer) {
@@ -1711,6 +2098,9 @@
             STATE.pollTimer = null;
           }
           $("btnStartLiveRun").disabled = false;
+          $("btnStopLiveRun").hidden = true;
+          $("btnStopLiveRun").disabled = false;
+          $("btnStopLiveRun").textContent = "Stop Test Run";
           if (st.status === "completed") {
             const s = st.summary || {};
             showBanner("runStatusBanner", `Run ${st.run_id} finished: ${s.passed || 0} passed, ${s.failed || 0} failed, ${s.skipped || 0} skipped.`, s.failed ? "warn" : "ok");
@@ -1719,6 +2109,8 @@
               $("openFinishedReportLink").hidden = false;
             }
             await loadOverview();
+          } else if (st.status === "stopped") {
+            showBanner("runStatusBanner", `Run ${st.run_id} was stopped by user.`, "warn");
           } else if (st.status === "error") {
             showBanner("runStatusBanner", `Run ${st.run_id} stopped with error: ${st.error}`, "error");
           }
@@ -1728,6 +2120,7 @@
             STATE.pollTimer = null;
           }
           $("btnStartLiveRun").disabled = false;
+          $("btnStopLiveRun").hidden = true;
         }
       }
 
@@ -1753,8 +2146,9 @@
             return;
           }
           $("btnStartLiveRun").disabled = true;
+          $("btnStopLiveRun").hidden = false;
           if (STATE.pollTimer) clearInterval(STATE.pollTimer);
-          STATE.pollTimer = setInterval(pollRunStatus, 1500);
+          STATE.pollTimer = setInterval(pollRunStatus, 1000);
           await pollRunStatus();
         } catch (err) {
           showBanner("runStatusBanner", err.message, "error");
