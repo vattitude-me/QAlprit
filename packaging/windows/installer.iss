@@ -1,7 +1,7 @@
 ; Inno Setup script for QAlprit Windows Installer (per-user, no admin required)
 
 #ifndef QAlpritVersion
-  #define QAlpritVersion "0.1.20"
+  #define QAlpritVersion "0.1.21"
 #endif
 
 #ifndef DistDir
@@ -187,9 +187,23 @@ function NeedsAndroidSdkRuntime(): Boolean;
 begin
   Result := ForceReinstallRuntime()
     or (not FileExists(ExpandConstant('{app}\runtime\android-sdk\platform-tools\adb.exe')))
+    or (not FileExists(ExpandConstant('{app}\runtime\android-sdk\platform-tools\AdbWinApi.dll')))
+    or (not FileExists(ExpandConstant('{app}\runtime\android-sdk\platform-tools\AdbWinUsbApi.dll')))
     or (not FileExists(ExpandConstant('{app}\runtime\android-sdk\cmdline-tools\latest\bin\sdkmanager.bat')))
     or (not FileExists(ExpandConstant('{app}\runtime\android-sdk\cmdline-tools\latest\bin\android.exe')))
     or (not FileExists(ExpandConstant('{app}\runtime\android-sdk\build-tools\35.0.1\aapt2.exe')));
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  Rc: Integer;
+begin
+  Result := '';
+  Exec('taskkill', '/F /IM QAlprit.exe /T', '', SW_HIDE, ewWaitUntilTerminated, Rc);
+  Exec('taskkill', '/F /IM qalprit-cli.exe /T', '', SW_HIDE, ewWaitUntilTerminated, Rc);
+  Exec('taskkill', '/F /IM adb.exe /T', '', SW_HIDE, ewWaitUntilTerminated, Rc);
+  Exec('taskkill', '/F /IM emulator.exe /T', '', SW_HIDE, ewWaitUntilTerminated, Rc);
+  Exec('taskkill', '/F /IM qemu-system-x86_64.exe /T', '', SW_HIDE, ewWaitUntilTerminated, Rc);
 end;
 
 function NeedsJavaRuntime(): Boolean;
@@ -199,15 +213,20 @@ end;
 
 function NeedsEmulatorSetup(): Boolean;
 var
-  DataDir, LegacyRoot: String;
+  DataDir, LegacyRoot, SysSdk: String;
+  HasCompleteSysSdk: Boolean;
 begin
   DataDir := AddBackslash(ChosenDataDir());
   LegacyRoot := AddBackslash(GetEnv('USERPROFILE'));
+  SysSdk := ExpandConstant('{localappdata}\Android\Sdk');
+  HasCompleteSysSdk := FileExists(SysSdk + '\emulator\emulator.exe')
+    and FileExists(SysSdk + '\platform-tools\AdbWinApi.dll')
+    and DirExists(SysSdk + '\system-images\android-34');
   Result := ForceReinstallRuntime()
     or (
       (not FileExists(DataDir + 'android-sdk\emulator\emulator.exe'))
       and (not FileExists(LegacyRoot + '.qalprit\android-sdk\emulator\emulator.exe'))
-      and (not FileExists(ExpandConstant('{localappdata}\Android\Sdk\emulator\emulator.exe')))
+      and (not HasCompleteSysSdk)
     )
     or (
       (not FileExists(DataDir + 'avd\QAlprit_Pixel.avd\config.ini'))
@@ -224,12 +243,18 @@ end;
 
 procedure SaveQAlpritSettings();
 var
-  SettingsDir, SettingsFile, JsonBody, ReuseVal: String;
+  SettingsDir, SettingsFile, JsonBody, ReuseVal, DetSdk: String;
 begin
   SettingsDir := ExpandConstant('{localappdata}\QAlprit');
   ForceDirectories(SettingsDir);
   SettingsFile := SettingsDir + '\settings.json';
-  if (DetectedAndroidSdk <> '') and FileExists(AddBackslash(DetectedAndroidSdk) + 'emulator\emulator.exe') and (Pos('\QAlprit\', DetectedAndroidSdk) = 0) and (Pos('\.qalprit\', DetectedAndroidSdk) = 0) then
+  DetSdk := AddBackslash(DetectedAndroidSdk);
+  if (DetectedAndroidSdk <> '')
+    and (Pos('\QAlprit\', DetectedAndroidSdk) = 0)
+    and (Pos('\.qalprit\', DetectedAndroidSdk) = 0)
+    and FileExists(DetSdk + 'emulator\emulator.exe')
+    and FileExists(DetSdk + 'platform-tools\AdbWinApi.dll')
+    and DirExists(DetSdk + 'system-images\android-34') then
     ReuseVal := 'true'
   else
     ReuseVal := 'false';

@@ -220,6 +220,17 @@ def _link_or_copy_dir(src: Path, dst: Path, *, force_refresh: bool = False) -> N
 
     dst.parent.mkdir(parents=True, exist_ok=True)
     if platform.system() == "Windows":
+        # Ensure locked adb.exe daemon does not block refreshing platform-tools DLLs.
+        if force_refresh and dst.name == "platform-tools":
+            try:
+                subprocess.run(
+                    ["taskkill", "/F", "/IM", "adb.exe"],
+                    capture_output=True,
+                    timeout=5,
+                    **win_subprocess_kwargs(),
+                )
+            except Exception:
+                pass
         # Copy real directories on Windows so Python & Java tools never hit
         # WinError 448 ("untrusted mount point") on NTFS junctions.
         shutil.copytree(src, dst, dirs_exist_ok=True)
@@ -246,10 +257,20 @@ def _sync_bundled_sdk_into(user_sdk: Path) -> None:
         except OSError:
             prev_src = ""
         source_changed = bool(prev_src != resolved_src)
+        pt_dst = user_sdk / "platform-tools"
+        pt_broken = (
+            platform.system() == "Windows"
+            and (pt_dst / "adb.exe").exists()
+            and not (pt_dst / "AdbWinApi.dll").is_file()
+        )
         for sub in ("platform-tools", "build-tools", "cmdline-tools"):
             src_sub = cand_root / sub
             if src_sub.exists():
-                _link_or_copy_dir(src_sub, user_sdk / sub, force_refresh=source_changed)
+                _link_or_copy_dir(
+                    src_sub,
+                    user_sdk / sub,
+                    force_refresh=source_changed or (sub == "platform-tools" and pt_broken),
+                )
         try:
             marker_file.write_text(resolved_src, encoding="utf-8")
         except OSError:
@@ -293,6 +314,32 @@ def _system_android_sdk_candidates() -> list[Path]:
     return unique
 
 
+def _is_healthy_sdk_tool(cand: Path) -> bool:
+    """Return True when tool binary exists and required side-by-side Windows DLLs are intact."""
+    try:
+        if not cand.exists():
+            return False
+    except OSError:
+        return False
+    if platform.system() == "Windows" and cand.name.lower() == "adb.exe":
+        return (cand.parent / "AdbWinApi.dll").is_file()
+    return True
+
+
+def _sdk_has_complete_emulator(path: Path) -> bool:
+    """Return True when an SDK contains emulator, at least one system image, and healthy tools."""
+    if not (path / "emulator").is_dir():
+        return False
+    sys_img_dir = path / "system-images"
+    if not sys_img_dir.is_dir() or not any(sys_img_dir.rglob("source.properties")):
+        return False
+    if platform.system() == "Windows":
+        adb_cand = path / "platform-tools" / "adb.exe"
+        if adb_cand.exists() and not (path / "platform-tools" / "AdbWinApi.dll").is_file():
+            return False
+    return True
+
+
 def find_system_android_sdk(*, require_emulator: bool = False) -> Path | None:
     """Locate a pre-existing non-bundled Android SDK (e.g. Android Studio SDK)."""
     rt = find_bundled_runtime_dir()
@@ -305,7 +352,7 @@ def find_system_android_sdk(*, require_emulator: bool = False) -> Path | None:
                 continue
         except OSError:
             pass
-        if require_emulator and not ((path / "emulator").is_dir() and (path / "system-images").is_dir()):
+        if require_emulator and not _sdk_has_complete_emulator(path):
             continue
         return path
     return None
@@ -323,9 +370,9 @@ def find_android_sdk() -> Path | None:
     """Locate Android SDK directory across QAlprit storage, bundled runtime, and system SDKs."""
     settings = load_user_settings()
     if settings.get("prefer_existing_system_sdk"):
-        sys_sdk = find_system_android_sdk()
-        if sys_sdk is not None:
-            return sys_sdk
+        complete_sys = find_system_android_sdk(require_emulator=True)
+        if complete_sys is not None:
+            return complete_sys
 
     user_sdk = get_user_android_sdk_dir()
     if user_sdk.exists() and (
@@ -333,6 +380,11 @@ def find_android_sdk() -> Path | None:
     ):
         _sync_bundled_sdk_into(user_sdk)
         return user_sdk
+
+    if settings.get("prefer_existing_system_sdk"):
+        any_sys = find_system_android_sdk(require_emulator=False)
+        if any_sys is not None:
+            return any_sys
 
     candidates: list[Path] = []
     rt = find_bundled_runtime_dir()
@@ -344,6 +396,45 @@ def find_android_sdk() -> Path | None:
         if path.exists():
             return path
     return None
+
+
+def find_sdk_for_avd(avd_name: str = DEFAULT_AVD_NAME) -> Path | None:
+    """Resolve the Android SDK directory containing the given AVD's image.sysdir.1."""
+    ini_path = get_qalprit_avd_home(avd_name) / f"{avd_name}.avd" / "config.ini"
+    sysdir_rel = ""
+    if ini_path.is_file():
+        try:
+            for line in ini_path.read_text(encoding="utf-8", errors="replace").splitlines():
+                if line.strip().lower().startswith("image.sysdir.1="):
+                    raw_val = line.split("=", 1)[1].strip().replace("\\", "/").strip("/")
+                    if raw_val:
+                        sysdir_rel = raw_val
+                    break
+        except OSError:
+            sysdir_rel = ""
+
+    if sysdir_rel:
+        candidates: list[Path] = [
+            get_user_android_sdk_dir(),
+            get_qalprit_data_dir() / "android-sdk",
+            get_legacy_dot_qalprit_dir() / "android-sdk",
+        ]
+        active = find_android_sdk()
+        if active is not None:
+            candidates.insert(1, active)
+        candidates.extend(_system_android_sdk_candidates())
+
+        seen: set[str] = set()
+        for cand in candidates:
+            key = str(cand)
+            if key in seen:
+                continue
+            seen.add(key)
+            if (cand / sysdir_rel).is_dir():
+                if cand == get_user_android_sdk_dir():
+                    _sync_bundled_sdk_into(cand)
+                return cand
+    return find_android_sdk()
 
 
 def _cmdline_tools_bin_dirs(sdk: Path) -> list[Path]:
@@ -370,11 +461,8 @@ def _tool_in_dirs(dirs: list[Path], names: list[str]) -> str | None:
     for directory in dirs:
         for fname in names:
             cand = directory / fname
-            try:
-                if cand.exists():
-                    return str(cand)
-            except OSError:
-                continue
+            if _is_healthy_sdk_tool(cand):
+                return str(cand)
     return None
 
 
@@ -431,13 +519,27 @@ def find_android_tool(name: str) -> str | None:
         if modern:
             return modern
 
+    if not is_cli_java_tool:
+        # Fall back to QAlprit writable/bundled tools if system SDK has missing DLLs (e.g. AdbWinApi.dll).
+        fallback_dirs: list[Path] = [
+            get_user_android_sdk_dir() / "platform-tools",
+            get_user_android_sdk_dir() / "emulator",
+        ]
+        rt = find_bundled_runtime_dir()
+        if rt is not None:
+            for sub in ("android-sdk", "android"):
+                fallback_dirs.extend([rt / sub / "platform-tools", rt / sub / "emulator"])
+        fallback = _tool_in_dirs(fallback_dirs, names)
+        if fallback:
+            return fallback
+
     if sdk:
         legacy = _tool_in_dirs([sdk / "tools" / "bin"], names)
         if legacy:
             return legacy
 
     direct = shutil.which(name)
-    if direct:
+    if direct and _is_healthy_sdk_tool(Path(direct)):
         return direct
     return None
 

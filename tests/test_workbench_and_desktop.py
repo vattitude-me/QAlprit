@@ -1322,6 +1322,7 @@ def test_sdkmanager_prefers_modern_cmdline_tools_over_legacy_tools_bin(tmp_path:
     monkeypatch.setenv("ANDROID_HOME", str(sys_sdk))
     monkeypatch.setattr(doctor.platform, "system", lambda: "Darwin")
     monkeypatch.setattr(doctor, "find_bundled_runtime_dir", lambda: bundled_rt)
+    monkeypatch.setattr(doctor, "_system_android_sdk_candidates", lambda: [sys_sdk])
     save_user_settings({"prefer_existing_system_sdk": True})
 
     # Even with prefer_existing_system_sdk=True, legacy tools/bin must NOT beat bundled cmdline-tools
@@ -1335,3 +1336,59 @@ def test_sdkmanager_prefers_modern_cmdline_tools_over_legacy_tools_bin(tmp_path:
     ver_mgr = ver_ct / "sdkmanager"
     ver_mgr.write_text("#!/bin/sh\n", encoding="utf-8")
     assert doctor.find_android_tool("sdkmanager") == str(ver_mgr)
+
+
+def test_avd_sdk_matching_and_windows_adb_dll_health(tmp_path: Path, monkeypatch) -> None:
+    """Incomplete system SDKs must not break AVD boot or return adb.exe missing AdbWinApi.dll."""
+    from qalprit import doctor
+    from qalprit.paths import save_user_settings
+
+    data_dir = tmp_path / "appdata"
+    settings_path = data_dir / "settings.json"
+    sys_sdk = tmp_path / "Android" / "Sdk"
+    qal_sdk = data_dir / "android-sdk"
+    bundled_rt = tmp_path / "runtime"
+    avd_dir = data_dir / "avd" / "QAlprit_Pixel.avd"
+
+    (sys_sdk / "emulator").mkdir(parents=True)
+    (sys_sdk / "platform-tools").mkdir(parents=True)
+    # System SDK has adb.exe WITHOUT AdbWinApi.dll and NO system-images!
+    (sys_sdk / "platform-tools" / "adb.exe").write_text("broken", encoding="utf-8")
+
+    (qal_sdk / "emulator").mkdir(parents=True)
+    sysimg = qal_sdk / "system-images" / "android-34" / "google_apis" / "x86_64"
+    sysimg.mkdir(parents=True)
+    (sysimg / "source.properties").write_text("Pkg.Revision=14\n", encoding="utf-8")
+
+    bundled_pt = bundled_rt / "android-sdk" / "platform-tools"
+    bundled_pt.mkdir(parents=True)
+    (bundled_pt / "adb.exe").write_text("good", encoding="utf-8")
+    (bundled_pt / "AdbWinApi.dll").write_text("dll", encoding="utf-8")
+    (bundled_pt / "AdbWinUsbApi.dll").write_text("dll", encoding="utf-8")
+
+    avd_dir.mkdir(parents=True)
+    (avd_dir / "config.ini").write_text(
+        "image.sysdir.1=system-images\\android-34\\google_apis\\x86_64\\\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("QALPRIT_DATA_DIR", str(data_dir))
+    monkeypatch.setenv("QALPRIT_SETTINGS_PATH", str(settings_path))
+    monkeypatch.setenv("ANDROID_HOME", str(sys_sdk))
+    monkeypatch.setattr(doctor.platform, "system", lambda: "Windows")
+    monkeypatch.setattr(doctor, "find_bundled_runtime_dir", lambda: bundled_rt)
+    monkeypatch.setattr(doctor.shutil, "which", lambda _name: None)
+    save_user_settings({"prefer_existing_system_sdk": True})
+
+    # Even with prefer_existing_system_sdk=True, incomplete system SDK does NOT beat populated qal_sdk
+    assert doctor.find_android_sdk() == qal_sdk.resolve()
+    assert doctor.find_sdk_for_avd("QAlprit_Pixel") == qal_sdk.resolve()
+
+    # Broken adb.exe (without AdbWinApi.dll) is healed / skipped in favor of healthy AdbWinApi.dll copy
+    adb_path = doctor.find_android_tool("adb")
+    assert adb_path is not None
+    assert (Path(adb_path).parent / "AdbWinApi.dll").is_file()
+
+    iss_text = (Path(__file__).resolve().parents[1] / "packaging" / "windows" / "installer.iss").read_text(encoding="utf-8")
+    assert "PrepareToInstall" in iss_text
+    assert "AdbWinApi.dll" in iss_text
