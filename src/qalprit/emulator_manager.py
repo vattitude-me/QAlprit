@@ -18,6 +18,7 @@ from qalprit.doctor import (
     find_android_sdk,
     find_android_tool,
     find_cmdline_tool,
+    find_sdk_for_avd,
     find_system_android_sdk,
     prepare_writable_android_sdk,
     win_subprocess_kwargs,
@@ -74,7 +75,7 @@ def _has_system_image(sdk: Path | None) -> bool:
 
 def get_emulator_status() -> dict[str, Any]:
     """Inspect Android Emulator and macOS iOS Simulator readiness cleanly."""
-    sdk = find_android_sdk()
+    sdk = find_sdk_for_avd(DEFAULT_AVD_NAME) or find_android_sdk()
     sdkmgr = find_android_tool("sdkmanager")
     avdmgr = find_android_tool("avdmanager")
     emu_bin = find_android_tool("emulator")
@@ -480,17 +481,23 @@ class EmulatorJobManager:
 
         def _worker() -> None:
             env = build_appium_env(dict(os.environ))
-            sdk = find_android_sdk()
+            sdk = find_sdk_for_avd(target_avd)
+            launch_emu = emu_bin
             if sdk is not None:
                 env["ANDROID_HOME"] = str(sdk)
                 env["ANDROID_SDK_ROOT"] = str(sdk)
+                for exe_name in (("emulator.exe", "emulator") if platform.system() == "Windows" else ("emulator",)):
+                    cand = sdk / "emulator" / exe_name
+                    if cand.exists():
+                        launch_emu = str(cand)
+                        break
             env.setdefault("ANDROID_AVD_HOME", str(get_qalprit_avd_home(target_avd)))
             env.setdefault("ANDROID_USER_HOME", str(get_android_user_home(target_avd)))
             log_path = get_qalprit_data_dir() / "logs" / "emulator-boot.log"
             try:
                 log_path.parent.mkdir(parents=True, exist_ok=True)
                 cmd = [
-                    emu_bin,
+                    launch_emu,
                     "-avd",
                     target_avd,
                     "-no-boot-anim",
@@ -532,6 +539,11 @@ class EmulatorJobManager:
                         msg = f"Android emulator exited early with code {proc.returncode}."
                         if tail:
                             msg = f"{msg} Output: {tail}"
+                        if "Broken AVD system path" in msg:
+                            msg += (
+                                " Hint: Uncheck 'Use existing system Android SDK' in Step 1 "
+                                "and click Setup Virtual Android Emulator to align the system image."
+                            )
                         raise RuntimeError(msg)
 
                     cur_devs, _ = list_android_devices()
