@@ -182,7 +182,7 @@ echo "${DOC_JSON}" | "${PYTHON_BIN}" -c '
 import json, sys
 items = json.load(sys.stdin)
 by_name = {i["name"]: i for i in items}
-for req in ("Python", "Node.js", "Appium", "Appium driver: uiautomator2", "Appium driver: xcuitest", "Java (JDK)", "Android SDK", "Android adb"):
+for req in ("Python", "Appium Python client", "Node.js", "Appium", "Appium driver: uiautomator2", "Appium driver: xcuitest", "Java (JDK)", "Android SDK", "Android adb"):
     assert req in by_name, f"Missing check: {req}"
     assert by_name[req]["status"] == "ok", f"Expected {req} ok, got {by_name[req]}"
 print("All bundled runtime checks OK")
