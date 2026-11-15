@@ -19,6 +19,7 @@ from qalprit.config_loader import load_screens
 from qalprit.devices import list_android_devices, list_ios_simulators
 from qalprit.doctor import run_doctor
 from qalprit.emulator_manager import DEFAULT_AVD_NAME, EmulatorJobManager
+from qalprit.recorder import RecorderManager
 from qalprit.results import load_results_json
 from qalprit.spec_loader import STEP_VOCABULARY, load_flows, load_specs
 from qalprit.workbench_api import (
@@ -266,12 +267,14 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
         results_dir: Path,
         job_manager: RunJobManager | None = None,
         emulator_manager: EmulatorJobManager | None = None,
+        recorder_manager: RecorderManager | None = None,
         **kwargs: Any,
     ) -> None:
         self.project_root = project_root.resolve()
         self.results_dir = results_dir.resolve()
         self.job_manager = job_manager or RunJobManager()
         self.emulator_manager = emulator_manager or EmulatorJobManager()
+        self.recorder_manager = recorder_manager or RecorderManager()
         super().__init__(*args, **kwargs)
 
     def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
@@ -363,6 +366,18 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
 
         if req_path == "/api/emulator/status":
             self._send_json(self.emulator_manager.status())
+            return
+
+        if req_path == "/api/recorder/status":
+            self._send_json(self.recorder_manager.status())
+            return
+
+        if req_path == "/api/recorder/screenshot":
+            png = self.recorder_manager.screenshot_bytes()
+            if not png:
+                self._send_bytes(b"No screenshot captured yet", "text/plain; charset=utf-8", HTTPStatus.NOT_FOUND)
+                return
+            self._send_bytes(png, "image/png")
             return
 
         if req_path == "/api/compare":
@@ -510,6 +525,8 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
                 return
 
             if req_path == "/api/runs/start":
+                if self.recorder_manager.status().get("active"):
+                    self.recorder_manager.stop()
                 self._send_json(self.job_manager.start(self.project_root, self.results_dir, body))
                 return
 
@@ -545,6 +562,79 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
                 self._send_json(self.emulator_manager.stop())
                 return
 
+            if req_path == "/api/recorder/start":
+                self._send_json(
+                    self.recorder_manager.start(
+                        self.project_root,
+                        platform=str(body.get("platform") or "android"),
+                        device_profile=str(body.get("device_profile") or "android_emulator"),
+                        env_name=str(body.get("env_name") or "qa"),
+                        app_path_str=str(body.get("app_path") or ""),
+                        screen_name=str(body.get("screen_name") or "login"),
+                        flow_name=str(body.get("flow_name") or "recorded_flow"),
+                    )
+                )
+                return
+
+            if req_path == "/api/recorder/action":
+                raw_idx = body.get("element_index")
+                raw_x = body.get("x")
+                raw_y = body.get("y")
+                self._send_json(
+                    self.recorder_manager.perform_action(
+                        action=str(body.get("action") or "tap"),
+                        element_index=int(raw_idx) if raw_idx is not None else None,
+                        x=float(raw_x) if raw_x is not None else None,
+                        y=float(raw_y) if raw_y is not None else None,
+                        value=str(body.get("value") or ""),
+                        secret=bool(body.get("secret", False)),
+                        direction=str(body.get("direction") or "up"),
+                        screen_name=str(body.get("screen_name") or ""),
+                        key_override=str(body.get("key_override") or ""),
+                    )
+                )
+                return
+
+            if req_path == "/api/recorder/sync":
+                self._send_json(
+                    self.recorder_manager.sync_screen(
+                        screen_name=str(body.get("screen_name") or ""),
+                    )
+                )
+                return
+
+            if req_path == "/api/recorder/undo":
+                self._send_json(self.recorder_manager.undo())
+                return
+
+            if req_path == "/api/recorder/update":
+                self._send_json(
+                    self.recorder_manager.update_step(
+                        int(body.get("index") if body.get("index") is not None else -1),
+                        value=body.get("value"),
+                        secret=body.get("secret"),
+                        delete=bool(body.get("delete", False)),
+                    )
+                )
+                return
+
+            if req_path == "/api/recorder/save":
+                self._send_json(
+                    self.recorder_manager.save_recorded(
+                        flow_name=str(body.get("flow_name") or "recorded_flow"),
+                        suite=str(body.get("suite") or "smoke"),
+                        test_id=str(body.get("test_id") or ""),
+                        test_title=str(body.get("test_title") or ""),
+                        create_test=bool(body.get("create_test", True)),
+                        stop_after=bool(body.get("stop_after", True)),
+                    )
+                )
+                return
+
+            if req_path == "/api/recorder/stop":
+                self._send_json(self.recorder_manager.stop())
+                return
+
             self._send_json({"error": f"Unknown API endpoint: {req_path}"}, status=HTTPStatus.NOT_FOUND)
         except ValueError as exc:
             self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
@@ -565,12 +655,14 @@ def create_ui_server(
     res_dir = (results_dir or (root / "results")).resolve()
     job_manager = RunJobManager()
     emulator_manager = EmulatorJobManager()
+    recorder_manager = RecorderManager()
     handler = partial(
         _WorkbenchHandler,
         project_root=root,
         results_dir=res_dir,
         job_manager=job_manager,
         emulator_manager=emulator_manager,
+        recorder_manager=recorder_manager,
     )
     try:
         return ThreadingHTTPServer((host, port), handler)

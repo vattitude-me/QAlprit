@@ -719,3 +719,179 @@ def test_workspace_apps_detect_android_and_ios_packages_and_ui_layout(tmp_path: 
     assert "[hidden] { display: none !important; }" in ui_html
     assert ui_html.index("Step 1A") < ui_html.index("Step 1B") < ui_html.index("Step 1C")
     assert 'id="activeAppSelect"' in ui_html
+    assert 'id="recStartForm"' in ui_html
+
+
+def test_recorder_hit_test_diff_and_save_flow_and_spec(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import io
+    import json
+    import threading
+    import time
+    import urllib.request
+    from PIL import Image
+    import qalprit.recorder as rec_mod
+    from qalprit.ui_server import create_ui_server
+    from qalprit.validator import validate_project
+
+    ws = ensure_workspace(tmp_path / "rec_ws")
+
+    buf = io.BytesIO()
+    Image.new("RGB", (1080, 2400), color=(30, 41, 59)).save(buf, format="PNG")
+    fake_png = buf.getvalue()
+
+    login_xml = (
+        '<hierarchy>'
+        '<android.widget.EditText resource-id="com.demo:id/et_01" hint="Email" text="" clickable="true" bounds="[60,300][1000,420]"/>'
+        '<android.widget.Button resource-id="com.demo:id/btn_go" text="Sign In" clickable="true" bounds="[60,500][1000,620]"/>'
+        '</hierarchy>'
+    )
+    home_xml = (
+        '<hierarchy>'
+        '<android.widget.TextView resource-id="com.demo:id/welcome" text="Welcome Home" bounds="[60,200][900,300]"/>'
+        '</hierarchy>'
+    )
+
+    actions_log: list[tuple[str, str]] = []
+
+    class _FakeEl:
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+        def click(self) -> None:
+            actions_log.append(("click", self.name))
+
+        def clear(self) -> None:
+            actions_log.append(("clear", self.name))
+
+        def send_keys(self, val: str) -> None:
+            actions_log.append(("send_keys", val))
+
+    class _FakeDriver:
+        def __init__(self) -> None:
+            self.xml = login_xml
+            self.capabilities = {"deviceUDID": "emulator-5554"}
+
+        @property
+        def page_source(self) -> str:
+            return self.xml
+
+        def find_element(self, _strat: str, val: str) -> _FakeEl:
+            if val == "com.demo:id/btn_go":
+                self.xml = home_xml
+            return _FakeEl(val)
+
+        def get_screenshot_as_png(self) -> bytes:
+            return fake_png
+
+        def get_window_size(self) -> dict[str, int]:
+            return {"width": 1080, "height": 2400}
+
+        def quit(self) -> None:
+            return
+
+    class _FakeAppiumMgr:
+        url = "http://127.0.0.1:4723"
+
+        def __init__(self, **_kwargs: object) -> None:
+            pass
+
+        def __enter__(self) -> "_FakeAppiumMgr":
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return
+
+    monkeypatch.setattr(rec_mod, "AppiumManager", _FakeAppiumMgr)
+    monkeypatch.setattr(rec_mod, "create_appium_driver", lambda *_a, **_kw: _FakeDriver())
+    monkeypatch.setattr(rec_mod.RecorderManager, "_start_android_getevent_watcher", lambda *_a: None)
+
+    server = create_ui_server(ws, host="127.0.0.1", port=0)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    def _post(path: str, payload: dict[str, object]) -> dict[str, object]:
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{port}{path}",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req) as r:
+            return json.loads(r.read().decode("utf-8"))
+
+    try:
+        _post("/api/recorder/start", {
+            "platform": "android",
+            "device_profile": "android_emulator",
+            "env_name": "qa",
+            "screen_name": "login",
+        })
+        for _ in range(30):
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/recorder/status") as r:
+                st = json.loads(r.read().decode("utf-8"))
+            if st.get("active"):
+                break
+            time.sleep(0.05)
+        assert st["active"] is True
+        assert st["elements"][0]["key"] == "email_input"
+
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/recorder/screenshot") as r:
+            assert r.status == 200
+            assert r.read()[:8] == b"\x89PNG\r\n\x1a\n"
+
+        # 1. Type into Email input using coordinates inside [60,300][1000,420]
+        st1 = _post("/api/recorder/action", {
+            "action": "type",
+            "x": 200,
+            "y": 350,
+            "value": "qa@example.com",
+            "screen_name": "login",
+        })
+        assert len(st1["steps"]) == 1
+
+        # 2. Tap Sign In button using coordinates inside [60,500][1000,620]
+        st2 = _post("/api/recorder/action", {
+            "action": "tap",
+            "x": 300,
+            "y": 550,
+            "screen_name": "login",
+        })
+        assert len(st2["steps"]) == 2
+        assert st2["elements"][0]["key"] == "welcome_home"
+
+        # 3. Assert Welcome Home visible on home screen
+        st3 = _post("/api/recorder/action", {
+            "action": "assert_visible",
+            "element_index": 0,
+            "screen_name": "home",
+        })
+        assert len(st3["steps"]) == 3
+
+        # 4. Save workflow + repeatable test journey and validate workspace cleanly
+        saved = _post("/api/recorder/save", {
+            "flow_name": "auth/recorded_login",
+            "suite": "smoke",
+            "test_id": "REC-101",
+            "test_title": "Recorded login test",
+            "create_test": True,
+            "stop_after": True,
+        })
+        assert saved["ok"] is True
+        assert saved["flow"]["name"] == "auth/recorded_login"
+        assert saved["spec"]["id"] == "REC-101"
+
+        val = validate_project(ws, env_name="qa", platform="android")
+        assert val.ok is True, f"Expected recorded project validation to pass: {val.errors}"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    # Check direct-emulator changed editable input detection helper
+    changed = rec_mod.detect_changed_editable_inputs(
+        [{"recommended_strategy": "id", "recommended_value": "com.demo:id/email", "editable": True, "text": "", "hint": "Email"}],
+        [{"recommended_strategy": "id", "recommended_value": "com.demo:id/email", "editable": True, "text": "alice@demo.com", "hint": "Email"}],
+    )
+    assert len(changed) == 1 and changed[0][1] == "alice@demo.com"

@@ -586,6 +586,92 @@
       margin-bottom: 6px;
     }
 
+    .rec-grid {
+      display: grid;
+      grid-template-columns: minmax(260px, 340px) 1fr;
+      gap: 16px;
+      margin-top: 12px;
+      align-items: start;
+    }
+    @media (max-width: 900px) {
+      .rec-grid { grid-template-columns: 1fr; }
+    }
+    .rec-phone-frame {
+      position: relative;
+      border: 2px solid var(--border-strong);
+      border-radius: 14px;
+      overflow: hidden;
+      background: #0b1120;
+      cursor: crosshair;
+      user-select: none;
+    }
+    .rec-phone-frame img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+    .rec-overlays {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+    .rec-box {
+      position: absolute;
+      border: 1px solid rgba(45, 212, 191, 0.35);
+      background: rgba(15, 118, 110, 0.04);
+      pointer-events: auto;
+      cursor: pointer;
+      transition: background 0.12s, border-color 0.12s;
+    }
+    .rec-box:hover, .rec-box.is-selected {
+      border-color: var(--accent);
+      background: rgba(15, 118, 110, 0.22);
+      z-index: 4;
+    }
+    .rec-type-bar {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border: 1px solid var(--accent);
+      border-radius: 9px;
+      background: var(--accent-soft);
+    }
+    .rec-el-list {
+      max-height: 290px;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      background: var(--surface-alt);
+    }
+    .rec-el-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.82rem;
+    }
+    .rec-el-item:last-child { border-bottom: none; }
+    .rec-el-item:hover { background: var(--surface); }
+    .rec-steps-list {
+      max-height: 220px;
+      overflow-y: auto;
+      display: grid;
+      gap: 6px;
+      margin-top: 6px;
+    }
+    .rec-step-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 7px 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface-alt);
+      font-size: 0.81rem;
+    }
+
     footer {
       max-width: 1260px;
       margin: 0 auto 36px;
@@ -883,13 +969,146 @@
     <!-- ================================================================ -->
     <section class="wizard-step" id="step-2" data-step-panel="2" aria-labelledby="heading-step-2" hidden>
       <div class="step-header">
-        <h2 id="heading-step-2" tabindex="-1">2. Identify Screens &amp; Map Element Locators</h2>
-        <p>Every screen in your app has buttons, text fields, and labels. Capture a screen directly from a live device or paste a UI XML dump, pick clean names (like <code>login.email_input</code>), and save them to <code>screens/screens.yaml</code>.</p>
+        <h2 id="heading-step-2" tabindex="-1">2. Record Workflow on Emulator &amp; Map Screens</h2>
+        <p>Click <strong>Start Live Recording</strong> to stream your booted emulator screen into QAlprit. Tap buttons or type into fields right here (or directly in the Android Emulator), and QAlprit auto-names each field cleanly and turns your sequence into a reusable Workflow + repeatable Test.</p>
       </div>
 
-      <div class="grid-2">
+      <article class="card" style="border-left:4px solid var(--accent);">
+        <div class="emu-panel-head">
+          <div>
+            <h3 style="margin:0;">Option A: Live Workflow Recorder (Recommended on Emulator)</h3>
+            <p class="card-help" style="margin:3px 0 0;">Attaches one fast session to your emulator, shows human-readable element labels, and records every tap, text entry, swipe, and verification in sequence.</p>
+          </div>
+          <span class="badge b-skip" id="recStatusBadge">Idle</span>
+        </div>
+
+        <form id="recStartForm" method="POST">
+          <div class="form-grid">
+            <div class="field">
+              <label for="recScreenName">Current Screen Tag (updates cleanly per screen)</label>
+              <input id="recScreenName" type="text" value="login" placeholder="login" required />
+            </div>
+            <div class="field">
+              <label for="recPlatform">Platform</label>
+              <select id="recPlatform">
+                <option value="android">android</option>
+                <option value="ios">ios</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="recDeviceSelect">Emulator / Device</label>
+              <select id="recDeviceSelect"></select>
+            </div>
+            <div class="field">
+              <label for="recEnvSelect">Environment</label>
+              <select id="recEnvSelect"></select>
+            </div>
+            <div class="field">
+              <label for="recAppSelect">Active App Binary</label>
+              <select id="recAppSelect"></select>
+            </div>
+          </div>
+          <div class="btn-row">
+            <button type="submit" class="btn btn-primary" id="btnRecStart">Start Live Recording on Emulator</button>
+            <button type="button" class="btn" id="btnRecSync" hidden>Sync Screen / Typed Text</button>
+            <button type="button" class="btn btn-danger" id="btnRecStop" hidden>Stop Recording Session</button>
+          </div>
+        </form>
+
+        <div class="progress-box" id="recProgressBox" hidden>
+          <div class="progress-head">
+            <strong id="recProgressText">Connecting to emulator...</strong>
+            <span class="muted" id="recDirectBadge"></span>
+          </div>
+          <div class="progress-track"><div class="progress-fill is-indeterminate" id="recProgressFill"></div></div>
+        </div>
+
+        <div id="recActiveArea" hidden>
+          <div class="rec-grid">
+            <div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <strong style="font-size:0.84rem;">Live Emulator Mirror (click any element)</strong>
+                <span class="muted" style="font-size:0.75rem;" id="recMirrorMeta"></span>
+              </div>
+              <div class="rec-phone-frame" id="recPhoneFrame">
+                <img id="recPhoneImg" alt="Live emulator screen preview" />
+                <div class="rec-overlays" id="recOverlays"></div>
+              </div>
+              <div class="btn-row" style="margin-top:8px;">
+                <button type="button" class="btn btn-sm" id="btnRecSwipeUp">Swipe Up</button>
+                <button type="button" class="btn btn-sm" id="btnRecSwipeDown">Swipe Down</button>
+                <button type="button" class="btn btn-sm" id="btnRecBack">Back</button>
+                <button type="button" class="btn btn-sm" id="btnRecWait">Wait 2s</button>
+                <button type="button" class="btn btn-sm" id="btnRecUndo">Undo Step</button>
+              </div>
+              <div class="rec-type-bar" id="recTypeBar" hidden>
+                <div style="font-size:0.82rem;margin-bottom:6px;">
+                  <strong id="recTypeTargetLabel">Input Field</strong>
+                  <span class="muted" id="recTypeTargetKey"></span>
+                </div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+                  <input id="recTypeInput" type="text" placeholder="Text to type (or ${ENV_VAR})" style="flex:1;min-width:140px;" />
+                  <label class="chk-inline"><input type="checkbox" id="recTypeSecret" /> Secret</label>
+                  <button type="button" class="btn btn-primary btn-sm" id="btnRecSendType">Send &amp; Record Type</button>
+                  <button type="button" class="btn btn-sm" id="btnRecTapSelected">Just Tap</button>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;">
+                <strong style="font-size:0.85rem;">Elements on Current Screen</strong>
+                <input id="recElFilter" type="search" placeholder="Filter by label or key..." style="max-width:210px;padding:5px 8px;font-size:0.8rem;" />
+              </div>
+              <div class="rec-el-list" id="recElementsList">
+                <div class="muted" style="padding:12px;">No elements captured yet.</div>
+              </div>
+
+              <div style="display:flex;justify-content:space-between;align-items:center;margin:14px 0 4px;">
+                <strong style="font-size:0.85rem;">Recorded Activity Sequence (<span id="recStepCount">0</span>)</strong>
+                <span class="muted" style="font-size:0.76rem;">Runs in exact order when repeated</span>
+              </div>
+              <div class="rec-steps-list" id="recStepsList">
+                <div class="muted" style="padding:10px;border:1px dashed var(--border);border-radius:8px;">Click an element on the phone screen (or list above) to start recording steps.</div>
+              </div>
+
+              <div style="margin-top:14px;padding:12px;border:1px solid var(--border);border-radius:9px;background:var(--surface-alt);">
+                <strong style="font-size:0.85rem;display:block;margin-bottom:8px;">Save &amp; Repeat as Workflow + Test</strong>
+                <div class="form-grid">
+                  <div class="field">
+                    <label for="recSaveFlowName">Workflow Name (<code>flows/...md</code>)</label>
+                    <input id="recSaveFlowName" type="text" value="auth/recorded_flow" placeholder="auth/login" />
+                  </div>
+                  <div class="field">
+                    <label for="recSaveSuite">Suite Folder</label>
+                    <input id="recSaveSuite" type="text" value="smoke" placeholder="smoke" />
+                  </div>
+                  <div class="field">
+                    <label for="recSaveTestId">Test Journey ID</label>
+                    <input id="recSaveTestId" type="text" value="REC-001" placeholder="REC-001" />
+                  </div>
+                  <div class="field">
+                    <label for="recSaveTestTitle">Test Title</label>
+                    <input id="recSaveTestTitle" type="text" value="Repeat recorded emulator workflow" placeholder="User completes login workflow" />
+                  </div>
+                </div>
+                <div class="btn-row">
+                  <label class="chk-inline"><input type="checkbox" id="recCreateTestChk" checked /> Also create repeatable Test Journey (<code>specs/</code>)</label>
+                  <button type="button" class="btn btn-primary" id="btnRecSaveAll">Save Workflow &amp; Test</button>
+                  <button type="button" class="btn" id="btnRecGoRun" hidden>Repeat / Run Test in Step 5 &rarr;</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="recStatusBanner" class="status-banner" hidden aria-live="polite"></div>
+      </article>
+
+      <details class="guide-details" style="margin-top:14px;">
+        <summary>Option B / C: Manual Single-Screen Capture or Offline XML Inspection</summary>
+      <div class="grid-2" style="margin-top:12px;">
         <article class="card">
-          <h3>Option A: Capture Live Device Screen</h3>
+          <h3>Option B: Capture Single Live Device Screen</h3>
           <p class="card-help">Launches Appium briefly on the chosen device, reads the active XML screen hierarchy, and ranks tappable/editable elements.</p>
           <form id="inspectLiveForm" method="POST">
             <div class="form-grid">
@@ -934,7 +1153,7 @@
         </article>
 
         <article class="card">
-          <h3>Option B: Inspect XML Dump (Offline / Sample)</h3>
+          <h3>Option C: Inspect XML Dump (Offline / Sample)</h3>
           <p class="card-help">Paste XML from UIAutomator, Appium Inspector, or a failure <code>*_FAIL.xml</code> dump — great for offline mapping or testing right now.</p>
           <form id="inspectXmlForm" method="POST">
             <div class="field">
@@ -958,7 +1177,7 @@
           <thead>
             <tr>
               <th style="width:42px;">Save</th>
-              <th>Element Key</th>
+              <th>Readable Element &amp; Key</th>
               <th>Strategy</th>
               <th>Locator Value</th>
               <th>Preview Label</th>
@@ -973,6 +1192,7 @@
           <button type="button" class="btn btn-primary" id="btnSaveLocators">Save Checked Locators to screens/screens.yaml</button>
         </div>
       </article>
+      </details>
 
       <article class="card">
         <h3>Current Saved Screen Locators (<code>screens/screens.yaml</code>)</h3>
@@ -1282,6 +1502,10 @@
         inspectCandidates: [],
         pollTimer: null,
         emuPollTimer: null,
+        recPollTimer: null,
+        recLastRev: -1,
+        recState: null,
+        recSelectedIdx: null,
         doctorChecked: false,
         doctorOk: false,
         devicesChecked: false,
@@ -1337,7 +1561,7 @@
         if ($("envIosBundleNote")) {
           $("envIosBundleNote").textContent = isWin ? "(optional — iOS requires macOS)" : "(optional, macOS only)";
         }
-        ["inspectPlatform", "runPlatformSelect"].forEach((selId) => {
+        ["recPlatform", "inspectPlatform", "runPlatformSelect"].forEach((selId) => {
           const sel = $(selId);
           if (!sel) return;
           const iosOpt = Array.from(sel.options).find((o) => o.value === "ios");
@@ -1733,7 +1957,7 @@
             label: `${k} (${v.platform}: ${v.device_name || k})`
           });
         });
-        ["inspectDeviceSelect", "runDeviceSelect"].forEach((selId) => {
+        ["recDeviceSelect", "inspectDeviceSelect", "runDeviceSelect"].forEach((selId) => {
           const prev = ($(selId) && $(selId).value) || "";
           populateSelect(selId, devOpts);
           if (liveReady.length && !prev.startsWith("live:") && $(selId)) {
@@ -1764,12 +1988,11 @@
         $("envTimeoutInput").value = cfg.default_timeout || 12;
         if (cfg.android_package) $("envAndroidPkg").value = cfg.android_package;
         if (cfg.ios_bundle_id) $("envIosBundle").value = cfg.ios_bundle_id;
-        if ($("inspectEnvSelect") && Array.from($("inspectEnvSelect").options).some((o) => o.value === envName)) {
-          $("inspectEnvSelect").value = envName;
-        }
-        if ($("runEnvSelect") && Array.from($("runEnvSelect").options).some((o) => o.value === envName)) {
-          $("runEnvSelect").value = envName;
-        }
+        ["recEnvSelect", "inspectEnvSelect", "runEnvSelect"].forEach((selId) => {
+          if ($(selId) && Array.from($(selId).options).some((o) => o.value === envName)) {
+            $(selId).value = envName;
+          }
+        });
       }
 
       async function selectSessionApp(relPath, opts) {
@@ -1781,7 +2004,7 @@
           if (STATE.activeApp) localStorage.setItem("qalprit.activeApp", STATE.activeApp);
         } catch (_) {}
 
-        ["activeAppSelect", "inspectAppSelect", "runAppSelect"].forEach((selId) => {
+        ["activeAppSelect", "recAppSelect", "inspectAppSelect", "runAppSelect"].forEach((selId) => {
           const sel = $(selId);
           if (sel && Array.from(sel.options).some((o) => o.value === STATE.activeApp)) {
             sel.value = STATE.activeApp;
@@ -1802,6 +2025,7 @@
         }
         if ($("inspectPlatform") && $("runPlatformSelect") && STATE.hostOs === "Darwin") {
           const targetPlat = isAndroid ? "android" : "ios";
+          if ($("recPlatform")) $("recPlatform").value = targetPlat;
           $("inspectPlatform").value = targetPlat;
           $("runPlatformSelect").value = targetPlat;
         }
@@ -1864,6 +2088,7 @@
           label: `${a.name} (${a.kind}${a.detected_package ? " · " + a.detected_package : ""})`
         }));
         populateSelect("activeAppSelect", appOpts, apps.length ? null : "-- Upload an app below --");
+        populateSelect("recAppSelect", appOpts, "-- Use installed package / none --");
         populateSelect("inspectAppSelect", appOpts, "-- Use installed package / none --");
         populateSelect("runAppSelect", appOpts, "-- Select app binary --");
 
@@ -1872,6 +2097,7 @@
         const envNames = Object.keys(envs);
         const envOpts = (envNames.length ? envNames : ["qa"]).map((k) => ({ value: k, label: k }));
         populateSelect("envPresetSelect", envOpts.concat([{ value: "__new__", label: "+ Create new environment..." }]));
+        populateSelect("recEnvSelect", envOpts);
         populateSelect("inspectEnvSelect", envOpts);
         populateSelect("runEnvSelect", envOpts);
         const curEnvName = $("envNameInput").value.trim() || "qa";
@@ -2358,15 +2584,361 @@
       });
 
       // ------------------------------------------------------------------
-      // Step 2 Event Handlers (Screen Identification)
+      // Step 2A: Live Emulator Workflow & Test Recorder
+      // ------------------------------------------------------------------
+      function renderRecorderElements(elements, filterText) {
+        const listEl = $("recElementsList");
+        const overlays = $("recOverlays");
+        const st = STATE.recState || {};
+        const w = Number(st.screen_width || 1080);
+        const h = Number(st.screen_height || 2400);
+        const q = (filterText || "").trim().toLowerCase();
+        const items = (elements || []).map((el, idx) => ({ el, idx }));
+
+        if (overlays) {
+          overlays.innerHTML = items
+            .filter(({ el }) => Array.isArray(el.rect) && el.rect.length === 4 && (el.clickable || el.editable || el.text || el.hint))
+            .map(({ el, idx }) => {
+              const [x1, y1, x2, y2] = el.rect;
+              const left = Math.max(0, (x1 / w) * 100).toFixed(2);
+              const top = Math.max(0, (y1 / h) * 100).toFixed(2);
+              const width = Math.min(100, ((x2 - x1) / w) * 100).toFixed(2);
+              const height = Math.min(100, ((y2 - y1) / h) * 100).toFixed(2);
+              const lbl = el.display_label || el.key || "Element";
+              return `<div class="rec-box${STATE.recSelectedIdx === idx ? " is-selected" : ""}" data-rec-box="${idx}" title="${esc(lbl)}" style="left:${left}%;top:${top}%;width:${width}%;height:${height}%;"></div>`;
+            }).join("");
+        }
+
+        const filtered = q
+          ? items.filter(({ el }) => ((el.display_label || "") + " " + (el.key || "") + " " + (el.text || "")).toLowerCase().includes(q))
+          : items;
+        if (!filtered.length) {
+          listEl.innerHTML = '<div class="muted" style="padding:12px;">No matching elements on this screen.</div>';
+          return;
+        }
+        listEl.innerHTML = filtered.slice(0, 60).map(({ el, idx }) => {
+          const isInput = Boolean(el.editable);
+          const lbl = el.display_label || el.key;
+          const btnType = isInput
+            ? `<button type="button" class="btn btn-primary btn-sm" data-rec-focus="${idx}">Type...</button>`
+            : `<button type="button" class="btn btn-primary btn-sm" data-rec-tap="${idx}">Tap</button>`;
+          return `
+            <div class="rec-el-item">
+              <div style="min-width:0;flex:1;">
+                <div style="font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(lbl)}</div>
+                <div class="muted" style="font-size:0.74rem;"><code>${esc(el.key)}</code> &middot; ${esc(el.recommended_strategy)}</div>
+              </div>
+              <div class="btn-row" style="margin:0;gap:4px;">
+                ${btnType}
+                <button type="button" class="btn btn-sm" data-rec-assert="${idx}">Assert</button>
+              </div>
+            </div>`;
+        }).join("");
+      }
+
+      function renderRecorderSteps(steps) {
+        $("recStepCount").textContent = String((steps || []).length);
+        if (!steps || !steps.length) {
+          $("recStepsList").innerHTML = '<div class="muted" style="padding:10px;border:1px dashed var(--border);border-radius:8px;">Click an element on the phone screen (or list above) to start recording steps.</div>';
+          return;
+        }
+        $("recStepsList").innerHTML = steps.map((s, idx) => `
+          <div class="rec-step-item">
+            <div style="min-width:0;flex:1;">
+              <strong>${idx + 1}.</strong> ${esc(s.label || s.action)}
+              ${s.target ? `<span class="muted" style="margin-left:6px;"><code>${esc(s.target)}</code></span>` : ""}
+            </div>
+            <button type="button" class="btn btn-sm" data-rec-del="${idx}" title="Delete step">&times;</button>
+          </div>`).join("");
+      }
+
+      function openTypePromptForElement(idx) {
+        const elems = (STATE.recState && STATE.recState.elements) || [];
+        const el = elems[idx];
+        if (!el) return;
+        STATE.recSelectedIdx = idx;
+        $("recTypeBar").hidden = false;
+        $("recTypeTargetLabel").textContent = el.display_label || el.key;
+        $("recTypeTargetKey").textContent = ` (${($("recScreenName").value.trim() || "login")}.${el.key})`;
+        $("recTypeSecret").checked = Boolean(el.suggested_sensitive);
+        $("recTypeInput").type = el.suggested_sensitive ? "password" : "text";
+        $("recTypeInput").value = "";
+        $("recTypeInput").focus();
+        renderRecorderElements(elems, $("recElFilter").value);
+      }
+
+      function applyRecorderState(st) {
+        STATE.recState = st;
+        const badge = $("recStatusBadge");
+        const starting = Boolean(st.starting);
+        const active = Boolean(st.active);
+
+        if (starting) {
+          badge.className = "badge b-warn";
+          badge.textContent = "Connecting...";
+        } else if (active) {
+          badge.className = "badge b-ok";
+          badge.textContent = "Recording Live";
+        } else if (st.status === "failed") {
+          badge.className = "badge b-fail";
+          badge.textContent = "Error";
+        } else {
+          badge.className = "badge b-skip";
+          badge.textContent = "Idle";
+        }
+
+        $("btnRecStart").disabled = starting || active;
+        $("btnRecSync").hidden = !active;
+        $("btnRecStop").hidden = !(starting || active);
+        $("recProgressBox").hidden = !starting;
+        if (starting) {
+          $("recProgressFill").classList.add("is-indeterminate");
+          $("recProgressText").textContent = st.phase || "Connecting to emulator...";
+        } else {
+          $("recProgressFill").classList.remove("is-indeterminate");
+        }
+        $("recActiveArea").hidden = !active;
+        $("recDirectBadge").textContent = st.direct_tap_watch ? "Direct emulator tap watcher active" : "";
+
+        if (st.error) {
+          showBanner("recStatusBanner", st.error, "error");
+        }
+        if (active) {
+          $("recMirrorMeta").textContent = `${st.screen_width}×${st.screen_height} · ${(st.elements || []).length} elements`;
+          if (st.has_screenshot && st.rev !== STATE.recLastRev) {
+            STATE.recLastRev = st.rev;
+            $("recPhoneImg").src = "/api/recorder/screenshot?rev=" + encodeURIComponent(st.rev);
+          }
+          renderRecorderElements(st.elements || [], $("recElFilter").value);
+          renderRecorderSteps(st.steps || []);
+        }
+      }
+
+      async function pollRecorderStatus() {
+        try {
+          const st = await apiJson("/api/recorder/status");
+          applyRecorderState(st);
+          if (!st.active && !st.starting && STATE.recPollTimer) {
+            clearInterval(STATE.recPollTimer);
+            STATE.recPollTimer = null;
+          }
+        } catch (_) {}
+      }
+
+      function startRecorderPolling() {
+        if (STATE.recPollTimer) clearInterval(STATE.recPollTimer);
+        STATE.recPollTimer = setInterval(pollRecorderStatus, 1100);
+      }
+
+      async function runRecorderAction(payload) {
+        showBanner("recStatusBanner", "Executing on emulator...", "");
+        try {
+          const st = await apiJson("/api/recorder/action", Object.assign({
+            screen_name: $("recScreenName").value.trim() || "login"
+          }, payload));
+          applyRecorderState(st);
+          showBanner("recStatusBanner", "Recorded step #" + (st.steps || []).length + ".", "ok");
+        } catch (err) {
+          showBanner("recStatusBanner", err.message, "error");
+        }
+      }
+
+      $("recStartForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        STATE.recLastRev = -1;
+        STATE.recSelectedIdx = null;
+        $("recTypeBar").hidden = true;
+        $("btnRecGoRun").hidden = true;
+        showBanner("recStatusBanner", "Starting recorder session on emulator...", "");
+        try {
+          await apiJson("/api/recorder/start", {
+            platform: $("recPlatform").value,
+            device_profile: $("recDeviceSelect").value,
+            env_name: $("recEnvSelect").value,
+            app_path: $("recAppSelect").value,
+            screen_name: $("recScreenName").value.trim() || "login",
+            flow_name: $("recSaveFlowName").value.trim() || "recorded_flow"
+          });
+          startRecorderPolling();
+          await pollRecorderStatus();
+        } catch (err) {
+          showBanner("recStatusBanner", err.message, "error");
+        }
+      });
+
+      $("btnRecStop").addEventListener("click", async () => {
+        try {
+          const st = await apiJson("/api/recorder/stop", {});
+          if (STATE.recPollTimer) {
+            clearInterval(STATE.recPollTimer);
+            STATE.recPollTimer = null;
+          }
+          await pollRecorderStatus();
+          showBanner("recStatusBanner", st.stopped ? "Recording session stopped." : "Recorder idle.", "");
+        } catch (err) {
+          showBanner("recStatusBanner", err.message, "error");
+        }
+      });
+
+      $("btnRecSync").addEventListener("click", async () => {
+        try {
+          const st = await apiJson("/api/recorder/sync", {
+            screen_name: $("recScreenName").value.trim() || "login"
+          });
+          applyRecorderState(st);
+          showBanner("recStatusBanner", "Screen refreshed from emulator.", "ok");
+        } catch (err) {
+          showBanner("recStatusBanner", err.message, "error");
+        }
+      });
+
+      $("recOverlays").addEventListener("click", (e) => {
+        const box = e.target.closest("[data-rec-box]");
+        if (!box) return;
+        const idx = Number(box.dataset.recBox);
+        const elems = (STATE.recState && STATE.recState.elements) || [];
+        const el = elems[idx];
+        if (!el) return;
+        if (el.editable) {
+          openTypePromptForElement(idx);
+        } else {
+          $("recTypeBar").hidden = true;
+          runRecorderAction({ action: "tap", element_index: idx });
+        }
+      });
+
+      $("recPhoneImg").addEventListener("click", (e) => {
+        const st = STATE.recState;
+        if (!st || !st.active) return;
+        const rect = e.target.getBoundingClientRect();
+        if (!rect.width || !rect.height) return;
+        const x = ((e.clientX - rect.left) / rect.width) * (st.screen_width || 1080);
+        const y = ((e.clientY - rect.top) / rect.height) * (st.screen_height || 2400);
+        runRecorderAction({ action: "tap", x: x, y: y });
+      });
+
+      $("recElementsList").addEventListener("click", (e) => {
+        const tBtn = e.target.closest("[data-rec-tap]");
+        if (tBtn) {
+          $("recTypeBar").hidden = true;
+          runRecorderAction({ action: "tap", element_index: Number(tBtn.dataset.recTap) });
+          return;
+        }
+        const fBtn = e.target.closest("[data-rec-focus]");
+        if (fBtn) {
+          openTypePromptForElement(Number(fBtn.dataset.recFocus));
+          return;
+        }
+        const aBtn = e.target.closest("[data-rec-assert]");
+        if (aBtn) {
+          runRecorderAction({ action: "assert_visible", element_index: Number(aBtn.dataset.recAssert) });
+        }
+      });
+
+      $("btnRecSendType").addEventListener("click", () => {
+        if (STATE.recSelectedIdx === null) return;
+        const val = $("recTypeInput").value;
+        const isSec = $("recTypeSecret").checked;
+        $("recTypeBar").hidden = true;
+        runRecorderAction({
+          action: "type",
+          element_index: STATE.recSelectedIdx,
+          value: val,
+          secret: isSec
+        });
+      });
+
+      $("recTypeInput").addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          $("btnRecSendType").click();
+        }
+      });
+
+      $("recTypeSecret").addEventListener("change", () => {
+        $("recTypeInput").type = $("recTypeSecret").checked ? "password" : "text";
+      });
+
+      $("btnRecTapSelected").addEventListener("click", () => {
+        if (STATE.recSelectedIdx === null) return;
+        $("recTypeBar").hidden = true;
+        runRecorderAction({ action: "tap", element_index: STATE.recSelectedIdx });
+      });
+
+      $("recElFilter").addEventListener("input", () => {
+        renderRecorderElements((STATE.recState && STATE.recState.elements) || [], $("recElFilter").value);
+      });
+
+      $("btnRecSwipeUp").addEventListener("click", () => runRecorderAction({ action: "swipe", direction: "up" }));
+      $("btnRecSwipeDown").addEventListener("click", () => runRecorderAction({ action: "swipe", direction: "down" }));
+      $("btnRecBack").addEventListener("click", () => runRecorderAction({ action: "back" }));
+      $("btnRecWait").addEventListener("click", () => runRecorderAction({ action: "wait", value: "2" }));
+      $("btnRecUndo").addEventListener("click", async () => {
+        try {
+          const st = await apiJson("/api/recorder/undo", {});
+          applyRecorderState(st);
+        } catch (err) {
+          showBanner("recStatusBanner", err.message, "error");
+        }
+      });
+
+      $("recStepsList").addEventListener("click", async (e) => {
+        const del = e.target.closest("[data-rec-del]");
+        if (!del) return;
+        try {
+          const st = await apiJson("/api/recorder/update", {
+            index: Number(del.dataset.recDel),
+            delete: true
+          });
+          applyRecorderState(st);
+        } catch (err) {
+          showBanner("recStatusBanner", err.message, "error");
+        }
+      });
+
+      $("btnRecSaveAll").addEventListener("click", async () => {
+        try {
+          const res = await apiJson("/api/recorder/save", {
+            flow_name: $("recSaveFlowName").value.trim() || "recorded_flow",
+            suite: $("recSaveSuite").value.trim() || "smoke",
+            test_id: $("recSaveTestId").value.trim() || "REC-001",
+            test_title: $("recSaveTestTitle").value.trim() || "Repeat recorded emulator workflow",
+            create_test: $("recCreateTestChk").checked,
+            stop_after: true
+          });
+          if (STATE.recPollTimer) {
+            clearInterval(STATE.recPollTimer);
+            STATE.recPollTimer = null;
+          }
+          await pollRecorderStatus();
+          await loadOverview({ skipAutoSync: true });
+          let msg = `Saved ${res.saved_targets.length} locator(s) and workflow '${res.flow.name}' (${res.flow.source_path}).`;
+          if (res.spec) {
+            msg += ` Created repeatable Test Journey '${res.spec.id}' (${res.spec.source_path})!`;
+            if ($("runSuiteSelect") && Array.from($("runSuiteSelect").options).some((o) => o.value === res.spec.suite)) {
+              $("runSuiteSelect").value = res.spec.suite;
+            }
+            $("btnRecGoRun").hidden = false;
+          }
+          showBanner("recStatusBanner", msg, "ok");
+        } catch (err) {
+          showBanner("recStatusBanner", err.message, "error");
+        }
+      });
+
+      $("btnRecGoRun").addEventListener("click", () => goToStep(5, true));
+
+      // ------------------------------------------------------------------
+      // Step 2B/C Event Handlers (Manual Screen Identification)
       // ------------------------------------------------------------------
       function renderInspectCandidates(elements) {
         STATE.inspectCandidates = (elements || []).map((el, idx) => ({
           key: (el.key || el.suggested_key || ("element_" + (idx + 1))).replace(/[^a-zA-Z0-9_]/g, "_"),
+          displayLabel: el.display_label || el.text || el.key || ("Element " + (idx + 1)),
           strategy: el.recommended_strategy || el.strategy || "xpath",
           value: el.recommended_value || el.value || "",
           sensitive: Boolean(el.suggested_sensitive || el.sensitive),
-          preview: el.text || el.label || el.tag || ""
+          preview: el.text || el.hint || el.context_label || el.tag || ""
         }));
         if (!STATE.inspectCandidates.length) {
           $("inspectCandidatesBody").innerHTML = '<tr><td colspan="6" class="muted">No interactive elements found in that screen XML.</td></tr>';
@@ -2377,7 +2949,10 @@
           return `
             <tr data-cand-idx="${idx}">
               <td><input type="checkbox" class="cand-check" checked aria-label="Include ${esc(el.key)}" /></td>
-              <td><input type="text" class="cand-key" value="${esc(el.key)}" aria-label="Element key" /></td>
+              <td>
+                <div style="font-size:0.78rem;font-weight:700;margin-bottom:3px;">${esc(el.displayLabel)}</div>
+                <input type="text" class="cand-key" value="${esc(el.key)}" aria-label="Element key" />
+              </td>
               <td><code>${esc(el.strategy)}</code></td>
               <td><code>${esc(el.value)}</code></td>
               <td class="muted">${esc(el.preview)}</td>
