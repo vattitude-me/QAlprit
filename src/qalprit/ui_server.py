@@ -24,16 +24,24 @@ from qalprit.results import load_results_json
 from qalprit.spec_loader import STEP_VOCABULARY, load_flows, load_specs
 from qalprit.workbench_api import (
     RunJobManager,
+    delete_flow_spec,
+    delete_test_journey,
+    duplicate_flow_spec,
+    duplicate_test_journey,
     inspect_live_screen,
     inspect_xml_payload,
     list_workspace_apps,
     list_workspace_configs,
+    next_journey_id,
+    reveal_in_file_manager,
     run_workspace_validation,
     save_environment_entry,
     save_flow_spec,
     save_screen_locators,
     save_test_journey,
     save_uploaded_app,
+    upload_flow_markdown,
+    upload_spec_markdown,
 )
 
 _UI_DIR = Path(__file__).parent / "ui"
@@ -153,6 +161,12 @@ def collect_workspace_overview(
                 "targets": s.targets,
                 "priority": s.priority,
                 "reset": s.reset,
+                "retries": s.retries,
+                "expected": s.expected,
+                "body": s.body,
+                "setup": [st.model_dump() for st in s.setup],
+                "steps": [st.model_dump() for st in s.steps],
+                "teardown": [st.model_dump() for st in s.teardown],
                 "step_count": len(s.steps),
                 "teardown_count": len(s.teardown),
                 "source_path": s.source_path.relative_to(root).as_posix()
@@ -165,6 +179,7 @@ def collect_workspace_overview(
             {
                 "name": f.name,
                 "params": f.params,
+                "body": f.body,
                 "step_count": len(f.steps),
                 "steps": [st.model_dump() for st in f.steps],
                 "source_path": f.source_path.relative_to(root).as_posix()
@@ -346,6 +361,12 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
             self._send_json(payload)
             return
 
+        if req_path == "/api/specs/next-id":
+            qs = parse_qs(parsed.query)
+            suite = (qs.get("suite") or ["smoke"])[0]
+            self._send_json({"id": next_journey_id(self.project_root, suite)})
+            return
+
         if req_path == "/api/doctor":
             checks = [asdict(item) for item in run_doctor()]
             self._send_json({"checks": checks})
@@ -512,8 +533,77 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
                 )
                 return
 
+            if req_path == "/api/flows/upload":
+                self._send_json(
+                    upload_flow_markdown(
+                        self.project_root,
+                        filename=str(body.get("filename") or "flow.md"),
+                        content_text=str(body.get("content_text") or ""),
+                    )
+                )
+                return
+
+            if req_path == "/api/flows/duplicate":
+                self._send_json(
+                    duplicate_flow_spec(
+                        self.project_root,
+                        name=str(body.get("name") or ""),
+                        new_name=str(body.get("new_name") or ""),
+                    )
+                )
+                return
+
+            if req_path == "/api/flows/delete":
+                self._send_json(
+                    delete_flow_spec(
+                        self.project_root,
+                        name=str(body.get("name") or ""),
+                    )
+                )
+                return
+
             if req_path == "/api/specs/save":
                 self._send_json(save_test_journey(self.project_root, body))
+                return
+
+            if req_path == "/api/specs/upload":
+                self._send_json(
+                    upload_spec_markdown(
+                        self.project_root,
+                        filename=str(body.get("filename") or "journey.md"),
+                        content_text=str(body.get("content_text") or ""),
+                        suite=str(body.get("suite") or ""),
+                    )
+                )
+                return
+
+            if req_path == "/api/specs/duplicate":
+                self._send_json(
+                    duplicate_test_journey(
+                        self.project_root,
+                        source_path=str(body.get("source_path") or ""),
+                        new_id=str(body.get("new_id") or ""),
+                        suite=str(body.get("suite") or ""),
+                    )
+                )
+                return
+
+            if req_path == "/api/specs/delete":
+                self._send_json(
+                    delete_test_journey(
+                        self.project_root,
+                        source_path=str(body.get("source_path") or ""),
+                    )
+                )
+                return
+
+            if req_path == "/api/workspace/reveal":
+                self._send_json(
+                    reveal_in_file_manager(
+                        self.project_root,
+                        rel_path=str(body.get("rel_path") or ""),
+                    )
+                )
                 return
 
             if req_path == "/api/validate":

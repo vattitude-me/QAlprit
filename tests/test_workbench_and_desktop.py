@@ -947,3 +947,163 @@ def test_overview_reflects_external_flow_md_edits_and_parse_warnings(tmp_path: P
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_emulator_setup_if_missing_skips_and_installer_has_upgrade_checks(monkeypatch) -> None:
+    import qalprit.emulator_manager as em
+
+    monkeypatch.setattr(
+        em,
+        "get_emulator_status",
+        lambda: {
+            "os": "Windows",
+            "sdk_dir": "C:/Users/demo/.qalprit/android-sdk",
+            "sdkmanager_ready": True,
+            "avdmanager_ready": True,
+            "emulator_installed": True,
+            "system_image_installed": True,
+            "system_image_package": em.system_image_package(),
+            "default_avd": em.DEFAULT_AVD_NAME,
+            "avds": [em.DEFAULT_AVD_NAME],
+            "running_android_emulators": [],
+            "ios_supported": False,
+            "ios_simulators": [],
+        },
+    )
+    res = em.setup_android_emulator_sync(if_missing=True)
+    assert res["ok"] is True
+    assert res["skipped"] is True
+
+    iss = Path(__file__).resolve().parents[1] / "packaging" / "windows" / "installer.iss"
+    iss_text = iss.read_text(encoding="utf-8")
+    assert "reinstall_runtime" in iss_text
+    assert "NeedsNodeRuntime" in iss_text
+    assert "NeedsEmulatorSetup" in iss_text
+    assert "--if-missing" in iss_text
+
+
+def test_streamlined_ui_and_workflow_spec_crud_endpoints(tmp_path: Path, monkeypatch) -> None:
+    import json
+    import subprocess
+    import threading
+    import urllib.request
+    from qalprit.ui_server import create_ui_server
+
+    ws = ensure_workspace(tmp_path / "crud_ws")
+    popens: list[list[str]] = []
+
+    class _DummyProc:
+        pass
+
+    def _fake_popen(cmd, *args, **kwargs):
+        popens.append(list(cmd))
+        return _DummyProc()
+
+    monkeypatch.setattr(subprocess, "Popen", _fake_popen)
+
+    server = create_ui_server(ws, host="127.0.0.1", port=0)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    def _post_json(path: str, payload: dict) -> dict:
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{port}{path}",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req) as r:
+            return json.loads(r.read().decode("utf-8"))
+
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/") as r:
+            html = r.read().decode("utf-8")
+        assert "Record App Flow" in html
+        assert 'id="btnOpenFlowsModal"' in html
+        assert 'id="recAssertBar"' in html
+        assert 'id="flowUploadStep2Form"' in html
+        assert 'id="specUploadInput"' in html
+        assert 'id="btnAutoSpecId"' in html
+        assert 'id="runSpecFilter"' in html
+
+        # Auto-ID starts at SMK-001
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/specs/next-id?suite=smoke") as r:
+            nid1 = json.loads(r.read().decode("utf-8"))
+        assert nid1["id"] == "SMK-001"
+
+        # Upload workflow markdown -> duplicate -> delete
+        up_flow = _post_json(
+            "/api/flows/upload",
+            {
+                "filename": "login_error_check.md",
+                "content_text": "---\nname: login_error_check\nsteps:\n  - back\n---\n# Flow\n",
+            },
+        )
+        assert up_flow["ok"] is True
+        assert up_flow["name"] == "login_error_check"
+
+        dup_flow = _post_json(
+            "/api/flows/duplicate",
+            {"name": "login_error_check", "new_name": "login_error_check_v2"},
+        )
+        assert dup_flow["ok"] is True
+        assert (ws / "flows" / "login_error_check_v2.md").is_file()
+
+        del_flow = _post_json("/api/flows/delete", {"name": "login_error_check_v2"})
+        assert del_flow["ok"] is True
+        assert not (ws / "flows" / "login_error_check_v2.md").exists()
+
+        # Upload journey markdown -> next-id increments -> duplicate -> delete
+        up_spec = _post_json(
+            "/api/specs/upload",
+            {
+                "filename": "SMK-001.md",
+                "suite": "smoke",
+                "content_text": "---\nid: SMK-001\ntitle: Missing Password Error\nsteps:\n  - back\n---\n# SMK-001\n",
+            },
+        )
+        assert up_spec["ok"] is True
+        assert up_spec["id"] == "SMK-001"
+
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/specs/next-id?suite=smoke") as r:
+            nid2 = json.loads(r.read().decode("utf-8"))
+        assert nid2["id"] == "SMK-002"
+
+        dup_spec = _post_json(
+            "/api/specs/duplicate",
+            {"source_path": up_spec["source_path"], "suite": "smoke", "new_id": "SMK-002"},
+        )
+        assert dup_spec["ok"] is True
+        assert (ws / "specs" / "smoke" / "SMK-002.md").is_file()
+
+        del_spec = _post_json("/api/specs/delete", {"source_path": dup_spec["source_path"]})
+        assert del_spec["ok"] is True
+        assert not (ws / "specs" / "smoke" / "SMK-002.md").exists()
+
+        # Even if an unrelated spec in 'smoke' references a missing flow, running spec_id='SMK-001' succeeds
+        (ws / "specs" / "smoke" / "SMK-999.md").write_text(
+            "---\nid: SMK-999\ntitle: Broken unrelated test\nsteps:\n  - run_flow: mda_auth_login\n---\n",
+            encoding="utf-8",
+        )
+        dry = _post_json(
+            "/api/runs/start",
+            {
+                "platform": "android",
+                "device_profile": "android_emulator",
+                "env_name": "qa",
+                "suite": "smoke",
+                "spec_id": "SMK-001",
+                "dry_run": True,
+            },
+        )
+        assert dry["dry_run"] is True
+        assert [s["id"] for s in dry["specs"]] == ["SMK-001"]
+
+        # Reveal workspace folder calls platform file manager command safely
+        rev = _post_json("/api/workspace/reveal", {"rel_path": "specs"})
+        assert rev["ok"] is True
+        assert popens
+    finally:
+        server.shutdown()
+        server.server_close()

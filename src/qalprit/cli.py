@@ -574,8 +574,9 @@ def emulator_status(json_output: bool) -> None:
 
 @emulator.command("setup")
 @click.option("--avd", default="QAlprit_Pixel", show_default=True, help="AVD name to create.")
+@click.option("--if-missing", is_flag=True, help="Skip download if emulator, system image, and AVD are already installed.")
 @click.option("--pause-on-error", is_flag=True, hidden=True, help="Wait for Enter on failure (installer).")
-def emulator_setup(avd: str, pause_on_error: bool) -> None:
+def emulator_setup(avd: str, if_missing: bool, pause_on_error: bool) -> None:
     """Download Google Android Emulator + API 34 system image and create AVD."""
     from qalprit.emulator_manager import setup_android_emulator_sync
 
@@ -589,8 +590,11 @@ def emulator_setup(avd: str, pause_on_error: bool) -> None:
             last_line = text
 
     try:
-        res = setup_android_emulator_sync(avd_name=avd, on_progress=_cb)
-        click.echo(f"Ready: AVD '{res['avd_name']}' created in {res['sdk_dir']}")
+        res = setup_android_emulator_sync(avd_name=avd, if_missing=if_missing, on_progress=_cb)
+        if res.get("skipped"):
+            click.echo(f"Ready: AVD '{res['avd_name']}' already exists in {res['sdk_dir']} (skipped)")
+        else:
+            click.echo(f"Ready: AVD '{res['avd_name']}' created in {res['sdk_dir']}")
     except Exception as exc:
         click.echo(f"ERROR: {exc}", err=True)
         if pause_on_error:

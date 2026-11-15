@@ -107,7 +107,7 @@
       padding: 0;
       list-style: none;
       display: grid;
-      grid-template-columns: repeat(5, minmax(150px, 1fr));
+      grid-template-columns: repeat(4, minmax(160px, 1fr));
       gap: 8px;
       overflow-x: auto;
     }
@@ -637,6 +637,90 @@
       background: rgba(15, 118, 110, 0.22);
       z-index: 4;
     }
+    .rec-box.is-label {
+      border: 1px dashed rgba(217, 119, 6, 0.72);
+      background: rgba(217, 119, 6, 0.06);
+    }
+    .rec-box.is-label:hover, .rec-box.is-label.is-selected {
+      border-color: var(--warn);
+      background: rgba(217, 119, 6, 0.2);
+    }
+    .rec-mode-bar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin: 6px 0 8px;
+    }
+    .pill-toggle {
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border-strong);
+      background: var(--surface);
+      color: var(--muted);
+      font-size: 0.76rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .pill-toggle.is-active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #ffffff;
+    }
+    .flow-chips {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin: 6px 0 10px;
+    }
+    .flow-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border-strong);
+      background: var(--surface-alt);
+      color: var(--text);
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .flow-chip:hover {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+    }
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.56);
+      z-index: 60;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 32px 16px;
+      overflow-y: auto;
+    }
+    .modal-panel {
+      width: min(1040px, 100%);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+      max-height: calc(100vh - 64px);
+      overflow-y: auto;
+    }
+    .modal-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding-bottom: 12px;
+      margin-bottom: 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .modal-head h2 { margin: 0; font-size: 1.15rem; }
     .rec-type-bar {
       margin-top: 10px;
       padding: 10px 12px;
@@ -714,13 +798,15 @@
       </svg>
       <div>
         <h1>QAlprit Workbench</h1>
-        <p>Guided Mobile QA &mdash; Setup Emulator &rarr; Choose Active App &rarr; Identify Screens &rarr; Workflows &rarr; Journeys &rarr; Runs</p>
+        <p>Guided Mobile QA &mdash; Emulator &amp; App &rarr; Record App Flow &rarr; Test Journeys &rarr; Runs &amp; Proof</p>
       </div>
     </div>
     <div class="meta-pills">
       <span class="pill" id="osModePill">Detecting OS...</span>
       <span class="pill" id="verPill">Loading...</span>
       <span class="pill" id="workspacePath" title="Workspace directory">Workspace</span>
+      <button type="button" class="btn btn-sm" id="btnOpenWorkspaceFolder" title="Open workspace folder in Explorer / Finder">&#x1F4C2; Open Folder</button>
+      <button type="button" class="btn btn-sm" id="btnOpenFlowsModal" title="Manage, edit, duplicate, delete, or import reusable workflows (flows/)">Workflows (<span id="badgeFlows">0</span>)</button>
       <button type="button" class="btn btn-sm" id="btnReloadWorkspace" title="Reload flows, specs, screens, apps, and results from disk">&#x21bb; Reload Workspace</button>
     </div>
   </header>
@@ -738,27 +824,20 @@
         <li>
           <button type="button" class="step-btn" data-step="2">
             <span class="step-kicker">Step 2 <span class="step-badge" id="badgeScreens">0 locators</span></span>
-            <span class="step-title">Screen Identification</span>
-            <span class="step-sub">Capture buttons &amp; fields to screens.yaml</span>
+            <span class="step-title">Record App Flow</span>
+            <span class="step-sub">Tap emulator, capture errors &amp; save flow</span>
           </button>
         </li>
         <li>
           <button type="button" class="step-btn" data-step="3">
-            <span class="step-kicker">Step 3 <span class="step-badge" id="badgeFlows">0 flows</span></span>
-            <span class="step-title">Workflows</span>
-            <span class="step-sub">Reusable multi-step actions (flows/)</span>
+            <span class="step-kicker">Step 3 <span class="step-badge" id="badgeSpecs">0 journeys</span></span>
+            <span class="step-title">Test Journeys</span>
+            <span class="step-sub">Auto-ID builder, edit &amp; validate specs/</span>
           </button>
         </li>
         <li>
           <button type="button" class="step-btn" data-step="4">
-            <span class="step-kicker">Step 4 <span class="step-badge" id="badgeSpecs">0 journeys</span></span>
-            <span class="step-title">Test Journeys</span>
-            <span class="step-sub">End-to-end specs &amp; workspace validation</span>
-          </button>
-        </li>
-        <li>
-          <button type="button" class="step-btn" data-step="5">
-            <span class="step-kicker">Step 5 <span class="step-badge" id="badgeRuns">0 runs</span></span>
+            <span class="step-kicker">Step 4 <span class="step-badge" id="badgeRuns">0 runs</span></span>
             <span class="step-title">Runs &amp; Reports</span>
             <span class="step-sub">Execute tests, view proof &amp; compare diffs</span>
           </button>
@@ -969,25 +1048,25 @@
       </div>
 
       <div class="step-footer-nav">
-        <span class="muted" id="step1FooterHint">Complete 1A &rarr; 1B &rarr; 1C above, then continue to Screen Identification.</span>
-        <button type="button" class="btn btn-primary" data-next-step="2">Next: Screen Identification &rarr;</button>
+        <span class="muted" id="step1FooterHint">Complete 1A &rarr; 1B &rarr; 1C above, then continue to Record App Flow.</span>
+        <button type="button" class="btn btn-primary" data-next-step="2">Next: Record App Flow &rarr;</button>
       </div>
     </section>
 
     <!-- ================================================================ -->
-    <!-- STEP 2: SCREEN IDENTIFICATION                                     -->
+    <!-- STEP 2: RECORD APP FLOW                                           -->
     <!-- ================================================================ -->
     <section class="wizard-step" id="step-2" data-step-panel="2" aria-labelledby="heading-step-2" hidden>
       <div class="step-header">
-        <h2 id="heading-step-2" tabindex="-1">2. Record Workflow on Emulator &amp; Map Screens</h2>
-        <p>Click <strong>Start Live Recording</strong> to stream your booted emulator screen into QAlprit. Tap buttons or type into fields right here (or directly in the Android Emulator), and QAlprit auto-names each field cleanly and turns your sequence into a reusable Workflow + repeatable Test.</p>
+        <h2 id="heading-step-2" tabindex="-1">2. Record App Flow &amp; Assertions</h2>
+        <p>Click <strong>Start Live Recording</strong> to stream your booted emulator screen into QAlprit. Tap buttons, type credentials, or switch to <strong>Capture Error / Text Assert</strong> to verify validation messages (like missing password errors), then save straight into a repeatable workflow &amp; test.</p>
       </div>
 
       <article class="card" style="border-left:4px solid var(--accent);">
         <div class="emu-panel-head">
           <div>
-            <h3 style="margin:0;">Option A: Live Workflow Recorder (Recommended on Emulator)</h3>
-            <p class="card-help" style="margin:3px 0 0;">Attaches one fast session to your emulator, shows human-readable element labels, and records every tap, text entry, swipe, and verification in sequence.</p>
+            <h3 style="margin:0;">Live Emulator Flow Recorder</h3>
+            <p class="card-help" style="margin:3px 0 0;">Attaches one fast session to your emulator, auto-names fields cleanly, highlights clickable controls &amp; error labels, and builds steps automatically.</p>
           </div>
           <span class="badge b-skip" id="recStatusBadge">Idle</span>
         </div>
@@ -1036,9 +1115,14 @@
         <div id="recActiveArea" hidden>
           <div class="rec-grid">
             <div>
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-                <strong style="font-size:0.84rem;">Live Emulator Mirror (click any element)</strong>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                <strong style="font-size:0.84rem;">Live Emulator Mirror</strong>
                 <span class="muted" style="font-size:0.75rem;" id="recMirrorMeta"></span>
+              </div>
+              <div class="rec-mode-bar">
+                <span class="muted" style="font-size:0.75rem;">Click mode:</span>
+                <button type="button" class="pill-toggle is-active" data-rec-mode="auto" id="btnRecModeAuto">Smart Tap / Type</button>
+                <button type="button" class="pill-toggle" data-rec-mode="assert_text" id="btnRecModeAssert">Capture Error / Text Assert</button>
               </div>
               <div class="rec-phone-frame" id="recPhoneFrame">
                 <img id="recPhoneImg" alt="Live emulator screen preview" />
@@ -1063,12 +1147,28 @@
                   <button type="button" class="btn btn-sm" id="btnRecTapSelected">Just Tap</button>
                 </div>
               </div>
+              <div class="rec-type-bar" id="recAssertBar" hidden style="border-color:var(--warn);">
+                <div style="font-size:0.82rem;margin-bottom:6px;">
+                  <strong id="recAssertTargetLabel">Text / Error Label</strong>
+                  <span class="muted" id="recAssertTargetKey"></span>
+                </div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+                  <input id="recAssertTextInput" type="text" placeholder="Expected text or error message substring..." style="flex:1;min-width:160px;" />
+                  <button type="button" class="btn btn-primary btn-sm" id="btnRecVerifyText">Record Verify Text</button>
+                  <button type="button" class="btn btn-sm" id="btnRecVerifyVisible">Verify Visible</button>
+                </div>
+              </div>
             </div>
 
             <div>
-              <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;">
-                <strong style="font-size:0.85rem;">Elements on Current Screen</strong>
-                <input id="recElFilter" type="search" placeholder="Filter by label or key..." style="max-width:210px;padding:5px 8px;font-size:0.8rem;" />
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
+                <strong style="font-size:0.85rem;">Detected Controls &amp; Error Labels</strong>
+                <input id="recElFilter" type="search" placeholder="Filter by label, error text, or key..." style="max-width:220px;padding:5px 8px;font-size:0.8rem;" />
+              </div>
+              <div class="rec-mode-bar" style="margin-top:0;">
+                <button type="button" class="pill-toggle is-active" data-rec-group="all">All</button>
+                <button type="button" class="pill-toggle" data-rec-group="interactive">Inputs &amp; Buttons</button>
+                <button type="button" class="pill-toggle" data-rec-group="labels">Error / Text Labels</button>
               </div>
               <div class="rec-el-list" id="recElementsList">
                 <div class="muted" style="padding:12px;">No elements captured yet.</div>
@@ -1094,8 +1194,8 @@
                     <input id="recSaveSuite" type="text" value="smoke" placeholder="smoke" />
                   </div>
                   <div class="field">
-                    <label for="recSaveTestId">Test Journey ID</label>
-                    <input id="recSaveTestId" type="text" value="REC-001" placeholder="REC-001" />
+                    <label for="recSaveTestId">Test Journey ID (Auto)</label>
+                    <input id="recSaveTestId" type="text" value="SMK-001" placeholder="SMK-001" />
                   </div>
                   <div class="field">
                     <label for="recSaveTestTitle">Test Title</label>
@@ -1105,7 +1205,8 @@
                 <div class="btn-row">
                   <label class="chk-inline"><input type="checkbox" id="recCreateTestChk" checked /> Also create repeatable Test Journey (<code>specs/</code>)</label>
                   <button type="button" class="btn btn-primary" id="btnRecSaveAll">Save Workflow &amp; Test</button>
-                  <button type="button" class="btn" id="btnRecGoRun" hidden>Repeat / Run Test in Step 5 &rarr;</button>
+                  <button type="button" class="btn" data-open-flows>Manage Saved Workflows</button>
+                  <button type="button" class="btn" id="btnRecGoRun" hidden>Repeat / Run Test in Step 4 &rarr;</button>
                 </div>
               </div>
             </div>
@@ -1114,200 +1215,171 @@
         <div id="recStatusBanner" class="status-banner" hidden aria-live="polite"></div>
       </article>
 
-      <details class="guide-details" style="margin-top:14px;">
-        <summary>Option B / C: Manual Single-Screen Capture or Offline XML Inspection</summary>
-      <div class="grid-2" style="margin-top:12px;">
-        <article class="card">
-          <h3>Option B: Capture Single Live Device Screen</h3>
-          <p class="card-help">Launches Appium briefly on the chosen device, reads the active XML screen hierarchy, and ranks tappable/editable elements.</p>
-          <form id="inspectLiveForm" method="POST">
-            <div class="form-grid">
-              <div class="field">
-                <label for="inspectScreenName">Screen Name</label>
-                <input id="inspectScreenName" type="text" value="login" placeholder="login" required />
-              </div>
-              <div class="field">
-                <label for="inspectPlatform">Platform</label>
-                <select id="inspectPlatform">
-                  <option value="android">android</option>
-                  <option value="ios">ios</option>
-                </select>
-              </div>
-            </div>
-            <div class="form-grid">
-              <div class="field">
-                <label for="inspectDeviceSelect">Device Profile</label>
-                <select id="inspectDeviceSelect"></select>
-              </div>
-              <div class="field">
-                <label for="inspectEnvSelect">Environment</label>
-                <select id="inspectEnvSelect"></select>
-              </div>
-              <div class="field">
-                <label for="inspectAppSelect">App Binary (optional)</label>
-                <select id="inspectAppSelect"></select>
-              </div>
-            </div>
-            <div class="btn-row">
-              <button type="submit" class="btn btn-primary" id="btnCaptureLive">Start Live Screen Capture</button>
-              <button type="button" class="btn btn-danger" id="btnStopCapture" hidden>Stop Capture</button>
-            </div>
-            <div class="progress-box" id="captureProgressBox" hidden>
-              <div class="progress-head">
-                <strong id="captureProgressText">Launching Appium &amp; capturing UI hierarchy...</strong>
-                <span class="muted" id="captureProgressElapsed">0.0s</span>
-              </div>
-              <div class="progress-track"><div class="progress-fill is-indeterminate" id="captureProgressFill"></div></div>
-            </div>
-          </form>
-        </article>
-
-        <article class="card">
-          <h3>Option C: Inspect XML Dump (Offline / Sample)</h3>
-          <p class="card-help">Paste XML from UIAutomator, Appium Inspector, or a failure <code>*_FAIL.xml</code> dump — great for offline mapping or testing right now.</p>
-          <form id="inspectXmlForm" method="POST">
-            <div class="field">
-              <label for="inspectXmlText">UI Hierarchy XML</label>
-              <textarea id="inspectXmlText" placeholder="<hierarchy><node resource-id='com.demo:id/email' ... /></hierarchy>"></textarea>
-            </div>
-            <div class="btn-row">
-              <button type="submit" class="btn btn-primary">Extract Interactive Elements</button>
-              <button type="button" class="btn" id="btnLoadSampleXml">Load Sample Login XML</button>
-            </div>
-          </form>
-        </article>
-      </div>
-
-      <div id="inspectStatus" class="status-banner" hidden aria-live="polite"></div>
-
-      <article class="card">
-        <h3>Review &amp; Save Identified Elements</h3>
-        <p class="card-help">Check the elements you want to automate, adjust the key name (e.g. <code>email_input</code>, <code>submit_btn</code>), mark <strong>Sensitive</strong> on password/PIN fields to auto-mask secrets, and save.</p>
-        <table>
-          <thead>
-            <tr>
-              <th style="width:42px;">Save</th>
-              <th>Readable Element &amp; Key</th>
-              <th>Strategy</th>
-              <th>Locator Value</th>
-              <th>Preview Label</th>
-              <th style="width:88px;">Sensitive</th>
-            </tr>
-          </thead>
-          <tbody id="inspectCandidatesBody">
-            <tr><td colspan="6" class="muted">Capture a live screen or extract XML above to populate candidate elements.</td></tr>
-          </tbody>
-        </table>
-        <div class="btn-row" style="margin-top:12px;">
-          <button type="button" class="btn btn-primary" id="btnSaveLocators">Save Checked Locators to screens/screens.yaml</button>
-        </div>
-      </article>
-      </details>
-
       <article class="card">
         <div class="card-head-row">
-          <h3>Current Saved Screen Locators (<code>screens/screens.yaml</code>)</h3>
-          <button type="button" class="btn btn-sm" data-reload-workspace="screens" title="Re-read screens/screens.yaml from disk">&#x21bb; Reload Locators</button>
+          <div>
+            <h3 style="margin:0;">Have an Existing Workflow File? Import to Workspace</h3>
+            <p class="card-help" style="margin:3px 0 0;">Upload any <code>.md</code> workflow file directly into <code>flows/</code>, or open the workspace folder in Explorer / Finder and click Reload.</p>
+          </div>
+          <button type="button" class="btn btn-sm" data-open-flows>Manage Workflows</button>
         </div>
-        <table>
-          <thead>
-            <tr><th>Target (<code>screen.element</code>)</th><th>Android</th><th>iOS</th><th>Sensitive</th></tr>
-          </thead>
-          <tbody id="screensTable">
-            <tr><td colspan="4" class="muted">Loading saved locators...</td></tr>
-          </tbody>
-        </table>
+        <form id="flowUploadStep2Form" class="btn-row" style="margin-top:8px;">
+          <input id="flowUploadStep2Input" type="file" accept=".md,.markdown" style="max-width:340px;" />
+          <button type="submit" class="btn btn-primary btn-sm">Upload Workflow (.md)</button>
+          <button type="button" class="btn btn-sm" data-reveal-path="flows">&#x1F4C2; Open flows/ Folder</button>
+          <button type="button" class="btn btn-sm" data-reload-workspace="flows">&#x21bb; Reload Workspace</button>
+        </form>
+        <div id="flowUploadStep2Status" class="status-banner" hidden aria-live="polite"></div>
       </article>
 
+      <details class="guide-details" style="margin-top:14px;">
+        <summary>Advanced / Fallback: Saved Screen Locators (<code>screens.yaml</code>) &amp; Offline XML Inspection</summary>
+        <div style="margin-top:12px;">
+          <article class="card">
+            <div class="card-head-row">
+              <h3>Current Saved Screen Locators (<code>screens/screens.yaml</code>)</h3>
+              <button type="button" class="btn btn-sm" data-reload-workspace="screens" title="Re-read screens/screens.yaml from disk">&#x21bb; Reload Locators</button>
+            </div>
+            <table>
+              <thead>
+                <tr><th>Target (<code>screen.element</code>)</th><th>Android</th><th>iOS</th><th>Sensitive</th></tr>
+              </thead>
+              <tbody id="screensTable">
+                <tr><td colspan="4" class="muted">Loading saved locators...</td></tr>
+              </tbody>
+            </table>
+          </article>
+
+          <div class="grid-2" style="margin-top:12px;">
+            <article class="card">
+              <h3>Single Live Screen Capture</h3>
+              <form id="inspectLiveForm" method="POST">
+                <div class="form-grid">
+                  <div class="field">
+                    <label for="inspectScreenName">Screen Name</label>
+                    <input id="inspectScreenName" type="text" value="login" placeholder="login" required />
+                  </div>
+                  <div class="field">
+                    <label for="inspectPlatform">Platform</label>
+                    <select id="inspectPlatform">
+                      <option value="android">android</option>
+                      <option value="ios">ios</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="form-grid">
+                  <div class="field">
+                    <label for="inspectDeviceSelect">Device Profile</label>
+                    <select id="inspectDeviceSelect"></select>
+                  </div>
+                  <div class="field">
+                    <label for="inspectEnvSelect">Environment</label>
+                    <select id="inspectEnvSelect"></select>
+                  </div>
+                  <div class="field">
+                    <label for="inspectAppSelect">App Binary (optional)</label>
+                    <select id="inspectAppSelect"></select>
+                  </div>
+                </div>
+                <div class="btn-row">
+                  <button type="submit" class="btn btn-primary" id="btnCaptureLive">Start Live Screen Capture</button>
+                  <button type="button" class="btn btn-danger" id="btnStopCapture" hidden>Stop Capture</button>
+                </div>
+                <div class="progress-box" id="captureProgressBox" hidden>
+                  <div class="progress-head">
+                    <strong id="captureProgressText">Launching Appium &amp; capturing live UI hierarchy...</strong>
+                    <span class="muted" id="captureProgressElapsed">0.0s</span>
+                  </div>
+                  <div class="progress-track"><div class="progress-fill is-indeterminate" id="captureProgressFill"></div></div>
+                </div>
+              </form>
+            </article>
+
+            <article class="card">
+              <h3>Inspect XML Dump (Offline / Failure XML)</h3>
+              <form id="inspectXmlForm" method="POST">
+                <div class="field">
+                  <label for="inspectXmlText">UI Hierarchy XML</label>
+                  <textarea id="inspectXmlText" placeholder="<hierarchy><node resource-id='com.demo:id/email' ... /></hierarchy>"></textarea>
+                </div>
+                <div class="btn-row">
+                  <button type="submit" class="btn btn-primary">Extract Interactive Elements</button>
+                  <button type="button" class="btn" id="btnLoadSampleXml">Load Sample Login XML</button>
+                </div>
+              </form>
+            </article>
+          </div>
+
+          <div id="inspectStatus" class="status-banner" hidden aria-live="polite"></div>
+
+          <article class="card">
+            <h3>Review &amp; Save Identified Elements</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:42px;">Save</th>
+                  <th>Readable Element &amp; Key</th>
+                  <th>Strategy</th>
+                  <th>Locator Value</th>
+                  <th>Preview Label</th>
+                  <th style="width:88px;">Sensitive</th>
+                </tr>
+              </thead>
+              <tbody id="inspectCandidatesBody">
+                <tr><td colspan="6" class="muted">Capture a live screen or extract XML above to populate candidate elements.</td></tr>
+              </tbody>
+            </table>
+            <div class="btn-row" style="margin-top:12px;">
+              <button type="button" class="btn btn-primary" id="btnSaveLocators">Save Checked Locators to screens/screens.yaml</button>
+            </div>
+          </article>
+        </div>
+      </details>
+
       <div class="step-footer-nav">
-        <button type="button" class="btn" data-prev-step="1">&larr; Back: APK Upload &amp; Devices</button>
-        <button type="button" class="btn btn-primary" data-next-step="3">Next: Reusable Workflows &rarr;</button>
+        <button type="button" class="btn" data-prev-step="1">&larr; Back: Emulator &amp; Active App</button>
+        <button type="button" class="btn btn-primary" data-next-step="3">Next: Test Journeys &rarr;</button>
       </div>
     </section>
 
     <!-- ================================================================ -->
-    <!-- STEP 3: WORKFLOWS                                                 -->
+    <!-- STEP 3: TEST JOURNEYS                                             -->
     <!-- ================================================================ -->
     <section class="wizard-step" id="step-3" data-step-panel="3" aria-labelledby="heading-step-3" hidden>
       <div class="step-header">
-        <h2 id="heading-step-3" tabindex="-1">3. Build Reusable Workflows (<code>flows/</code>)</h2>
-        <p>Group repeated user actions — such as signing in, dismissing onboarding, or resetting a cart — into named workflows saved under <code>flows/</code> so any test journey can call them in one line.</p>
+        <h2 id="heading-step-3" tabindex="-1">3. Compose Test Journeys &amp; Validate (<code>specs/</code>)</h2>
+        <p>Assemble recorded workflows into end-to-end test journeys with automatic Journey IDs, edit or upload existing <code>.md</code> journeys, and validate before running.</p>
       </div>
-
-      <article class="card">
-        <h3>Workflow Editor</h3>
-        <form id="flowForm" method="POST">
-          <div class="form-grid">
-            <div class="field">
-              <label for="flowNameInput">Workflow Name (<code>flows/&lt;name&gt;.md</code>)</label>
-              <input id="flowNameInput" type="text" placeholder="auth/login" required />
-            </div>
-            <div class="field">
-              <label for="flowParamsInput">Parameters (comma-separated, optional)</label>
-              <input id="flowParamsInput" type="text" placeholder="email, password" />
-            </div>
-            <div class="field">
-              <label for="flowNotesInput">Human Description / Notes</label>
-              <input id="flowNotesInput" type="text" placeholder="Sign in with provided credentials" />
-            </div>
-          </div>
-
-          <h4 style="margin:14px 0 4px;font-size:0.88rem;">Workflow Steps</h4>
-          <p class="card-help">Use <code>screen.element</code> names from Step 2 and parameter placeholders like <code>${email}</code> or environment variables like <code>${QA_USER}</code>.</p>
-          <div id="flowStepsContainer" class="step-rows"></div>
-          <div class="btn-row">
-            <button type="button" class="btn" id="btnAddFlowStep">+ Add Step</button>
-            <button type="submit" class="btn btn-primary">Save Workflow</button>
-          </div>
-          <div id="flowStatus" class="status-banner" hidden aria-live="polite"></div>
-        </form>
-      </article>
 
       <article class="card">
         <div class="card-head-row">
-          <h3>Saved Workflows in Workspace</h3>
-          <button type="button" class="btn btn-sm" data-reload-workspace="flows" title="Re-read flows/*.md from disk">&#x21bb; Reload Flows</button>
+          <div>
+            <h3 style="margin:0;" id="specBuilderHeading">Test Journey Builder</h3>
+            <p class="card-help" style="margin:2px 0 0;">Click a saved workflow chip below to compose a journey in seconds, or pick any screen locator / assertion text.</p>
+          </div>
+          <div class="btn-row" style="margin:0;">
+            <button type="button" class="btn btn-sm" id="btnNewSpec">+ New Blank Journey</button>
+            <button type="button" class="btn btn-sm" data-open-flows>Manage Workflows (<code>flows/</code>)</button>
+          </div>
         </div>
-        <table>
-          <thead>
-            <tr><th>Flow Name</th><th>Params</th><th>Steps</th><th>Source</th><th>Action</th></tr>
-          </thead>
-          <tbody id="flowsTable">
-            <tr><td colspan="5" class="muted">No reusable workflows saved yet.</td></tr>
-          </tbody>
-        </table>
-      </article>
 
-      <div class="step-footer-nav">
-        <button type="button" class="btn" data-prev-step="2">&larr; Back: Screen Identification</button>
-        <button type="button" class="btn btn-primary" data-next-step="4">Next: Test Journeys &rarr;</button>
-      </div>
-    </section>
-
-    <!-- ================================================================ -->
-    <!-- STEP 4: TEST JOURNEYS                                             -->
-    <!-- ================================================================ -->
-    <section class="wizard-step" id="step-4" data-step-panel="4" aria-labelledby="heading-step-4" hidden>
-      <div class="step-header">
-        <h2 id="heading-step-4" tabindex="-1">4. Compose Test Journeys &amp; Validate (<code>specs/</code>)</h2>
-        <p>Create complete end-to-end test journeys in <code>specs/&lt;suite&gt;/</code> combining setup preconditions, your reusable workflows or direct screen assertions, and teardown cleanup — then validate everything before touching a device.</p>
-      </div>
-
-      <article class="card">
-        <h3>Test Journey Builder</h3>
         <form id="specForm" method="POST">
+          <input type="hidden" id="specEditingSourcePath" value="" />
           <div class="form-grid">
-            <div class="field">
-              <label for="specIdInput">Journey ID</label>
-              <input id="specIdInput" type="text" placeholder="SMOKE-001" required />
-            </div>
-            <div class="field">
-              <label for="specTitleInput">Journey Title</label>
-              <input id="specTitleInput" type="text" placeholder="User can sign in and reach home" required />
-            </div>
             <div class="field">
               <label for="specSuiteInput">Suite Folder</label>
               <input id="specSuiteInput" type="text" value="smoke" placeholder="smoke" required />
+            </div>
+            <div class="field">
+              <label for="specIdInput">Journey ID <span class="muted">(auto-generated)</span></label>
+              <div style="display:flex;gap:6px;">
+                <input id="specIdInput" type="text" placeholder="SMK-001" required style="flex:1;" />
+                <button type="button" class="btn btn-sm" id="btnAutoSpecId" title="Generate next unused ID">Auto ID</button>
+              </div>
+            </div>
+            <div class="field">
+              <label for="specTitleInput">Journey Title</label>
+              <input id="specTitleInput" type="text" placeholder="User sees validation error when password is missing" required />
             </div>
             <div class="field">
               <label for="specResetSelect">App Reset Policy</label>
@@ -1333,29 +1405,46 @@
             </div>
             <div class="field">
               <label for="specExpectedInput">Expected Outcome (Optional)</label>
-              <input id="specExpectedInput" type="text" placeholder="Dashboard heading is visible" />
+              <input id="specExpectedInput" type="text" placeholder="Error text 'Password is required' is visible" />
             </div>
           </div>
 
-          <h4 style="margin:14px 0 6px;font-size:0.88rem;">Setup Steps (optional)</h4>
-          <div id="specSetupContainer" class="step-rows"></div>
-          <button type="button" class="btn btn-sm" id="btnAddSpecSetupStep">+ Add Setup Step</button>
-
-          <h4 style="margin:16px 0 6px;font-size:0.88rem;">Main Journey Steps</h4>
-          <div class="btn-row" style="margin:0 0 8px;">
-            <select id="insertFlowSelect" style="max-width:260px;" aria-label="Select workflow to insert"></select>
-            <button type="button" class="btn btn-sm" id="btnInsertFlow">+ Insert Selected Workflow</button>
-            <button type="button" class="btn btn-sm" id="btnAddSpecMainStep">+ Add Screen Action Step</button>
+          <div style="margin-top:12px;padding:10px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface-alt);">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+              <strong style="font-size:0.84rem;">Quick Insert Recorded Workflow</strong>
+              <div class="btn-row" style="margin:0;">
+                <select id="insertFlowSelect" style="max-width:250px;" aria-label="Select workflow to insert"></select>
+                <button type="button" class="btn btn-sm" id="btnInsertFlow">+ Insert Selected</button>
+              </div>
+            </div>
+            <div id="flowQuickChips" class="flow-chips">
+              <span class="muted" style="font-size:0.78rem;">Recorded workflows appear here for 1-click insertion.</span>
+            </div>
           </div>
+
+          <h4 style="margin:14px 0 6px;font-size:0.88rem;">Main Journey Steps</h4>
           <div id="specMainContainer" class="step-rows"></div>
+          <div class="btn-row" style="margin-top:6px;">
+            <button type="button" class="btn btn-sm" id="btnAddSpecMainStep">+ Add Screen Action / Assert Step</button>
+          </div>
 
-          <h4 style="margin:14px 0 6px;font-size:0.88rem;">Teardown Steps (optional)</h4>
-          <div id="specTeardownContainer" class="step-rows"></div>
-          <button type="button" class="btn btn-sm" id="btnAddSpecTeardownStep">+ Add Teardown Step</button>
+          <details class="guide-details" style="margin-top:12px;">
+            <summary>Optional Setup &amp; Teardown Steps</summary>
+            <div style="margin-top:10px;">
+              <h4 style="margin:0 0 6px;font-size:0.85rem;">Setup Steps</h4>
+              <div id="specSetupContainer" class="step-rows"></div>
+              <button type="button" class="btn btn-sm" id="btnAddSpecSetupStep">+ Add Setup Step</button>
 
-          <div class="btn-row" style="margin-top:16px;">
-            <button type="submit" class="btn btn-primary">Save Test Journey</button>
-            <button type="button" class="btn" id="btnValidateWorkspace">Validate Full Workspace</button>
+              <h4 style="margin:12px 0 6px;font-size:0.85rem;">Teardown Steps</h4>
+              <div id="specTeardownContainer" class="step-rows"></div>
+              <button type="button" class="btn btn-sm" id="btnAddSpecTeardownStep">+ Add Teardown Step</button>
+            </div>
+          </details>
+
+          <div class="btn-row" style="margin-top:16px;align-items:center;">
+            <button type="submit" class="btn btn-primary" id="btnSaveSpec">Save Test Journey</button>
+            <button type="button" class="btn" id="btnValidateWorkspace" title="Offline syntax check of every flow, locator, and journey across the entire workspace">Validate Full Workspace</button>
+            <span class="card-help" style="margin:0;">Offline check across all <code>flows/</code>, <code>screens/</code>, and <code>specs/</code> files (if an older journey fails, Edit or Delete it below).</span>
           </div>
           <div id="specStatus" class="status-banner" hidden aria-live="polite"></div>
           <div id="validateOutput" class="status-banner" hidden aria-live="polite"></div>
@@ -1364,12 +1453,17 @@
 
       <article class="card">
         <div class="card-head-row">
-          <h3>Test Journeys in Workspace</h3>
-          <button type="button" class="btn btn-sm" data-reload-workspace="specs" title="Re-read specs/*.md from disk">&#x21bb; Reload Journeys</button>
+          <h3>Test Journeys in Workspace (<code>specs/</code>)</h3>
+          <div class="btn-row" style="margin:0;">
+            <input id="specUploadInput" type="file" accept=".md,.markdown" hidden />
+            <button type="button" class="btn btn-sm" id="btnUploadSpecTrigger">&#x2191; Upload Journey (.md)</button>
+            <button type="button" class="btn btn-sm" data-reveal-path="specs">&#x1F4C2; Open specs/ Folder</button>
+            <button type="button" class="btn btn-sm" data-reload-workspace="specs" title="Re-read specs/*.md from disk">&#x21bb; Reload Journeys</button>
+          </div>
         </div>
         <table>
           <thead>
-            <tr><th>ID</th><th>Title</th><th>Suite</th><th>Platforms</th><th>Reset</th><th>Steps</th><th>Source</th></tr>
+            <tr><th>ID</th><th>Title</th><th>Suite</th><th>Platforms</th><th>Reset</th><th>Steps</th><th>Actions</th></tr>
           </thead>
           <tbody id="specsTable">
             <tr><td colspan="7" class="muted">Loading test journeys...</td></tr>
@@ -1378,17 +1472,17 @@
       </article>
 
       <div class="step-footer-nav">
-        <button type="button" class="btn" data-prev-step="3">&larr; Back: Workflows</button>
-        <button type="button" class="btn btn-primary" data-next-step="5">Next: Runs &amp; Reports &rarr;</button>
+        <button type="button" class="btn" data-prev-step="2">&larr; Back: Record App Flow</button>
+        <button type="button" class="btn btn-primary" data-next-step="4">Next: Runs &amp; Reports &rarr;</button>
       </div>
     </section>
 
     <!-- ================================================================ -->
-    <!-- STEP 5: RUNS & REPORTS                                            -->
+    <!-- STEP 4: RUNS & REPORTS                                            -->
     <!-- ================================================================ -->
-    <section class="wizard-step" id="step-5" data-step-panel="5" aria-labelledby="heading-step-5" hidden>
+    <section class="wizard-step" id="step-4" data-step-panel="4" aria-labelledby="heading-step-4" hidden>
       <div class="step-header">
-        <h2 id="heading-step-5" tabindex="-1">5. Run Tests, Monitor Execution &amp; Inspect Proof Reports</h2>
+        <h2 id="heading-step-4" tabindex="-1">4. Run Tests, Monitor Execution &amp; Inspect Proof Reports</h2>
         <p>Preview your execution plan safely with a Dry Run, launch a live test run against your uploaded binary and connected device, open rich HTML / Markdown / JUnit reports with redacted screenshots, and compare any two runs for regressions.</p>
       </div>
 
@@ -1415,6 +1509,12 @@
               <label for="runSuiteSelect">Suite Filter</label>
               <select id="runSuiteSelect">
                 <option value="">All Suites</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="runSpecFilter">Test Journey</label>
+              <select id="runSpecFilter">
+                <option value="">All Journeys in Suite</option>
               </select>
             </div>
             <div class="field">
@@ -1486,11 +1586,74 @@
       </article>
 
       <div class="step-footer-nav">
-        <button type="button" class="btn" data-prev-step="4">&larr; Back: Test Journeys</button>
+        <button type="button" class="btn" data-prev-step="3">&larr; Back: Test Journeys</button>
         <span class="muted">End of workflow</span>
       </div>
     </section>
   </main>
+
+  <!-- Secondary Reusable Workflows Drawer / Modal (flows/) -->
+  <div id="workflowsModal" class="modal-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="workflowsModalTitle">
+    <div class="modal-panel">
+      <div class="modal-head">
+        <div>
+          <h2 id="workflowsModalTitle">Manage Reusable Workflows (<code>flows/</code>)</h2>
+          <p class="card-help" style="margin:2px 0 0;">Live recording saves workflows automatically. Use this panel to edit, duplicate, delete, or import <code>flows/*.md</code> files.</p>
+        </div>
+        <div class="btn-row" style="margin:0;">
+          <input id="flowUploadModalInput" type="file" accept=".md,.markdown" hidden />
+          <button type="button" class="btn btn-sm" id="btnUploadFlowModalTrigger">&#x2191; Upload Workflow (.md)</button>
+          <button type="button" class="btn btn-sm" data-reveal-path="flows">&#x1F4C2; Open flows/</button>
+          <button type="button" class="btn btn-sm" data-reload-workspace="flows">&#x21bb; Reload Flows</button>
+          <button type="button" class="btn btn-sm" id="btnCloseFlowsModal" aria-label="Close Workflows panel">&times; Close</button>
+        </div>
+      </div>
+
+      <article class="card">
+        <h3>Saved Workflows in Workspace</h3>
+        <table>
+          <thead>
+            <tr><th>Flow Name</th><th>Params</th><th>Steps</th><th>Source</th><th>Actions</th></tr>
+          </thead>
+          <tbody id="flowsTable">
+            <tr><td colspan="5" class="muted">No reusable workflows saved yet.</td></tr>
+          </tbody>
+        </table>
+      </article>
+
+      <article class="card" style="margin-bottom:0;">
+        <div class="card-head-row">
+          <h3>Workflow Editor</h3>
+          <button type="button" class="btn btn-sm" id="btnNewFlow">+ New Blank Workflow</button>
+        </div>
+        <form id="flowForm" method="POST">
+          <div class="form-grid">
+            <div class="field">
+              <label for="flowNameInput">Workflow Name (<code>flows/&lt;name&gt;.md</code>)</label>
+              <input id="flowNameInput" type="text" placeholder="auth/login" required />
+            </div>
+            <div class="field">
+              <label for="flowParamsInput">Parameters (comma-separated, optional)</label>
+              <input id="flowParamsInput" type="text" placeholder="email, password" />
+            </div>
+            <div class="field">
+              <label for="flowNotesInput">Human Description / Notes</label>
+              <input id="flowNotesInput" type="text" placeholder="Sign in with provided credentials" />
+            </div>
+          </div>
+
+          <h4 style="margin:14px 0 4px;font-size:0.88rem;">Workflow Steps</h4>
+          <p class="card-help">Use <code>screen.element</code> names and placeholders like <code>${email}</code> or environment variables like <code>${QA_USER}</code>.</p>
+          <div id="flowStepsContainer" class="step-rows"></div>
+          <div class="btn-row">
+            <button type="button" class="btn" id="btnAddFlowStep">+ Add Step</button>
+            <button type="submit" class="btn btn-primary">Save Workflow</button>
+          </div>
+          <div id="flowStatus" class="status-banner" hidden aria-live="polite"></div>
+        </form>
+      </article>
+    </div>
+  </div>
 
   <footer>
     <span>QAlprit Local Workbench &mdash; all workspaces, locators, flows, and results stay on your machine.</span>
@@ -1528,6 +1691,9 @@
         recLastRev: -1,
         recState: null,
         recSelectedIdx: null,
+        recMode: "auto",
+        recElGroup: "all",
+        specAutoIdActive: true,
         doctorChecked: false,
         doctorOk: false,
         devicesChecked: false,
@@ -1616,6 +1782,30 @@
         if (!ms) return "0ms";
         if (ms < 1000) return ms + "ms";
         return (ms / 1000).toFixed(1) + "s";
+      }
+
+      function computeNextJourneyIdLocal(suite, specsList) {
+        const clean = String(suite || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+        const map = { SMOKE: "SMK", REGRESSION: "REG", AUTH: "AUTH", CHECKOUT: "CHK", SANITY: "SAN" };
+        const prefix = map[clean] || (clean.length >= 3 ? clean.slice(0, 4) : (clean || "TEST"));
+        const used = new Set((specsList || []).map((s) => String(s.id || "").toUpperCase()));
+        const re = new RegExp("^" + prefix + "-(\\d+)$", "i");
+        let maxNum = 0;
+        (specsList || []).forEach((s) => {
+          const m = re.exec(String(s.id || "").trim());
+          if (m) maxNum = Math.max(maxNum, Number(m[1]));
+        });
+        let num = maxNum + 1;
+        while (used.has(prefix + "-" + String(num).padStart(3, "0"))) num += 1;
+        return prefix + "-" + String(num).padStart(3, "0");
+      }
+
+      async function revealWorkspacePath(relPath) {
+        try {
+          await apiJson("/api/workspace/reveal", { rel_path: relPath || "" });
+        } catch (err) {
+          showBanner("corruptBanner", "Could not open folder: " + err.message, "error");
+        }
       }
 
       function showBanner(elId, msg, kind) {
@@ -2094,7 +2284,7 @@
         $("workspacePath").innerHTML = "<strong>Workspace:</strong> " + esc(data.project_root);
         $("badgeApps").textContent = (data.apps || []).length + " apps";
         $("badgeScreens").textContent = (data.screens || []).length + " locators";
-        $("badgeFlows").textContent = (data.flows || []).length + " flows";
+        $("badgeFlows").textContent = String((data.flows || []).length);
         $("badgeSpecs").textContent = (data.specs || []).length + " journeys";
         $("badgeRuns").textContent = (data.runs || []).length + " runs";
 
@@ -2169,9 +2359,13 @@
 
         syncDeviceSelects();
 
-        // Screen datalist & table
+        // Screen datalist & optional fallback table
         const screens = data.screens || [];
-        $("screenTargetOptions").innerHTML = screens.map((s) => `<option value="${esc(s.target)}"></option>`).join("");
+        $("screenTargetOptions").innerHTML = screens.map((s) => {
+          const sample = (s.platforms.android && s.platforms.android.value) || (s.platforms.ios && s.platforms.ios.value) || "";
+          const labelAttr = sample ? ` label="${esc(s.target)} (${esc(sample)})"` : "";
+          return `<option value="${esc(s.target)}"${labelAttr}></option>`;
+        }).join("");
         $("screensTable").innerHTML = screens.length
           ? screens.map((s) => {
               const a = s.platforms.android ? `<code>${esc(s.platforms.android.strategy)}=${esc(s.platforms.android.value)}</code>` : '<span class="muted">-</span>';
@@ -2179,12 +2373,17 @@
               const sens = s.sensitive ? '<span class="badge b-warn">masked</span>' : '<span class="muted">no</span>';
               return `<tr><td><code>${esc(s.target)}</code></td><td>${a}</td><td>${i}</td><td>${sens}</td></tr>`;
             }).join("")
-          : '<tr><td colspan="4" class="muted">No screen locators mapped yet. Capture or extract XML above!</td></tr>';
+          : '<tr><td colspan="4" class="muted">No screen locators mapped yet.</td></tr>';
 
-        // Flows datalist, dropdown, table
+        // Flows datalist, dropdown, quick chips, and management table
         const flows = data.flows || [];
         $("flowNameOptions").innerHTML = flows.map((f) => `<option value="${esc(f.name)}"></option>`).join("");
         populateSelect("insertFlowSelect", flows.map((f) => ({ value: f.name, label: `${f.name}${f.params.length ? " (" + f.params.join(", ") + ")" : ""}` })), "-- Select workflow --");
+        if ($("flowQuickChips")) {
+          $("flowQuickChips").innerHTML = flows.length
+            ? flows.map((f) => `<button type="button" class="flow-chip" data-quick-insert-flow="${esc(f.name)}" title="Insert ${esc(f.name)} (${f.step_count} steps)">+ ${esc(f.name)} <span class="muted">(${f.step_count})</span></button>`).join("")
+            : '<span class="muted" style="font-size:0.78rem;">No workflows saved yet — record one in Step 2 or upload a .md file.</span>';
+        }
         $("flowsTable").innerHTML = flows.length
           ? flows.map((f, idx) => `
               <tr>
@@ -2192,26 +2391,49 @@
                 <td>${(f.params || []).length ? esc(f.params.join(", ")) : '<span class="muted">-</span>'}</td>
                 <td>${f.step_count}</td>
                 <td><code>${esc(f.source_path)}</code></td>
-                <td><button type="button" class="btn btn-sm" data-load-flow="${idx}">Load in Editor</button></td>
+                <td>
+                  <div class="btn-row" style="margin:0;gap:4px;">
+                    <button type="button" class="btn btn-sm" data-load-flow="${idx}">Edit</button>
+                    <button type="button" class="btn btn-sm" data-dup-flow="${idx}">Duplicate</button>
+                    <button type="button" class="btn btn-sm" data-reveal-file="${esc(f.source_path)}" title="Show in Explorer / Finder">Open</button>
+                    <button type="button" class="btn btn-sm btn-danger" data-del-flow="${idx}">Delete</button>
+                  </div>
+                </td>
               </tr>`).join("")
           : '<tr><td colspan="5" class="muted">No workflows saved yet.</td></tr>';
 
-        // Specs suites + table
+        // Specs suites + journey selector + table + Auto-ID default
         const specs = data.specs || [];
         const suites = Array.from(new Set(specs.map((s) => s.suite).filter(Boolean))).sort();
         populateSelect("runSuiteSelect", suites.map((s) => ({ value: s, label: s })), "All Suites");
+        refreshRunSpecDropdown();
         $("specsTable").innerHTML = specs.length
-          ? specs.map((s) => `
+          ? specs.map((s, idx) => `
               <tr>
-                <td><strong>${esc(s.id)}</strong></td>
+                <td><strong>${esc(s.id)}</strong><div class="muted" style="font-size:0.72rem;"><code>${esc(s.source_path)}</code></div></td>
                 <td>${esc(s.title)}</td>
                 <td><span class="badge b-skip">${esc(s.suite)}</span></td>
                 <td>${esc((s.platforms || []).join(", "))}</td>
                 <td><code>${esc(s.reset)}</code></td>
                 <td>${s.step_count}</td>
-                <td><code>${esc(s.source_path)}</code></td>
+                <td>
+                  <div class="btn-row" style="margin:0;gap:4px;">
+                    <button type="button" class="btn btn-sm btn-primary" data-run-spec="${idx}" title="Select and run this journey in Step 4">Run &rarr;</button>
+                    <button type="button" class="btn btn-sm" data-edit-spec="${idx}">Edit</button>
+                    <button type="button" class="btn btn-sm" data-dup-spec="${idx}">Duplicate</button>
+                    <button type="button" class="btn btn-sm" data-reveal-file="${esc(s.source_path)}" title="Show in Explorer / Finder">Open</button>
+                    <button type="button" class="btn btn-sm btn-danger" data-del-spec="${idx}">Delete</button>
+                  </div>
+                </td>
               </tr>`).join("")
           : '<tr><td colspan="7" class="muted">No test journeys saved yet.</td></tr>';
+
+        if ($("specIdInput") && (STATE.specAutoIdActive || !$("specIdInput").value.trim())) {
+          $("specIdInput").value = computeNextJourneyIdLocal($("specSuiteInput").value || "smoke", specs);
+        }
+        if ($("recSaveTestId") && (!$("recSaveTestId").value.trim() || $("recSaveTestId").dataset.auto !== "0")) {
+          $("recSaveTestId").value = computeNextJourneyIdLocal($("recSaveSuite").value || "smoke", specs);
+        }
 
         // Runs table & compare selects
         const runs = data.runs || [];
@@ -2674,6 +2896,7 @@
         const w = Number(st.screen_width || 1080);
         const h = Number(st.screen_height || 2400);
         const q = (filterText || "").trim().toLowerCase();
+        const grp = STATE.recElGroup || "all";
         const items = (elements || []).map((el, idx) => ({ el, idx }));
 
         if (overlays) {
@@ -2685,33 +2908,46 @@
               const top = Math.max(0, (y1 / h) * 100).toFixed(2);
               const width = Math.min(100, ((x2 - x1) / w) * 100).toFixed(2);
               const height = Math.min(100, ((y2 - y1) / h) * 100).toFixed(2);
+              const isStaticLabel = !el.clickable && !el.editable;
               const lbl = el.display_label || el.key || "Element";
-              return `<div class="rec-box${STATE.recSelectedIdx === idx ? " is-selected" : ""}" data-rec-box="${idx}" title="${esc(lbl)}" style="left:${left}%;top:${top}%;width:${width}%;height:${height}%;"></div>`;
+              return `<div class="rec-box${isStaticLabel ? " is-label" : ""}${STATE.recSelectedIdx === idx ? " is-selected" : ""}" data-rec-box="${idx}" title="${esc(lbl)}" style="left:${left}%;top:${top}%;width:${width}%;height:${height}%;"></div>`;
             }).join("");
         }
 
-        const filtered = q
-          ? items.filter(({ el }) => ((el.display_label || "") + " " + (el.key || "") + " " + (el.text || "")).toLowerCase().includes(q))
-          : items;
+        let filtered = items;
+        if (grp === "interactive") {
+          filtered = filtered.filter(({ el }) => el.clickable || el.editable);
+        } else if (grp === "labels") {
+          filtered = filtered.filter(({ el }) => (!el.clickable && !el.editable) || Boolean(el.text));
+        }
+        if (q) {
+          filtered = filtered.filter(({ el }) => ((el.display_label || "") + " " + (el.key || "") + " " + (el.text || "")).toLowerCase().includes(q));
+        }
         if (!filtered.length) {
           listEl.innerHTML = '<div class="muted" style="padding:12px;">No matching elements on this screen.</div>';
           return;
         }
         listEl.innerHTML = filtered.slice(0, 60).map(({ el, idx }) => {
           const isInput = Boolean(el.editable);
+          const isStatic = !el.clickable && !isInput;
           const lbl = el.display_label || el.key;
-          const btnType = isInput
+          const primaryBtn = isInput
             ? `<button type="button" class="btn btn-primary btn-sm" data-rec-focus="${idx}">Type...</button>`
-            : `<button type="button" class="btn btn-primary btn-sm" data-rec-tap="${idx}">Tap</button>`;
+            : (isStatic
+              ? `<button type="button" class="btn btn-primary btn-sm" data-rec-assert-text="${idx}">Assert Text</button>`
+              : `<button type="button" class="btn btn-primary btn-sm" data-rec-tap="${idx}">Tap</button>`);
+          const extraAssert = (!isStatic && el.text)
+            ? `<button type="button" class="btn btn-sm" data-rec-assert-text="${idx}">Assert Text</button>`
+            : `<button type="button" class="btn btn-sm" data-rec-assert="${idx}">Visible</button>`;
           return `
             <div class="rec-el-item">
               <div style="min-width:0;flex:1;">
                 <div style="font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(lbl)}</div>
-                <div class="muted" style="font-size:0.74rem;"><code>${esc(el.key)}</code> &middot; ${esc(el.recommended_strategy)}</div>
+                <div class="muted" style="font-size:0.74rem;"><code>${esc(el.key)}</code> &middot; ${esc(el.recommended_strategy)}${el.text ? " &middot; &ldquo;" + esc(String(el.text).slice(0, 32)) + "&rdquo;" : ""}</div>
               </div>
               <div class="btn-row" style="margin:0;gap:4px;">
-                ${btnType}
-                <button type="button" class="btn btn-sm" data-rec-assert="${idx}">Assert</button>
+                ${primaryBtn}
+                ${extraAssert}
               </div>
             </div>`;
         }).join("");
@@ -2738,6 +2974,7 @@
         const el = elems[idx];
         if (!el) return;
         STATE.recSelectedIdx = idx;
+        if ($("recAssertBar")) $("recAssertBar").hidden = true;
         $("recTypeBar").hidden = false;
         $("recTypeTargetLabel").textContent = el.display_label || el.key;
         $("recTypeTargetKey").textContent = ` (${($("recScreenName").value.trim() || "login")}.${el.key})`;
@@ -2745,6 +2982,20 @@
         $("recTypeInput").type = el.suggested_sensitive ? "password" : "text";
         $("recTypeInput").value = "";
         $("recTypeInput").focus();
+        renderRecorderElements(elems, $("recElFilter").value);
+      }
+
+      function openAssertPromptForElement(idx) {
+        const elems = (STATE.recState && STATE.recState.elements) || [];
+        const el = elems[idx];
+        if (!el) return;
+        STATE.recSelectedIdx = idx;
+        $("recTypeBar").hidden = true;
+        $("recAssertBar").hidden = false;
+        $("recAssertTargetLabel").textContent = el.display_label || el.key;
+        $("recAssertTargetKey").textContent = ` (${($("recScreenName").value.trim() || "login")}.${el.key})`;
+        $("recAssertTextInput").value = el.text || el.hint || "";
+        $("recAssertTextInput").focus();
         renderRecorderElements(elems, $("recElFilter").value);
       }
 
@@ -2873,6 +3124,21 @@
         }
       });
 
+      document.querySelectorAll("[data-rec-mode]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          STATE.recMode = btn.dataset.recMode || "auto";
+          document.querySelectorAll("[data-rec-mode]").forEach((b) => b.classList.toggle("is-active", b === btn));
+        });
+      });
+
+      document.querySelectorAll("[data-rec-group]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          STATE.recElGroup = btn.dataset.recGroup || "all";
+          document.querySelectorAll("[data-rec-group]").forEach((b) => b.classList.toggle("is-active", b === btn));
+          renderRecorderElements((STATE.recState && STATE.recState.elements) || [], $("recElFilter").value);
+        });
+      });
+
       $("recOverlays").addEventListener("click", (e) => {
         const box = e.target.closest("[data-rec-box]");
         if (!box) return;
@@ -2880,10 +3146,15 @@
         const elems = (STATE.recState && STATE.recState.elements) || [];
         const el = elems[idx];
         if (!el) return;
-        if (el.editable) {
+        if (STATE.recMode === "assert_text") {
+          openAssertPromptForElement(idx);
+        } else if (el.editable) {
           openTypePromptForElement(idx);
+        } else if (!el.clickable && el.text) {
+          openAssertPromptForElement(idx);
         } else {
           $("recTypeBar").hidden = true;
+          $("recAssertBar").hidden = true;
           runRecorderAction({ action: "tap", element_index: idx });
         }
       });
@@ -2895,13 +3166,14 @@
         if (!rect.width || !rect.height) return;
         const x = ((e.clientX - rect.left) / rect.width) * (st.screen_width || 1080);
         const y = ((e.clientY - rect.top) / rect.height) * (st.screen_height || 2400);
-        runRecorderAction({ action: "tap", x: x, y: y });
+        runRecorderAction({ action: STATE.recMode === "assert_text" ? "assert_visible" : "tap", x: x, y: y });
       });
 
       $("recElementsList").addEventListener("click", (e) => {
         const tBtn = e.target.closest("[data-rec-tap]");
         if (tBtn) {
           $("recTypeBar").hidden = true;
+          $("recAssertBar").hidden = true;
           runRecorderAction({ action: "tap", element_index: Number(tBtn.dataset.recTap) });
           return;
         }
@@ -2910,9 +3182,38 @@
           openTypePromptForElement(Number(fBtn.dataset.recFocus));
           return;
         }
+        const atBtn = e.target.closest("[data-rec-assert-text]");
+        if (atBtn) {
+          openAssertPromptForElement(Number(atBtn.dataset.recAssertText));
+          return;
+        }
         const aBtn = e.target.closest("[data-rec-assert]");
         if (aBtn) {
           runRecorderAction({ action: "assert_visible", element_index: Number(aBtn.dataset.recAssert) });
+        }
+      });
+
+      $("btnRecVerifyText").addEventListener("click", () => {
+        if (STATE.recSelectedIdx === null) return;
+        const txt = $("recAssertTextInput").value.trim();
+        $("recAssertBar").hidden = true;
+        runRecorderAction({
+          action: txt ? "assert_text" : "assert_visible",
+          element_index: STATE.recSelectedIdx,
+          value: txt
+        });
+      });
+
+      $("btnRecVerifyVisible").addEventListener("click", () => {
+        if (STATE.recSelectedIdx === null) return;
+        $("recAssertBar").hidden = true;
+        runRecorderAction({ action: "assert_visible", element_index: STATE.recSelectedIdx });
+      });
+
+      $("recAssertTextInput").addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          $("btnRecVerifyText").click();
         }
       });
 
@@ -2999,6 +3300,7 @@
             if ($("runSuiteSelect") && Array.from($("runSuiteSelect").options).some((o) => o.value === res.spec.suite)) {
               $("runSuiteSelect").value = res.spec.suite;
             }
+            refreshRunSpecDropdown(res.spec.id);
             $("btnRecGoRun").hidden = false;
           }
           showBanner("recStatusBanner", msg, "ok");
@@ -3007,7 +3309,16 @@
         }
       });
 
-      $("btnRecGoRun").addEventListener("click", () => goToStep(5, true));
+      $("recSaveTestId").addEventListener("input", () => {
+        $("recSaveTestId").dataset.auto = "0";
+      });
+      $("recSaveSuite").addEventListener("input", () => {
+        if ($("recSaveTestId").dataset.auto !== "0") {
+          $("recSaveTestId").value = computeNextJourneyIdLocal($("recSaveSuite").value || "smoke", (STATE.overview && STATE.overview.specs) || []);
+        }
+      });
+
+      $("btnRecGoRun").addEventListener("click", () => goToStep(4, true));
 
       // ------------------------------------------------------------------
       // Step 2B/C Event Handlers (Manual Screen Identification)
@@ -3140,8 +3451,74 @@
       });
 
       // ------------------------------------------------------------------
-      // Step 3 Event Handlers (Workflows)
+      // Workflows Modal & Upload/Edit/Duplicate/Delete/Reveal Handlers
       // ------------------------------------------------------------------
+      function openWorkflowsModal() {
+        $("workflowsModal").hidden = false;
+      }
+      function closeWorkflowsModal() {
+        $("workflowsModal").hidden = true;
+      }
+      if ($("btnOpenFlowsModal")) $("btnOpenFlowsModal").addEventListener("click", openWorkflowsModal);
+      if ($("btnCloseFlowsModal")) $("btnCloseFlowsModal").addEventListener("click", closeWorkflowsModal);
+      $("workflowsModal").addEventListener("click", (e) => {
+        if (e.target === $("workflowsModal")) closeWorkflowsModal();
+      });
+      document.addEventListener("click", (e) => {
+        if (e.target.closest("[data-open-flows]")) {
+          openWorkflowsModal();
+        }
+        const revPathBtn = e.target.closest("[data-reveal-path]");
+        if (revPathBtn) {
+          revealWorkspacePath(revPathBtn.dataset.revealPath || "");
+        }
+        const revFileBtn = e.target.closest("[data-reveal-file]");
+        if (revFileBtn) {
+          revealWorkspacePath(revFileBtn.dataset.revealFile || "");
+        }
+      });
+      if ($("btnOpenWorkspaceFolder")) {
+        $("btnOpenWorkspaceFolder").addEventListener("click", () => revealWorkspacePath(""));
+      }
+
+      async function handleFlowFileUpload(file, statusId) {
+        if (!file) {
+          showBanner(statusId, "Choose a .md workflow file first.", "error");
+          return;
+        }
+        try {
+          const text = await file.text();
+          const res = await apiJson("/api/flows/upload", { filename: file.name, content_text: text });
+          showBanner(statusId, `Imported workflow '${res.name}' to ${res.source_path}.`, "ok");
+          await loadOverview({ skipAutoSync: true, preserveFormInputs: true });
+        } catch (err) {
+          showBanner(statusId, err.message, "error");
+        }
+      }
+
+      $("flowUploadStep2Form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const file = $("flowUploadStep2Input").files[0];
+        await handleFlowFileUpload(file, "flowUploadStep2Status");
+        $("flowUploadStep2Input").value = "";
+      });
+
+      $("btnUploadFlowModalTrigger").addEventListener("click", () => $("flowUploadModalInput").click());
+      $("flowUploadModalInput").addEventListener("change", async () => {
+        const file = $("flowUploadModalInput").files[0];
+        await handleFlowFileUpload(file, "flowStatus");
+        $("flowUploadModalInput").value = "";
+      });
+
+      $("btnNewFlow").addEventListener("click", () => {
+        $("flowNameInput").value = "";
+        $("flowParamsInput").value = "";
+        $("flowNotesInput").value = "";
+        $("flowStepsContainer").innerHTML = "";
+        $("flowStepsContainer").appendChild(createStepRowElement({ tap: "" }));
+        showBanner("flowStatus", "Started a new blank workflow.", "");
+      });
+
       $("btnAddFlowStep").addEventListener("click", () => {
         $("flowStepsContainer").appendChild(createStepRowElement({ tap: "" }));
       });
@@ -3158,27 +3535,118 @@
             notes: $("flowNotesInput").value.trim()
           });
           showBanner("flowStatus", `Saved workflow '${data.name}' to ${data.source_path}.`, "ok");
-          await loadOverview();
+          await loadOverview({ skipAutoSync: true, preserveFormInputs: true });
         } catch (err) {
           showBanner("flowStatus", err.message, "error");
         }
       });
 
-      $("flowsTable").addEventListener("click", (e) => {
-        const btn = e.target.closest("[data-load-flow]");
-        if (!btn || !STATE.overview) return;
-        const flow = STATE.overview.flows[Number(btn.dataset.loadFlow)];
-        if (!flow) return;
-        $("flowNameInput").value = flow.name;
-        $("flowParamsInput").value = (flow.params || []).join(", ");
-        $("flowStepsContainer").innerHTML = "";
-        (flow.steps || []).forEach((st) => $("flowStepsContainer").appendChild(createStepRowElement(st)));
-        showBanner("flowStatus", `Loaded '${flow.name}' into editor.`, "");
+      $("flowsTable").addEventListener("click", async (e) => {
+        if (!STATE.overview) return;
+        const loadBtn = e.target.closest("[data-load-flow]");
+        if (loadBtn) {
+          const flow = STATE.overview.flows[Number(loadBtn.dataset.loadFlow)];
+          if (!flow) return;
+          $("flowNameInput").value = flow.name;
+          $("flowParamsInput").value = (flow.params || []).join(", ");
+          $("flowNotesInput").value = flow.body || "";
+          $("flowStepsContainer").innerHTML = "";
+          (flow.steps || []).forEach((st) => $("flowStepsContainer").appendChild(createStepRowElement(st)));
+          showBanner("flowStatus", `Loaded '${flow.name}' into editor.`, "");
+          return;
+        }
+        const dupBtn = e.target.closest("[data-dup-flow]");
+        if (dupBtn) {
+          const flow = STATE.overview.flows[Number(dupBtn.dataset.dupFlow)];
+          if (!flow) return;
+          try {
+            const res = await apiJson("/api/flows/duplicate", { name: flow.name });
+            showBanner("flowStatus", `Duplicated '${flow.name}' as '${res.name}'.`, "ok");
+            await loadOverview({ skipAutoSync: true, preserveFormInputs: true });
+          } catch (err) {
+            showBanner("flowStatus", err.message, "error");
+          }
+          return;
+        }
+        const delBtn = e.target.closest("[data-del-flow]");
+        if (delBtn) {
+          const flow = STATE.overview.flows[Number(delBtn.dataset.delFlow)];
+          if (!flow) return;
+          if (!window.confirm(`Delete workflow '${flow.name}' (${flow.source_path}) from disk?`)) return;
+          try {
+            await apiJson("/api/flows/delete", { name: flow.name });
+            showBanner("flowStatus", `Deleted workflow '${flow.name}'.`, "ok");
+            await loadOverview({ skipAutoSync: true, preserveFormInputs: true });
+          } catch (err) {
+            showBanner("flowStatus", err.message, "error");
+          }
+        }
       });
 
       // ------------------------------------------------------------------
-      // Step 4 Event Handlers (Test Journeys & Validate)
+      // Step 3 Event Handlers (Test Journeys, Auto-ID, Edit/Dup/Del/Upload)
       // ------------------------------------------------------------------
+      function resetJourneyBuilderToNew() {
+        const suite = $("specSuiteInput").value.trim() || "smoke";
+        STATE.specAutoIdActive = true;
+        $("specEditingSourcePath").value = "";
+        $("specBuilderHeading").textContent = "Test Journey Builder";
+        $("specIdInput").value = computeNextJourneyIdLocal(suite, (STATE.overview && STATE.overview.specs) || []);
+        $("specTitleInput").value = "";
+        $("specExpectedInput").value = "";
+        $("specTagsInput").value = suite;
+        $("specResetSelect").value = "clear_data";
+        $("specPlatAndroid").checked = true;
+        $("specPlatIos").checked = STATE.hostOs === "Darwin";
+        $("specSetupContainer").innerHTML = "";
+        $("specMainContainer").innerHTML = "";
+        $("specMainContainer").appendChild(createStepRowElement({ tap: "" }));
+        $("specTeardownContainer").innerHTML = "";
+      }
+
+      function insertFlowByNameIntoJourney(name) {
+        if (!name) return;
+        const flowObj = (STATE.overview && STATE.overview.flows || []).find((f) => f.name === name);
+        const paramStub = {};
+        if (flowObj && flowObj.params) {
+          flowObj.params.forEach((p) => { paramStub[p] = ""; });
+        }
+        const rows = $("specMainContainer").querySelectorAll(".step-row");
+        if (rows.length === 1) {
+          const inputs = rows[0].querySelectorAll("input");
+          if (!inputs[0].value.trim() && !inputs[1].value.trim()) {
+            rows[0].remove();
+          }
+        }
+        $("specMainContainer").appendChild(createStepRowElement({
+          run_flow: Object.keys(paramStub).length ? { flow: name, params: paramStub } : name
+        }));
+      }
+
+      $("btnNewSpec").addEventListener("click", () => {
+        resetJourneyBuilderToNew();
+        showBanner("specStatus", "Ready to compose a new test journey with auto-generated ID.", "");
+      });
+
+      $("specIdInput").addEventListener("input", () => {
+        STATE.specAutoIdActive = false;
+      });
+      $("specSuiteInput").addEventListener("input", () => {
+        if (STATE.specAutoIdActive) {
+          $("specIdInput").value = computeNextJourneyIdLocal($("specSuiteInput").value || "smoke", (STATE.overview && STATE.overview.specs) || []);
+        }
+      });
+      $("btnAutoSpecId").addEventListener("click", async () => {
+        const suite = $("specSuiteInput").value.trim() || "smoke";
+        STATE.specAutoIdActive = true;
+        try {
+          const res = await apiJson("/api/specs/next-id?suite=" + encodeURIComponent(suite));
+          $("specIdInput").value = res.id;
+        } catch (_) {
+          $("specIdInput").value = computeNextJourneyIdLocal(suite, (STATE.overview && STATE.overview.specs) || []);
+        }
+      });
+
       $("btnAddSpecSetupStep").addEventListener("click", () => {
         $("specSetupContainer").appendChild(createStepRowElement({ tap: "" }));
       });
@@ -3189,16 +3657,101 @@
         $("specTeardownContainer").appendChild(createStepRowElement("back"));
       });
       $("btnInsertFlow").addEventListener("click", () => {
-        const name = $("insertFlowSelect").value;
-        if (!name) return;
-        const flowObj = (STATE.overview && STATE.overview.flows || []).find((f) => f.name === name);
-        const paramStub = {};
-        if (flowObj && flowObj.params) {
-          flowObj.params.forEach((p) => { paramStub[p] = ""; });
+        insertFlowByNameIntoJourney($("insertFlowSelect").value);
+      });
+      $("flowQuickChips").addEventListener("click", (e) => {
+        const chip = e.target.closest("[data-quick-insert-flow]");
+        if (chip) insertFlowByNameIntoJourney(chip.dataset.quickInsertFlow);
+      });
+
+      $("btnUploadSpecTrigger").addEventListener("click", () => $("specUploadInput").click());
+      $("specUploadInput").addEventListener("change", async () => {
+        const file = $("specUploadInput").files[0];
+        if (!file) return;
+        try {
+          const text = await file.text();
+          const res = await apiJson("/api/specs/upload", {
+            filename: file.name,
+            content_text: text,
+            suite: $("specSuiteInput").value.trim() || "smoke"
+          });
+          showBanner("specStatus", `Uploaded journey '${res.id}' to ${res.source_path}.`, "ok");
+          await loadOverview({ skipAutoSync: true, preserveFormInputs: true });
+        } catch (err) {
+          showBanner("specStatus", err.message, "error");
+        } finally {
+          $("specUploadInput").value = "";
         }
-        $("specMainContainer").appendChild(createStepRowElement({
-          run_flow: Object.keys(paramStub).length ? { flow: name, params: paramStub } : name
-        }));
+      });
+
+      $("specsTable").addEventListener("click", async (e) => {
+        if (!STATE.overview) return;
+        const runBtn = e.target.closest("[data-run-spec]");
+        if (runBtn) {
+          const sp = STATE.overview.specs[Number(runBtn.dataset.runSpec)];
+          if (!sp) return;
+          if ($("runPlatformSelect") && (sp.platforms || []).length && !sp.platforms.includes($("runPlatformSelect").value)) {
+            $("runPlatformSelect").value = sp.platforms[0];
+          }
+          if ($("runSuiteSelect")) {
+            const hasSuite = Array.from($("runSuiteSelect").options).some((o) => o.value === sp.suite);
+            $("runSuiteSelect").value = hasSuite ? sp.suite : "";
+          }
+          refreshRunSpecDropdown(sp.id);
+          goToStep(4, true);
+          return;
+        }
+        const editBtn = e.target.closest("[data-edit-spec]");
+        if (editBtn) {
+          const sp = STATE.overview.specs[Number(editBtn.dataset.editSpec)];
+          if (!sp) return;
+          STATE.specAutoIdActive = false;
+          $("specEditingSourcePath").value = sp.source_path || "";
+          $("specBuilderHeading").textContent = "Editing Test Journey: " + sp.id;
+          $("specIdInput").value = sp.id || "";
+          $("specTitleInput").value = sp.title || "";
+          $("specSuiteInput").value = sp.suite || "smoke";
+          $("specResetSelect").value = sp.reset || "clear_data";
+          $("specTagsInput").value = (sp.tags || []).join(", ");
+          $("specExpectedInput").value = sp.expected || "";
+          $("specPlatAndroid").checked = (sp.platforms || []).includes("android");
+          $("specPlatIos").checked = (sp.platforms || []).includes("ios");
+          $("specSetupContainer").innerHTML = "";
+          (sp.setup || []).forEach((st) => $("specSetupContainer").appendChild(createStepRowElement(st)));
+          $("specMainContainer").innerHTML = "";
+          (sp.steps || []).forEach((st) => $("specMainContainer").appendChild(createStepRowElement(st)));
+          $("specTeardownContainer").innerHTML = "";
+          (sp.teardown || []).forEach((st) => $("specTeardownContainer").appendChild(createStepRowElement(st)));
+          showBanner("specStatus", `Loaded '${sp.id}' into Journey Builder for editing.`, "");
+          window.scrollTo({ top: 0, behavior: "smooth" });
+          return;
+        }
+        const dupBtn = e.target.closest("[data-dup-spec]");
+        if (dupBtn) {
+          const sp = STATE.overview.specs[Number(dupBtn.dataset.dupSpec)];
+          if (!sp) return;
+          try {
+            const res = await apiJson("/api/specs/duplicate", { source_path: sp.source_path, suite: sp.suite });
+            showBanner("specStatus", `Duplicated '${sp.id}' as '${res.id}'.`, "ok");
+            await loadOverview({ skipAutoSync: true, preserveFormInputs: true });
+          } catch (err) {
+            showBanner("specStatus", err.message, "error");
+          }
+          return;
+        }
+        const delBtn = e.target.closest("[data-del-spec]");
+        if (delBtn) {
+          const sp = STATE.overview.specs[Number(delBtn.dataset.delSpec)];
+          if (!sp) return;
+          if (!window.confirm(`Delete test journey '${sp.id}' (${sp.source_path}) from disk?`)) return;
+          try {
+            await apiJson("/api/specs/delete", { source_path: sp.source_path });
+            showBanner("specStatus", `Deleted journey '${sp.id}'.`, "ok");
+            await loadOverview({ skipAutoSync: true, preserveFormInputs: true });
+          } catch (err) {
+            showBanner("specStatus", err.message, "error");
+          }
+        }
       });
 
       $("specForm").addEventListener("submit", async (e) => {
@@ -3208,13 +3761,19 @@
           if ($("specPlatAndroid").checked) platforms.push("android");
           if ($("specPlatIos").checked) platforms.push("ios");
           const tags = $("specTagsInput").value.split(",").map((t) => t.trim()).filter(Boolean);
+          const suiteVal = $("specSuiteInput").value.trim() || "smoke";
+          let specIdVal = $("specIdInput").value.trim();
+          if (!specIdVal) {
+            specIdVal = computeNextJourneyIdLocal(suiteVal, (STATE.overview && STATE.overview.specs) || []);
+            $("specIdInput").value = specIdVal;
+          }
           const payload = {
-            id: $("specIdInput").value.trim(),
+            id: specIdVal,
             title: $("specTitleInput").value.trim(),
-            suite: $("specSuiteInput").value.trim() || "smoke",
+            suite: suiteVal,
             reset: $("specResetSelect").value,
             platforms: platforms.length ? platforms : ["android"],
-            tags: tags.length ? tags : ["smoke"],
+            tags: tags.length ? tags : [suiteVal],
             expected: $("specExpectedInput").value.trim(),
             setup: readStepRows("specSetupContainer"),
             steps: readStepRows("specMainContainer"),
@@ -3222,7 +3781,9 @@
           };
           const res = await apiJson("/api/specs/save", payload);
           showBanner("specStatus", `Saved journey '${res.id}' to ${res.source_path}.`, "ok");
-          await loadOverview();
+          STATE.specAutoIdActive = false;
+          $("specBuilderHeading").textContent = "Editing Test Journey: " + res.id;
+          await loadOverview({ skipAutoSync: true, preserveFormInputs: true });
         } catch (err) {
           showBanner("specStatus", err.message, "error");
         }
@@ -3322,6 +3883,35 @@
         }
       }
 
+      function refreshRunSpecDropdown(preferredId) {
+        const sel = $("runSpecFilter");
+        if (!sel) return;
+        const suiteFilter = $("runSuiteSelect") ? $("runSuiteSelect").value : "";
+        const platFilter = $("runPlatformSelect") ? $("runPlatformSelect").value : "";
+        const allSpecs = (STATE.overview && STATE.overview.specs) || [];
+        const matched = allSpecs.filter((s) => {
+          if (suiteFilter && s.suite !== suiteFilter) return false;
+          if (platFilter && Array.isArray(s.platforms) && s.platforms.length && !s.platforms.includes(platFilter)) return false;
+          return true;
+        });
+        const prev = preferredId !== undefined ? preferredId : sel.value;
+        populateSelect(
+          "runSpecFilter",
+          matched.map((s) => ({ value: s.id, label: `[${s.suite}] ${s.id} — ${s.title}` })),
+          `All Journeys (${matched.length})`
+        );
+        if (prev && Array.from(sel.options).some((o) => o.value === prev)) {
+          sel.value = prev;
+        }
+      }
+
+      if ($("runSuiteSelect")) {
+        $("runSuiteSelect").addEventListener("change", () => refreshRunSpecDropdown(""));
+      }
+      if ($("runPlatformSelect")) {
+        $("runPlatformSelect").addEventListener("change", () => refreshRunSpecDropdown());
+      }
+
       async function startRun(dryRun) {
         $("openFinishedReportLink").hidden = true;
         showBanner("runStatusBanner", dryRun ? "Building Dry Run preview..." : "Starting test run...", "");
@@ -3331,6 +3921,7 @@
             device_profile: $("runDeviceSelect").value,
             env_name: $("runEnvSelect").value,
             suite: $("runSuiteSelect").value,
+            spec_id: $("runSpecFilter") ? $("runSpecFilter").value : "",
             app_path: $("runAppSelect").value,
             retries: Number($("runRetriesInput").value) || 0,
             dry_run: dryRun
