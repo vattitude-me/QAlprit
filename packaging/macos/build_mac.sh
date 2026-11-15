@@ -250,7 +250,7 @@ QAlprit for macOS (Unsigned / Ad-hoc Build)
    - Terminal alternative:
        xattr -dr com.apple.quarantine /Applications/QAlprit.app
 
-Your QAlprit workspace lives in: ~/QAlpritWorkspace
+Your QAlprit workspace lives in: ~/Documents/QAlpritWorkspace (or ~/QAlpritWorkspace if upgraded)
 TXT
 
 hdiutil create -volname "QAlprit" -srcfolder "${DMG_STAGING}" -ov -format UDZO "${DMG_PATH}"

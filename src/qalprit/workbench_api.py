@@ -799,12 +799,18 @@ def delete_test_journey(project_root: Path, source_path: str) -> dict[str, Any]:
 
 
 def reveal_in_file_manager(project_root: Path, rel_path: str = "") -> dict[str, Any]:
-    """Open the workspace directory (or reveal a file inside it) in Explorer / Finder."""
+    """Open the workspace directory, QAlprit data directory, or a workspace file in Explorer / Finder."""
     root = project_root.resolve()
-    cleaned = (rel_path or "").strip().lstrip("/\\")
-    target = (root / cleaned).resolve() if cleaned else root
-    if not target.is_relative_to(root):
-        raise ValueError("Path escapes workspace directory.")
+    raw = (rel_path or "").strip()
+    if raw == "@data_dir":
+        from qalprit.paths import get_qalprit_data_dir
+
+        target = get_qalprit_data_dir()
+    else:
+        cleaned = raw.lstrip("/\\")
+        target = (root / cleaned).resolve() if cleaned else root
+        if not target.is_relative_to(root):
+            raise ValueError("Path escapes workspace directory.")
     if not target.exists():
         target.mkdir(parents=True, exist_ok=True) if not target.suffix else target.parent.mkdir(parents=True, exist_ok=True)
 
@@ -823,6 +829,43 @@ def reveal_in_file_manager(project_root: Path, rel_path: str = "") -> dict[str, 
         subprocess.Popen(["xdg-open", str(dir_target)])
 
     return {"ok": True, "opened_path": str(target)}
+
+
+def update_storage_preferences(current_workspace: Path, payload: dict[str, Any]) -> dict[str, Any]:
+    """Save user-approved storage directories / system SDK preference and ensure workspace folders."""
+    from qalprit.desktop import ensure_workspace
+    from qalprit.doctor import discover_system_software
+    from qalprit.paths import save_user_settings
+
+    updates: dict[str, Any] = {}
+    if "data_dir" in payload:
+        raw_data = str(payload.get("data_dir") or "").strip()
+        if raw_data:
+            data_path = Path(raw_data).expanduser().resolve()
+            data_path.mkdir(parents=True, exist_ok=True)
+            updates["data_dir"] = str(data_path)
+        else:
+            updates["data_dir"] = ""
+
+    new_workspace = current_workspace.resolve()
+    if "workspace_dir" in payload:
+        raw_ws = str(payload.get("workspace_dir") or "").strip()
+        if raw_ws:
+            new_workspace = ensure_workspace(Path(raw_ws).expanduser().resolve())
+            updates["workspace_dir"] = str(new_workspace)
+        else:
+            updates["workspace_dir"] = ""
+
+    if "prefer_existing_system_sdk" in payload:
+        updates["prefer_existing_system_sdk"] = bool(payload.get("prefer_existing_system_sdk"))
+
+    saved = save_user_settings(updates)
+    return {
+        "ok": True,
+        "settings": saved,
+        "workspace_dir": str(new_workspace),
+        "preflight": discover_system_software(new_workspace),
+    }
 
 
 def run_workspace_validation(

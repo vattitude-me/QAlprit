@@ -521,16 +521,18 @@ def test_prepare_writable_android_sdk_and_find_sdkmanager(
     (pt_dir / "adb").write_text("#!/bin/sh\necho ok\n", encoding="utf-8")
 
     monkeypatch.setattr(Path, "home", lambda: fake_home)
+    for var in ("QALPRIT_DATA_DIR", "QALPRIT_SDK_DIR", "QALPRIT_SETTINGS_PATH", "ANDROID_HOME", "ANDROID_SDK_ROOT"):
+        monkeypatch.delenv(var, raising=False)
     monkeypatch.setenv("QALPRIT_RUNTIME_DIR", str(rt))
     monkeypatch.setattr(doctor_mod.shutil, "which", lambda _n: None)
 
     assert doctor_mod.find_android_tool("sdkmanager") == str(ct_bin / "sdkmanager")
 
     user_sdk = doctor_mod.prepare_writable_android_sdk()
-    assert user_sdk == (fake_home / ".qalprit" / "android-sdk").resolve()
+    assert user_sdk == (doctor_mod.get_os_app_data_root() / "android-sdk").resolve()
     assert (user_sdk / "cmdline-tools" / "latest" / "bin" / "sdkmanager").exists()
 
-    # Once emulator dir exists under ~/.qalprit/android-sdk, find_android_sdk prefers it cleanly
+    # Once emulator dir exists under standard app data android-sdk, find_android_sdk prefers it cleanly
     (user_sdk / "emulator").mkdir(parents=True)
     assert doctor_mod.find_android_sdk() == user_sdk
 
@@ -1104,6 +1106,107 @@ def test_streamlined_ui_and_workflow_spec_crud_endpoints(tmp_path: Path, monkeyp
         rev = _post_json("/api/workspace/reveal", {"rel_path": "specs"})
         assert rev["ok"] is True
         assert popens
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_os_standard_paths_and_legacy_fallback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import qalprit.desktop as desktop_mod
+    import qalprit.paths as paths_mod
+
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    monkeypatch.setattr(Path, "home", lambda: fake_home)
+    for var in (
+        "QALPRIT_DATA_DIR",
+        "QALPRIT_SDK_DIR",
+        "QALPRIT_SETTINGS_PATH",
+        "QALPRIT_WORKSPACE",
+        "ANDROID_AVD_HOME",
+        "ANDROID_USER_HOME",
+    ):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.chdir(tmp_path)
+
+    # Fresh install uses OS standard folders instead of polluting ~ with .qalprit / .android / QAlpritWorkspace
+    ws_std = desktop_mod.resolve_default_workspace()
+    assert ws_std == (fake_home / "Documents" / "QAlpritWorkspace").resolve()
+    avd_std = paths_mod.get_qalprit_avd_home()
+    assert avd_std == (paths_mod.get_os_app_data_root() / "avd").resolve()
+    assert paths_mod.get_android_user_home() == (paths_mod.get_os_app_data_root() / "android-home").resolve()
+
+    # Existing legacy ~/QAlpritWorkspace and ~/.qalprit/android-sdk are preserved automatically
+    legacy_ws = (fake_home / "QAlpritWorkspace").resolve()
+    legacy_ws.mkdir()
+    assert desktop_mod.resolve_default_workspace() == legacy_ws
+
+    legacy_sdk = (fake_home / ".qalprit" / "android-sdk" / "emulator").resolve()
+    legacy_sdk.mkdir(parents=True)
+    assert paths_mod.get_user_android_sdk_dir() == (fake_home / ".qalprit" / "android-sdk").resolve()
+
+    iss_text = (Path(__file__).resolve().parents[1] / "packaging" / "windows" / "installer.iss").read_text(encoding="utf-8")
+    assert "ScanPage" in iss_text
+    assert "StoragePage" in iss_text
+    assert "SaveQAlpritSettings" in iss_text
+    assert "{userdocs}\\QAlpritWorkspace" in iss_text
+
+
+def test_system_preflight_and_storage_preferences_api(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import json
+    import threading
+    import urllib.request
+    from qalprit.ui_server import create_ui_server
+
+    ws1 = ensure_workspace(tmp_path / "ws1")
+    ws2 = (tmp_path / "ws2").resolve()
+    custom_data = (tmp_path / "qalprit_data").resolve()
+    settings_file = (tmp_path / "settings.json").resolve()
+    monkeypatch.setenv("QALPRIT_SETTINGS_PATH", str(settings_file))
+    monkeypatch.delenv("QALPRIT_DATA_DIR", raising=False)
+
+    server = create_ui_server(ws1, host="127.0.0.1", port=0)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/") as r:
+            html = r.read().decode("utf-8")
+        assert 'id="storagePreflightCard"' in html
+        assert 'id="prefWorkspaceDirInput"' in html
+        assert 'id="prefDataDirInput"' in html
+        assert 'id="prefReuseSystemSdk"' in html
+
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/system/preflight") as r:
+            pf = json.loads(r.read().decode("utf-8"))
+        ids = {item["id"] for item in pf["software"]}
+        assert {"node", "python", "java", "appium", "android_sdk", "android_avd"}.issubset(ids)
+
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{port}/api/system/preferences",
+            data=json.dumps({
+                "workspace_dir": str(ws2),
+                "data_dir": str(custom_data),
+                "prefer_existing_system_sdk": True,
+            }).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req) as r:
+            saved = json.loads(r.read().decode("utf-8"))
+        assert saved["ok"] is True
+        assert saved["workspace_dir"] == str(ws2)
+        assert custom_data.is_dir()
+        assert settings_file.is_file()
+
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/overview") as r:
+            ov = json.loads(r.read().decode("utf-8"))
+        assert ov["project_root"] == str(ws2)
     finally:
         server.shutdown()
         server.server_close()

@@ -14,6 +14,21 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
+from qalprit.paths import (
+    DEFAULT_AVD_NAME,
+    get_android_user_home,
+    get_legacy_dot_qalprit_dir,
+    get_legacy_workspace_dir,
+    get_os_app_data_root,
+    get_qalprit_avd_home,
+    get_qalprit_data_dir,
+    get_settings_path,
+    get_standard_workspace_dir,
+    get_user_android_sdk_dir,
+    load_user_settings,
+    save_user_settings,
+)
+
 
 def win_subprocess_kwargs() -> dict[str, Any]:
     """Return Windows creationflags preventing stray console popups from GUI builds."""
@@ -95,7 +110,7 @@ def ensure_portable_appium_home(appium_home: Path) -> Path:
         ext_file.write_text(rendered, encoding="utf-8")
         return appium_home
     except OSError:
-        fallback_home = Path.home() / ".qalprit" / "appium_home"
+        fallback_home = get_qalprit_data_dir() / "appium_home"
         fallback_mods = fallback_home / "node_modules"
         fallback_ext = fallback_home / ext_rel
         try:
@@ -149,11 +164,6 @@ class CheckItem:
     status: Literal["ok", "warn", "fail", "skip"]
     detail: str
     remediation: str = ""
-
-
-def get_user_android_sdk_dir() -> Path:
-    """Return persistent user-writable Android SDK path (`~/.qalprit/android-sdk`)."""
-    return (Path.home() / ".qalprit" / "android-sdk").resolve()
 
 
 def _is_reparse_or_symlink(path: Path) -> bool:
@@ -246,8 +256,62 @@ def _sync_bundled_sdk_into(user_sdk: Path) -> None:
         break
 
 
+def _system_android_sdk_candidates() -> list[Path]:
+    """Return ordered candidate directories where a pre-existing Android SDK may live."""
+    candidates: list[Path] = []
+    for env_key in ("ANDROID_HOME", "ANDROID_SDK_ROOT"):
+        val = os.environ.get(env_key, "").strip()
+        if val:
+            candidates.append(Path(val).expanduser())
+
+    home = Path.home()
+    system = platform.system()
+    if system == "Darwin":
+        candidates.extend(
+            [
+                home / "Library" / "Android" / "sdk",
+                Path("/opt/homebrew/share/android-commandlinetools"),
+                Path("/usr/local/share/android-commandlinetools"),
+            ]
+        )
+    elif system == "Windows":
+        local_app = os.environ.get("LOCALAPPDATA", "").strip()
+        if local_app:
+            candidates.append(Path(local_app) / "Android" / "Sdk")
+        candidates.append(home / "AppData" / "Local" / "Android" / "Sdk")
+    else:
+        candidates.extend([home / "Android" / "Sdk", Path("/opt/android-sdk")])
+
+    unique: list[Path] = []
+    seen: set[str] = set()
+    for p in candidates:
+        key = str(p)
+        if key not in seen:
+            seen.add(key)
+            unique.append(p)
+    return unique
+
+
+def find_system_android_sdk(*, require_emulator: bool = False) -> Path | None:
+    """Locate a pre-existing non-bundled Android SDK (e.g. Android Studio SDK)."""
+    rt = find_bundled_runtime_dir()
+    rt_resolved = rt.resolve() if rt is not None else None
+    for path in _system_android_sdk_candidates():
+        if not path.is_dir():
+            continue
+        try:
+            if rt_resolved and path.resolve().is_relative_to(rt_resolved):
+                continue
+        except OSError:
+            pass
+        if require_emulator and not ((path / "emulator").is_dir() and (path / "system-images").is_dir()):
+            continue
+        return path
+    return None
+
+
 def prepare_writable_android_sdk() -> Path:
-    """Ensure `~/.qalprit/android-sdk` exists with links to bundled SDK tools."""
+    """Ensure QAlprit's writable Android SDK directory exists with links to bundled SDK tools."""
     user_sdk = get_user_android_sdk_dir()
     user_sdk.mkdir(parents=True, exist_ok=True)
     _sync_bundled_sdk_into(user_sdk)
@@ -255,7 +319,13 @@ def prepare_writable_android_sdk() -> Path:
 
 
 def find_android_sdk() -> Path | None:
-    """Locate Android SDK directory across macOS, Windows, and Linux."""
+    """Locate Android SDK directory across QAlprit storage, bundled runtime, and system SDKs."""
+    settings = load_user_settings()
+    if settings.get("prefer_existing_system_sdk"):
+        sys_sdk = find_system_android_sdk()
+        if sys_sdk is not None:
+            return sys_sdk
+
     user_sdk = get_user_android_sdk_dir()
     if user_sdk.exists() and (
         (user_sdk / "emulator").is_dir() or (user_sdk / "system-images").is_dir()
@@ -267,28 +337,7 @@ def find_android_sdk() -> Path | None:
     rt = find_bundled_runtime_dir()
     if rt is not None:
         candidates.extend([rt / "android-sdk", rt / "android"])
-    for env_key in ("ANDROID_HOME", "ANDROID_SDK_ROOT"):
-        val = os.environ.get(env_key)
-        if val:
-            candidates.append(Path(val))
-
-    home = Path.home()
-    system = platform.system()
-    if system == "Darwin":
-        candidates.extend(
-            [
-                Path("/opt/homebrew/share/android-commandlinetools"),
-                Path("/usr/local/share/android-commandlinetools"),
-                home / "Library" / "Android" / "sdk",
-            ]
-        )
-    elif system == "Windows":
-        local_app = os.environ.get("LOCALAPPDATA")
-        if local_app:
-            candidates.append(Path(local_app) / "Android" / "Sdk")
-        candidates.append(home / "AppData" / "Local" / "Android" / "Sdk")
-    else:
-        candidates.extend([home / "Android" / "Sdk", Path("/opt/android-sdk")])
+    candidates.extend(_system_android_sdk_candidates())
 
     for path in candidates:
         if path.exists():
@@ -596,7 +645,10 @@ def run_doctor(python_min: tuple[int, int] = (3, 10)) -> list[CheckItem]:
 
     emu_bin = find_android_tool("emulator")
     if emu_bin:
-        rc, avd_out = _run_quick([emu_bin, "-list-avds"])
+        emu_env = dict(os.environ)
+        emu_env.setdefault("ANDROID_AVD_HOME", str(get_qalprit_avd_home()))
+        emu_env.setdefault("ANDROID_USER_HOME", str(get_android_user_home()))
+        rc, avd_out = _run_quick([emu_bin, "-list-avds"], env=emu_env)
         avds = [line.strip() for line in avd_out.splitlines() if line.strip()] if rc == 0 else []
         detail = f"{len(avds)} AVD(s): {', '.join(avds)}" if avds else "No AVDs found — run Emulator Setup"
         checks.append(CheckItem("Android emulator", "ok" if avds else "warn", detail))
@@ -656,3 +708,177 @@ def run_doctor(python_min: tuple[int, int] = (3, 10)) -> list[CheckItem]:
         )
 
     return checks
+
+
+def _is_inside(path: Path | str | None, root: Path | None) -> bool:
+    if not path or root is None:
+        return False
+    try:
+        return Path(path).resolve().is_relative_to(root.resolve())
+    except OSError:
+        return False
+
+
+def discover_system_software(workspace_root: Path | None = None) -> dict[str, Any]:
+    """Scan system-installed vs QAlprit-bundled runtimes, SDKs, AVDs, and storage paths."""
+    system = platform.system()
+    rt = find_bundled_runtime_dir()
+    settings = load_user_settings()
+    data_dir = get_qalprit_data_dir()
+    sdk_dir = get_user_android_sdk_dir()
+    avd_dir = get_qalprit_avd_home()
+    legacy_dot = get_legacy_dot_qalprit_dir()
+    legacy_ws = get_legacy_workspace_dir()
+
+    # 1. Node.js
+    sys_node = shutil.which("node")
+    if sys_node and _is_inside(sys_node, rt):
+        sys_node = None
+    if not sys_node and system == "Windows":
+        for cand in (
+            Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "nodejs" / "node.exe",
+            Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "nodejs" / "node.exe",
+        ):
+            if cand.is_file():
+                sys_node = str(cand)
+                break
+    bundled_node = find_node_bin()
+    node_path = sys_node or bundled_node
+    node_ver = ""
+    if node_path:
+        rc, out = _run_quick([node_path, "--version"], timeout=5.0)
+        if rc == 0 and out:
+            node_ver = out.splitlines()[0].strip()
+
+    # 2. Python (system)
+    sys_python = None
+    for cmd_name in ("python3", "python", "py"):
+        cand = shutil.which(cmd_name)
+        if cand and not _is_inside(cand, Path(sys.executable).parent if getattr(sys, "frozen", False) else None):
+            sys_python = cand
+            break
+    py_ver = platform.python_version() if not getattr(sys, "frozen", False) else ""
+    if sys_python:
+        rc, out = _run_quick([sys_python, "--version"], timeout=5.0)
+        if rc == 0 and out:
+            py_ver = out.splitlines()[0].strip()
+
+    # 3. Java / JDK
+    sys_java = None
+    jh = os.environ.get("JAVA_HOME", "").strip()
+    java_exe = "java.exe" if system == "Windows" else "java"
+    if jh and jh.rstrip("/\\") != "/usr":
+        cand = Path(jh) / "bin" / java_exe
+        if cand.is_file() and not _is_inside(cand, rt):
+            sys_java = str(cand)
+    if not sys_java:
+        which_j = shutil.which("java")
+        if which_j and not _is_inside(which_j, rt) and not (system == "Darwin" and which_j == "/usr/bin/java"):
+            sys_java = which_j
+    bundled_java = find_java_bin()
+    java_path = sys_java or bundled_java
+    java_ver = ""
+    if java_path:
+        rc, out = _run_quick([java_path, "-version"], timeout=5.0)
+        if out:
+            java_ver = out.splitlines()[0].strip()
+
+    # 4. Appium
+    sys_appium = shutil.which("appium")
+    if sys_appium and _is_inside(sys_appium, rt):
+        sys_appium = None
+    appium_cmd, appium_label = find_appium_entry()
+
+    # 5. Android SDK (system vs QAlprit-managed)
+    sys_sdk = find_system_android_sdk()
+    active_sdk = find_android_sdk()
+    avd_candidates: list[Path] = [avd_dir, data_dir / "avd", Path.home() / ".android" / "avd"]
+    found_avds: list[dict[str, str]] = []
+    seen_avds: set[str] = set()
+    for avd_root in avd_candidates:
+        if not avd_root.is_dir():
+            continue
+        try:
+            for item in sorted(avd_root.iterdir()):
+                if item.is_dir() and item.name.endswith(".avd") and (item / "config.ini").is_file():
+                    name = item.name[:-4]
+                    if name not in seen_avds:
+                        seen_avds.add(name)
+                        found_avds.append({"name": name, "path": str(item.resolve())})
+        except OSError:
+            continue
+
+    return {
+        "os": system,
+        "paths": {
+            "data_dir": str(data_dir),
+            "sdk_dir": str(sdk_dir),
+            "avd_dir": str(avd_dir),
+            "android_user_home": str(get_android_user_home()),
+            "workspace_dir": str(workspace_root.resolve()) if workspace_root else str(get_standard_workspace_dir()),
+            "os_default_data_dir": str(get_os_app_data_root()),
+            "os_default_workspace_dir": str(get_standard_workspace_dir()),
+            "settings_path": str(get_settings_path()) if "get_settings_path" in globals() else "",
+            "prefer_existing_system_sdk": bool(settings.get("prefer_existing_system_sdk", False)),
+            "legacy_dot_qalprit_exists": legacy_dot.is_dir(),
+            "legacy_dot_qalprit_path": str(legacy_dot),
+            "legacy_workspace_exists": legacy_ws.is_dir(),
+            "legacy_workspace_path": str(legacy_ws),
+        },
+        "software": [
+            {
+                "id": "node",
+                "name": "Node.js",
+                "source": "system" if sys_node else ("bundled" if bundled_node else "missing"),
+                "found": bool(node_path),
+                "path": node_path or "",
+                "version": node_ver,
+            },
+            {
+                "id": "python",
+                "name": "Python",
+                "source": "system" if sys_python else ("bundled" if getattr(sys, "frozen", False) else "system"),
+                "found": bool(sys_python or py_ver),
+                "path": sys_python or sys.executable,
+                "version": py_ver,
+            },
+            {
+                "id": "java",
+                "name": "Java JDK",
+                "source": "system" if sys_java else ("bundled" if bundled_java else "missing"),
+                "found": bool(java_path),
+                "path": java_path or "",
+                "version": java_ver,
+            },
+            {
+                "id": "appium",
+                "name": "Appium 2",
+                "source": "system" if sys_appium else ("bundled" if appium_cmd else "missing"),
+                "found": bool(sys_appium or appium_cmd),
+                "path": sys_appium or appium_label,
+                "version": "",
+            },
+            {
+                "id": "android_sdk",
+                "name": "Android SDK & Build Tools",
+                "source": (
+                    "system"
+                    if sys_sdk and active_sdk == sys_sdk
+                    else ("system_available" if sys_sdk else ("qalprit" if active_sdk else "missing"))
+                ),
+                "found": bool(active_sdk or sys_sdk),
+                "path": str(active_sdk or sys_sdk or ""),
+                "system_sdk_path": str(sys_sdk) if sys_sdk else "",
+                "system_sdk_has_emulator": bool(sys_sdk and (sys_sdk / "emulator").is_dir() and (sys_sdk / "system-images").is_dir()),
+            },
+            {
+                "id": "android_avd",
+                "name": "Android Virtual Devices (AVDs)",
+                "source": "found" if found_avds else "missing",
+                "found": bool(found_avds),
+                "path": str(avd_dir),
+                "version": ", ".join(a["name"] for a in found_avds),
+                "avds": found_avds,
+            },
+        ],
+    }

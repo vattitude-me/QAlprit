@@ -20,6 +20,8 @@ from qalprit.doctor import (
     find_appium_home,
     find_java_bin,
     find_node_bin,
+    get_android_user_home,
+    get_qalprit_avd_home,
     win_subprocess_kwargs,
 )
 from qalprit.env_loader import SecretMasker
@@ -77,6 +79,8 @@ def build_appium_env(base_env: dict[str, str] | None = None) -> dict[str, str]:
     if sdk is not None:
         env.setdefault("ANDROID_HOME", str(sdk))
         env.setdefault("ANDROID_SDK_ROOT", str(sdk))
+        env.setdefault("ANDROID_AVD_HOME", str(get_qalprit_avd_home()))
+        env.setdefault("ANDROID_USER_HOME", str(get_android_user_home()))
         for sub in ("platform-tools", "emulator"):
             sub_dir = sdk / sub
             if sub_dir.exists():
@@ -90,9 +94,9 @@ def build_appium_env(base_env: dict[str, str] | None = None) -> dict[str, str]:
     java_bin = find_java_bin()
     if java_bin is not None:
         java_path = Path(java_bin).resolve()
-        # bin/java -> JDK Home
+        # bin/java -> JDK Home (never treat macOS /usr/bin/java stub's parent /usr as JAVA_HOME)
         jdk_home = java_path.parent.parent
-        if jdk_home.exists():
+        if jdk_home.exists() and str(jdk_home) != "/usr":
             env.setdefault("JAVA_HOME", str(jdk_home))
             extra_path_dirs.append(str(jdk_home / "bin"))
 

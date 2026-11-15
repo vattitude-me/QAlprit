@@ -17,8 +17,15 @@ from qalprit.devices import list_android_devices, list_ios_simulators
 from qalprit.doctor import (
     find_android_sdk,
     find_android_tool,
+    find_system_android_sdk,
     prepare_writable_android_sdk,
     win_subprocess_kwargs,
+)
+from qalprit.paths import (
+    get_android_user_home,
+    get_qalprit_avd_home,
+    get_qalprit_data_dir,
+    get_user_android_sdk_dir,
 )
 
 DEFAULT_AVD_NAME = "QAlprit_Pixel"
@@ -37,11 +44,15 @@ def _list_avds(emu_bin: str | None) -> list[str]:
     if not emu_bin:
         return []
     try:
+        emu_env = dict(os.environ)
+        emu_env.setdefault("ANDROID_AVD_HOME", str(get_qalprit_avd_home()))
+        emu_env.setdefault("ANDROID_USER_HOME", str(get_android_user_home()))
         proc = subprocess.run(
             [emu_bin, "-list-avds"],
             capture_output=True,
             text=True,
             timeout=10,
+            env=emu_env,
             **win_subprocess_kwargs(),
         )
         if proc.returncode != 0:
@@ -86,6 +97,10 @@ def get_emulator_status() -> dict[str, Any]:
     return {
         "os": platform.system(),
         "sdk_dir": str(sdk) if sdk else "",
+        "target_sdk_dir": str(get_user_android_sdk_dir()),
+        "avd_dir": str(get_qalprit_avd_home()),
+        "data_dir": str(get_qalprit_data_dir()),
+        "system_sdk_dir": str(find_system_android_sdk() or ""),
         "sdkmanager_ready": sdkmgr is not None,
         "avdmanager_ready": avdmgr is not None,
         "emulator_installed": emu_bin is not None,
@@ -223,11 +238,18 @@ def setup_android_emulator_sync(
                 "skipped": True,
             }
 
-    emit("Preparing SDK", 5, "Preparing writable Android SDK at ~/.qalprit/android-sdk (first run copies SDK tools)...")
+    target_sdk = get_user_android_sdk_dir()
+    emit("Preparing SDK", 5, f"Preparing writable Android SDK at {target_sdk} (first run copies SDK tools)...")
     sdk = prepare_writable_android_sdk()
     env = build_appium_env(dict(os.environ))
     env["ANDROID_HOME"] = str(sdk)
     env["ANDROID_SDK_ROOT"] = str(sdk)
+    avd_home = get_qalprit_avd_home(avd_name)
+    android_user_home = get_android_user_home(avd_name)
+    avd_home.mkdir(parents=True, exist_ok=True)
+    android_user_home.mkdir(parents=True, exist_ok=True)
+    env["ANDROID_AVD_HOME"] = str(avd_home)
+    env["ANDROID_USER_HOME"] = str(android_user_home)
 
     sdkmgr = find_android_tool("sdkmanager")
     avdmgr = find_android_tool("avdmanager")
@@ -455,7 +477,9 @@ class EmulatorJobManager:
             if sdk is not None:
                 env["ANDROID_HOME"] = str(sdk)
                 env["ANDROID_SDK_ROOT"] = str(sdk)
-            log_path = (sdk or Path.home() / ".qalprit") / "emulator-boot.log"
+            env.setdefault("ANDROID_AVD_HOME", str(get_qalprit_avd_home(target_avd)))
+            env.setdefault("ANDROID_USER_HOME", str(get_android_user_home(target_avd)))
+            log_path = get_qalprit_data_dir() / "logs" / "emulator-boot.log"
             try:
                 log_path.parent.mkdir(parents=True, exist_ok=True)
                 cmd = [
