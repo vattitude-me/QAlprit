@@ -81,6 +81,11 @@ def build_appium_env(base_env: dict[str, str] | None = None) -> dict[str, str]:
             sub_dir = sdk / sub
             if sub_dir.exists():
                 extra_path_dirs.append(str(sub_dir))
+        bt_dir = sdk / "build-tools"
+        if bt_dir.is_dir():
+            for ver_dir in sorted((p for p in bt_dir.iterdir() if p.is_dir()), reverse=True):
+                extra_path_dirs.append(str(ver_dir))
+                break
 
     java_bin = find_java_bin()
     if java_bin is not None:

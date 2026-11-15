@@ -141,7 +141,7 @@ if [ ! -x "${JDK_DEST}/bin/java" ]; then
   rm -rf "${BUILD_WORK}/jre-extract"
 fi
 
-# 4. Android SDK platform-tools (adb)
+# 4. Android SDK platform-tools (adb) & build-tools (aapt2 / apksigner / zipalign)
 ANDROID_SDK_DEST="${BUILD_WORK}/android-sdk"
 if [ ! -x "${ANDROID_SDK_DEST}/platform-tools/adb" ]; then
   echo "==> Downloading Android SDK platform-tools (darwin)..."
@@ -150,6 +150,26 @@ if [ ! -x "${ANDROID_SDK_DEST}/platform-tools/adb" ]; then
   rm -rf "${ANDROID_SDK_DEST}"
   mkdir -p "${ANDROID_SDK_DEST}"
   unzip -q -o "${PT_ZIP}" -d "${ANDROID_SDK_DEST}"
+fi
+
+BUILD_TOOLS_VER="35.0.1"
+BUILD_TOOLS_DEST="${ANDROID_SDK_DEST}/build-tools/${BUILD_TOOLS_VER}"
+if [ ! -x "${BUILD_TOOLS_DEST}/aapt2" ]; then
+  echo "==> Downloading Android SDK build-tools ${BUILD_TOOLS_VER} (darwin)..."
+  BT_ZIP="${BUILD_WORK}/build-tools_r${BUILD_TOOLS_VER}-macosx.zip"
+  curl -fsSL "https://dl.google.com/android/repository/build-tools_r35.0.1_macosx.zip" -o "${BT_ZIP}"
+  BT_EXTRACT="${BUILD_WORK}/bt-extract"
+  rm -rf "${BT_EXTRACT}" "${BUILD_TOOLS_DEST}"
+  mkdir -p "${BT_EXTRACT}" "$(dirname "${BUILD_TOOLS_DEST}")"
+  unzip -q -o "${BT_ZIP}" -d "${BT_EXTRACT}"
+  if [ -f "${BT_EXTRACT}/aapt2" ]; then
+    mv "${BT_EXTRACT}" "${BUILD_TOOLS_DEST}"
+  else
+    INNER_BT="$(find "${BT_EXTRACT}" -mindepth 1 -maxdepth 1 -type d | head -n1)"
+    mv "${INNER_BT}" "${BUILD_TOOLS_DEST}"
+    rm -rf "${BT_EXTRACT}"
+  fi
+  chmod +x "${BUILD_TOOLS_DEST}/aapt2" "${BUILD_TOOLS_DEST}/aapt" "${BUILD_TOOLS_DEST}/zipalign" 2>/dev/null || true
 fi
 
 # 5. Build QAlprit.app with PyInstaller
@@ -169,6 +189,9 @@ done
 echo "==> Ad-hoc code-signing QAlprit.app..."
 codesign --force --sign - "${RUNTIME_TARGET}/node/bin/node" || true
 codesign --force --sign - "${RUNTIME_TARGET}/android-sdk/platform-tools/adb" || true
+codesign --force --sign - "${RUNTIME_TARGET}/android-sdk/build-tools/${BUILD_TOOLS_VER}/aapt2" || true
+codesign --force --sign - "${RUNTIME_TARGET}/android-sdk/build-tools/${BUILD_TOOLS_VER}/aapt" || true
+codesign --force --sign - "${RUNTIME_TARGET}/android-sdk/build-tools/${BUILD_TOOLS_VER}/zipalign" || true
 codesign --force --deep --sign - "${DIST_APP}"
 
 # 8. Smoke-test QAlprit.app strictly using its bundled runtime/
@@ -182,7 +205,7 @@ echo "${DOC_JSON}" | "${PYTHON_BIN}" -c '
 import json, sys
 items = json.load(sys.stdin)
 by_name = {i["name"]: i for i in items}
-for req in ("Python", "Appium Python client", "Node.js", "Appium", "Appium driver: uiautomator2", "Appium driver: xcuitest", "Java (JDK)", "Android SDK", "Android adb"):
+for req in ("Python", "Appium Python client", "Node.js", "Appium", "Appium driver: uiautomator2", "Appium driver: xcuitest", "Java (JDK)", "Android SDK", "Android adb", "Android build-tools (aapt2)"):
     assert req in by_name, f"Missing check: {req}"
     assert by_name[req]["status"] == "ok", f"Expected {req} ok, got {by_name[req]}"
 print("All bundled runtime checks OK")

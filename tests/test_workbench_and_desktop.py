@@ -474,3 +474,33 @@ def test_doctor_checks_appium_python_client_metadata() -> None:
     assert "Appium Python client" in checks
     assert checks["Appium Python client"].status == "ok"
     assert checks["Appium Python client"].detail.startswith("v")
+
+
+def test_find_android_tool_and_appium_env_include_build_tools(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import platform
+    import qalprit.doctor as doctor_mod
+    from qalprit.appium_manager import build_appium_env
+    from qalprit.doctor import find_android_tool
+
+    sdk = tmp_path / "android-sdk"
+    pt = sdk / "platform-tools"
+    bt_old = sdk / "build-tools" / "34.0.0"
+    bt_new = sdk / "build-tools" / "35.0.1"
+    for d in (pt, bt_old, bt_new):
+        d.mkdir(parents=True)
+    suffix = ".exe" if platform.system() == "Windows" else ""
+    (bt_old / f"aapt2{suffix}").write_text("old", encoding="utf-8")
+    (bt_new / f"aapt2{suffix}").write_text("new", encoding="utf-8")
+
+    monkeypatch.setattr(doctor_mod.shutil, "which", lambda _name: None)
+    monkeypatch.setattr(doctor_mod, "find_android_sdk", lambda: sdk)
+    monkeypatch.setattr("qalprit.appium_manager.find_android_sdk", lambda: sdk)
+
+    resolved = find_android_tool("aapt2")
+    assert resolved == str(bt_new / f"aapt2{suffix}")
+
+    env = build_appium_env({})
+    assert str(pt) in env["PATH"]
+    assert str(bt_new) in env["PATH"]
