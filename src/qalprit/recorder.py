@@ -424,6 +424,7 @@ class RecorderManager:
         app_path_str: str = "",
         screen_name: str = "screen_1",
         flow_name: str = "recorded_flow",
+        settle_seconds: float = 0.8,
     ) -> dict[str, Any]:
         """Attach persistent Appium session to emulator and begin recording."""
         if self._active or self._starting:
@@ -473,7 +474,8 @@ class RecorderManager:
                 mgr = AppiumManager(log_path=log_path, masker=self._masker)
                 mgr.__enter__()
                 driver = create_appium_driver(mgr.url, profile, env_cfg, app_path=resolved_app)
-                time.sleep(1.5)
+                if settle_seconds > 0:
+                    time.sleep(min(settle_seconds, 5.0))
                 with self._driver_lock:
                     self._appium_mgr = mgr
                     self._driver = driver

@@ -829,12 +829,13 @@ def test_recorder_hit_test_diff_and_save_flow_and_spec(
             "env_name": "qa",
             "screen_name": "login",
         })
-        for _ in range(30):
+        for _ in range(100):
             with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/recorder/status") as r:
                 st = json.loads(r.read().decode("utf-8"))
-            if st.get("active"):
+            if not st.get("starting"):
                 break
             time.sleep(0.05)
+        assert st["error"] == ""
         assert st["active"] is True
         assert st["elements"][0]["key"] == "email_input"
 
