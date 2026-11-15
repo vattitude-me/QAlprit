@@ -960,6 +960,40 @@
             <li><strong>Physical USB Android phone (optional):</strong> Enable <em>Settings &rarr; About phone &rarr; Tap Build number 7 times</em>, turn on <em>Developer options &rarr; USB debugging</em>, check <em>Always allow from this computer</em> and tap <strong>Allow</strong> on the phone, then approve <em>More details &rarr; Install anyway</em> once when Appium installs <code>io.appium.settings</code>.</li>
           </ul>
         </details>
+
+        <details class="guide-details" id="storagePreflightCard" style="margin-top:12px;">
+          <summary>System Software Check &amp; OS Storage Folders (SDK / Workspace Location)</summary>
+          <p class="card-help" style="margin-top:8px;">QAlprit checks your system for existing Node.js, Python, Java, Appium, Android SDK, and Virtual Devices first, and keeps QAlprit-managed SDK/emulator files inside standard OS app-data folders (<code>%LOCALAPPDATA%\QAlprit</code> on Windows, <code>~/Library/Application Support/QAlprit</code> on macOS) and workspaces in <code>Documents\QAlpritWorkspace</code>.</p>
+          <div class="table-scroll" style="margin-bottom:12px;">
+            <table>
+              <thead><tr><th>Software / Tool</th><th>Detected Source</th><th>Location / Version</th></tr></thead>
+              <tbody id="preflightSoftwareBody"><tr><td colspan="3" class="muted">Scanning system tools...</td></tr></tbody>
+            </table>
+          </div>
+          <form id="storagePrefsForm" method="POST">
+            <div class="form-grid">
+              <div class="field">
+                <label for="prefWorkspaceDirInput">Workspace Folder (specs, flows, apps, reports)</label>
+                <div style="display:flex;gap:6px;">
+                  <input id="prefWorkspaceDirInput" type="text" style="flex:1;" placeholder="~/Documents/QAlpritWorkspace" />
+                  <button type="button" class="btn btn-sm" data-reveal-path="">Open</button>
+                </div>
+              </div>
+              <div class="field">
+                <label for="prefDataDirInput">SDK &amp; Virtual Emulator Data Folder (~2&ndash;5 GB)</label>
+                <div style="display:flex;gap:6px;">
+                  <input id="prefDataDirInput" type="text" style="flex:1;" placeholder="%LOCALAPPDATA%\QAlprit" />
+                  <button type="button" class="btn btn-sm" data-reveal-path="@data_dir">Open</button>
+                </div>
+              </div>
+            </div>
+            <div class="btn-row" style="margin-top:6px;">
+              <label class="chk-inline"><input type="checkbox" id="prefReuseSystemSdk" /> Reuse existing system Android SDK if installed (skip duplicate download)</label>
+              <button type="submit" class="btn btn-sm btn-primary" id="btnSaveStoragePrefs">Save &amp; Apply Storage Folders</button>
+            </div>
+            <div id="prefStatusBanner" class="status-banner" hidden aria-live="polite"></div>
+          </form>
+        </details>
       </article>
 
       <!-- STEP 1B (ACTIVE APP) & STEP 1C (PACKAGE + ENVIRONMENT) -->
@@ -2750,7 +2784,7 @@
         } else if (runningEmus.length) {
           badge.className = "badge b-ok";
           badge.textContent = "Running: " + runningEmus[0];
-          desc.textContent = "Virtual Android phone is booted and ready for Step 2 & Step 5.";
+          desc.textContent = "Virtual Android phone is booted and ready for Step 2 & Step 4.";
         } else if (installed) {
           badge.className = "badge b-ok";
           badge.textContent = "Installed: " + avds[0];
@@ -2758,7 +2792,7 @@
         } else if (env.sdkmanager_ready) {
           badge.className = "badge b-warn";
           badge.textContent = "Not Installed Yet";
-          desc.textContent = `Click Setup below to download Google Emulator + ${env.system_image_package || "Android 34"} (~1.8 GB) into ~/.qalprit/android-sdk.`;
+          desc.textContent = `Click Setup below to download Google Emulator + ${env.system_image_package || "Android 34"} (~1.8 GB; ~4–5 GB unzipped) into ${env.target_sdk_dir || env.data_dir || "QAlprit app data"}.`;
         } else {
           badge.className = "badge b-warn";
           badge.textContent = "SDK Tools Missing";
@@ -2825,6 +2859,16 @@
       }
 
       $("btnEmuSetup").addEventListener("click", async () => {
+        const emuEnv = (STATE.emuStatus && STATE.emuStatus.environment) || {};
+        const targetSdk = emuEnv.target_sdk_dir || emuEnv.data_dir || "QAlprit App Data";
+        const targetAvd = emuEnv.avd_dir || targetSdk;
+        const ok = window.confirm(
+          "QAlprit will download the Android 34 Emulator & system image (~1.8 GB download, ~4–5 GB extracted) into:\n\n" +
+          "• Android SDK: " + targetSdk + "\n" +
+          "• Virtual Device (AVD): " + targetAvd + "\n\n" +
+          "(You can change these locations in 'System Software Check & OS Storage Folders' first.)\n\nProceed with download?"
+        );
+        if (!ok) return;
         showBanner("emuStatusBanner", "", "");
         $("emuProgressBox").hidden = false;
         $("emuProgressPhase").textContent = "Running in background: Preparing SDK tools...";
@@ -3992,9 +4036,64 @@
         if (!document.hidden) scheduleSilentWorkspaceReload();
       });
 
+      function renderSystemPreflight(pf) {
+        if (!pf) return;
+        const paths = pf.paths || {};
+        if ($("prefWorkspaceDirInput") && document.activeElement !== $("prefWorkspaceDirInput")) {
+          $("prefWorkspaceDirInput").value = paths.workspace_dir || paths.os_default_workspace_dir || "";
+        }
+        if ($("prefDataDirInput") && document.activeElement !== $("prefDataDirInput")) {
+          $("prefDataDirInput").value = paths.data_dir || paths.os_default_data_dir || "";
+        }
+        if ($("prefReuseSystemSdk")) {
+          $("prefReuseSystemSdk").checked = Boolean(paths.prefer_existing_system_sdk);
+        }
+        const rows = pf.software || [];
+        if ($("preflightSoftwareBody")) {
+          $("preflightSoftwareBody").innerHTML = rows.length
+            ? rows.map((item) => {
+                const badgeCls = item.source === "system" || item.source === "found" || item.source === "system_available"
+                  ? "b-ok"
+                  : (item.source === "bundled" || item.source === "qalprit" ? "b-skip" : "b-warn");
+                const srcLabel = item.source === "system_available" ? "found on system" : (item.source || "unknown");
+                const detail = [item.version, item.path].filter(Boolean).join(" — ");
+                return `<tr><td><strong>${esc(item.name)}</strong></td><td><span class="badge ${badgeCls}">${esc(srcLabel)}</span></td><td class="muted">${esc(detail || "Not found")}</td></tr>`;
+              }).join("")
+            : '<tr><td colspan="3" class="muted">No preflight scan results.</td></tr>';
+        }
+      }
+
+      async function loadSystemPreflight() {
+        try {
+          const pf = await apiJson("/api/system/preflight");
+          renderSystemPreflight(pf);
+        } catch (_) {}
+      }
+
+      if ($("storagePrefsForm")) {
+        $("storagePrefsForm").addEventListener("submit", async (e) => {
+          e.preventDefault();
+          showBanner("prefStatusBanner", "Saving storage folders & scanning tools...", "");
+          try {
+            const res = await apiJson("/api/system/preferences", {
+              workspace_dir: $("prefWorkspaceDirInput").value.trim(),
+              data_dir: $("prefDataDirInput").value.trim(),
+              prefer_existing_system_sdk: $("prefReuseSystemSdk").checked
+            });
+            renderSystemPreflight(res.preflight);
+            showBanner("prefStatusBanner", `Saved storage settings. Active workspace: ${res.workspace_dir}`, "ok");
+            await loadOverview({ skipAutoSync: true });
+            await pollEmulatorStatus();
+          } catch (err) {
+            showBanner("prefStatusBanner", err.message, "error");
+          }
+        });
+      }
+
       loadOverview().catch((err) => {
         showBanner("corruptBanner", "Failed to load workspace overview: " + err.message, "error");
       });
+      loadSystemPreflight();
       pollEmulatorStatus().then((st) => {
         if (st && st.running) startEmulatorPolling();
       }).catch(() => {});

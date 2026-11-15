@@ -17,7 +17,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 from qalprit import __version__
 from qalprit.config_loader import load_screens
 from qalprit.devices import list_android_devices, list_ios_simulators
-from qalprit.doctor import run_doctor
+from qalprit.doctor import discover_system_software, run_doctor
 from qalprit.emulator_manager import DEFAULT_AVD_NAME, EmulatorJobManager
 from qalprit.recorder import RecorderManager
 from qalprit.results import load_results_json
@@ -40,6 +40,7 @@ from qalprit.workbench_api import (
     save_screen_locators,
     save_test_journey,
     save_uploaded_app,
+    update_storage_preferences,
     upload_flow_markdown,
     upload_spec_markdown,
 )
@@ -284,17 +285,28 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
         *args: Any,
         project_root: Path,
         results_dir: Path,
+        workspace_state: dict[str, Path] | None = None,
         job_manager: RunJobManager | None = None,
         emulator_manager: EmulatorJobManager | None = None,
         recorder_manager: RecorderManager | None = None,
         **kwargs: Any,
     ) -> None:
-        self.project_root = project_root.resolve()
-        self.results_dir = results_dir.resolve()
+        self.workspace_state = workspace_state if workspace_state is not None else {
+            "project_root": project_root.resolve(),
+            "results_dir": results_dir.resolve(),
+        }
         self.job_manager = job_manager or RunJobManager()
         self.emulator_manager = emulator_manager or EmulatorJobManager()
         self.recorder_manager = recorder_manager or RecorderManager()
         super().__init__(*args, **kwargs)
+
+    @property
+    def project_root(self) -> Path:
+        return self.workspace_state["project_root"]
+
+    @property
+    def results_dir(self) -> Path:
+        return self.workspace_state["results_dir"]
 
     def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
         return
@@ -370,6 +382,10 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
         if req_path == "/api/doctor":
             checks = [asdict(item) for item in run_doctor()]
             self._send_json({"checks": checks})
+            return
+
+        if req_path == "/api/system/preflight":
+            self._send_json(discover_system_software(self.project_root))
             return
 
         if req_path == "/api/devices":
@@ -606,6 +622,14 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
                 )
                 return
 
+            if req_path == "/api/system/preferences":
+                res = update_storage_preferences(self.project_root, body)
+                new_ws = Path(res["workspace_dir"]).resolve()
+                self.workspace_state["project_root"] = new_ws
+                self.workspace_state["results_dir"] = (new_ws / "results").resolve()
+                self._send_json(res)
+                return
+
             if req_path == "/api/validate":
                 self._send_json(
                     run_workspace_validation(
@@ -747,6 +771,7 @@ def create_ui_server(
     """Create a bound ThreadingHTTPServer for the local QAlprit workbench UI."""
     root = project_root.resolve()
     res_dir = (results_dir or (root / "results")).resolve()
+    workspace_state = {"project_root": root, "results_dir": res_dir}
     job_manager = RunJobManager()
     emulator_manager = EmulatorJobManager()
     recorder_manager = RecorderManager()
@@ -754,6 +779,7 @@ def create_ui_server(
         _WorkbenchHandler,
         project_root=root,
         results_dir=res_dir,
+        workspace_state=workspace_state,
         job_manager=job_manager,
         emulator_manager=emulator_manager,
         recorder_manager=recorder_manager,

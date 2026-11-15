@@ -11,6 +11,11 @@ from typing import Any
 
 from qalprit import __version__
 from qalprit.cli import main as cli_main
+from qalprit.paths import (
+    get_legacy_workspace_dir,
+    get_standard_workspace_dir,
+    load_user_settings,
+)
 from qalprit.ui_server import create_ui_server
 
 _DEFAULT_DEVICES_YAML = """profiles:
@@ -52,14 +57,20 @@ QA_PASS=DemoPassword!2026
 
 
 def resolve_default_workspace() -> Path:
-    """Return current directory if configured, otherwise ~/QAlpritWorkspace."""
+    """Resolve active workspace: CWD, QALPRIT_WORKSPACE, saved settings, legacy ~/QAlpritWorkspace, or ~/Documents/QAlpritWorkspace."""
     cwd = Path.cwd().resolve()
     if (cwd / "config" / "devices.yaml").is_file() and (cwd / "config" / "environments.yaml").is_file():
         return cwd
     env_ws = os.environ.get("QALPRIT_WORKSPACE")
     if env_ws:
         return Path(env_ws).expanduser().resolve()
-    return (Path.home() / "QAlpritWorkspace").resolve()
+    saved_ws = str(load_user_settings().get("workspace_dir") or "").strip()
+    if saved_ws:
+        return Path(saved_ws).expanduser().resolve()
+    legacy_ws = get_legacy_workspace_dir()
+    if legacy_ws.is_dir():
+        return legacy_ws
+    return get_standard_workspace_dir()
 
 
 def ensure_workspace(project_root: Path | None = None) -> Path:
