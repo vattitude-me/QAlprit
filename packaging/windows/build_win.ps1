@@ -94,10 +94,36 @@ if (-not (Test-Path (Join-Path $AndroidSdkDest "platform-tools\adb.exe"))) {
     Expand-Archive -Path $PtZip -DestinationPath $AndroidSdkDest -Force
 }
 
-# 5. Build QAlprit.exe with PyInstaller
+# 5. Build QAlprit.exe (windowed) and qalprit-cli.exe (console) with PyInstaller
+Write-Host "==> Installing QAlprit desktop dependencies and PyInstaller..."
+python -m pip install --upgrade pip setuptools wheel
+python -m pip install -e ".[desktop]" "pythonnet>=3.0.0" pyinstaller
+python -c "import webview, clr, webview.platforms.edgechromium; print('pywebview:', webview.__version__)"
+if ($LASTEXITCODE -ne 0) { throw "pywebview / pythonnet verification failed" }
+
+$WinIconDir = Join-Path $RepoRoot "build\win-icon"
+$WinIconPath = Join-Path $WinIconDir "QAlprit.ico"
+New-Item -ItemType Directory -Force -Path $WinIconDir | Out-Null
+if (-not (Test-Path $WinIconPath)) {
+    Write-Host "==> Generating Windows .ico app icon..."
+    @'
+import sys
+from pathlib import Path
+from PIL import Image, ImageDraw
+
+out = Path(sys.argv[1])
+base = Image.new("RGBA", (512, 512), (0, 0, 0, 0))
+draw = ImageDraw.Draw(base)
+draw.rounded_rectangle([32, 32, 480, 480], radius=110, fill=(15, 118, 110, 255))
+draw.rounded_rectangle([112, 112, 400, 400], radius=80, outline=(248, 250, 252, 255), width=42)
+draw.line([(192, 256), (240, 304), (352, 184)], fill=(94, 234, 212, 255), width=38, joint="curve")
+draw.line([(296, 296), (392, 392)], fill=(248, 250, 252, 255), width=42)
+base.save(out, format="ICO", sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
+'@ | python - $WinIconPath
+    if ($LASTEXITCODE -ne 0) { throw "Windows icon generation failed" }
+}
+
 Write-Host "==> Running PyInstaller..."
-python -m pip install --upgrade pip
-python -m pip install -e . pyinstaller
 pyinstaller --clean --noconfirm (Join-Path $PSScriptRoot "qalprit.spec")
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller build failed" }
 
@@ -110,11 +136,19 @@ foreach ($folder in @("node", "appium", "appium_home", "jdk", "android-sdk")) {
     Copy-Item -Recurse -Force (Join-Path $BuildWork $folder) (Join-Path $RuntimeTarget $folder)
 }
 
-# 7. Smoke test frozen QAlprit.exe without external node/appium/java/sdk env vars
-Write-Host "==> Smoke-testing frozen QAlprit.exe..."
-$QAlpritExe = Join-Path $DistApp "QAlprit.exe"
-$verOut = & $QAlpritExe --version
-if ($LASTEXITCODE -ne 0) { throw "QAlprit.exe --version failed" }
+# 7. Smoke test frozen bundle without external node/appium/java/sdk env vars
+Write-Host "==> Smoke-testing frozen QAlprit bundle..."
+$QAlpritGuiExe = Join-Path $DistApp "QAlprit.exe"
+$QAlpritCliExe = Join-Path $DistApp "qalprit-cli.exe"
+if (-not (Test-Path $QAlpritGuiExe)) { throw "Expected GUI executable not found at $QAlpritGuiExe" }
+if (-not (Test-Path $QAlpritCliExe)) { throw "Expected CLI executable not found at $QAlpritCliExe" }
+
+$wvFiles = Get-ChildItem -Recurse -Path $DistApp -Filter "*WebView2*" -ErrorAction SilentlyContinue
+if (-not $wvFiles) { throw "Expected WebView2 runtime assemblies in $DistApp" }
+Write-Host "Bundled WebView2 files: $($wvFiles.Count)"
+
+$verOut = & $QAlpritCliExe --version
+if ($LASTEXITCODE -ne 0) { throw "qalprit-cli.exe --version failed" }
 Write-Host "Version output: $verOut"
 
 $origPath = $env:PATH
@@ -125,14 +159,14 @@ $env:PATH = "C:\Windows\System32;C:\Windows"
 $env:ANDROID_HOME = ""
 $env:JAVA_HOME = ""
 $env:APPIUM_HOME = ""
-$docJson = & $QAlpritExe doctor --json-output
+$docJson = & $QAlpritCliExe doctor --json-output
 $docRc = $LASTEXITCODE
 $env:PATH = $origPath
 $env:ANDROID_HOME = $origAndroidHome
 $env:JAVA_HOME = $origJavaHome
 $env:APPIUM_HOME = $origAppiumHome
 Write-Host $docJson
-if ($docRc -ne 0) { throw "QAlprit.exe doctor failed when relying strictly on bundled runtime/" }
+if ($docRc -ne 0) { throw "qalprit-cli.exe doctor failed when relying strictly on bundled runtime/" }
 
 # 8. Build Inno Setup installer
 $Iscc = (Get-Command iscc.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source)
