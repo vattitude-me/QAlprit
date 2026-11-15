@@ -896,3 +896,54 @@ def test_recorder_hit_test_diff_and_save_flow_and_spec(
         [{"recommended_strategy": "id", "recommended_value": "com.demo:id/email", "editable": True, "text": "alice@demo.com", "hint": "Email"}],
     )
     assert len(changed) == 1 and changed[0][1] == "alice@demo.com"
+
+
+def test_overview_reflects_external_flow_md_edits_and_parse_warnings(tmp_path: Path) -> None:
+    import json
+    import threading
+    import urllib.request
+    from qalprit.ui_server import create_ui_server
+
+    ws = ensure_workspace(tmp_path / "reload_ws")
+    flow_file = ws / "flows" / "quick_nav.md"
+    flow_file.write_text(
+        "---\nname: quick_nav\nsteps:\n  - back\n---\n\n# quick_nav\n",
+        encoding="utf-8",
+    )
+
+    server = create_ui_server(ws, host="127.0.0.1", port=0)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/") as r:
+            html = r.read().decode("utf-8")
+        assert 'id="btnReloadWorkspace"' in html
+        assert 'data-reload-workspace="flows"' in html
+        assert "scheduleSilentWorkspaceReload" in html
+
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/overview") as r:
+            assert r.headers.get("Cache-Control") == "no-store"
+            ov1 = json.loads(r.read().decode("utf-8"))
+        assert ov1["flows"][0]["step_count"] == 1
+
+        # Modify flows/quick_nav.md externally on disk without restarting server
+        flow_file.write_text(
+            "---\nname: quick_nav\nsteps:\n  - back\n  - wait: 1\n  - screenshot: done\n---\n\n# quick_nav\n",
+            encoding="utf-8",
+        )
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/overview") as r:
+            ov2 = json.loads(r.read().decode("utf-8"))
+        assert ov2["flows"][0]["step_count"] == 3
+        assert ov2["parse_warnings"] == []
+
+        # Introduce a YAML syntax error externally and verify parse_warnings surfaces it
+        bad_flow = ws / "flows" / "broken.md"
+        bad_flow.write_text("---\nname: [unclosed\n---\n", encoding="utf-8")
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/overview") as r:
+            ov3 = json.loads(r.read().decode("utf-8"))
+        assert any("broken.md" in w for w in ov3["parse_warnings"])
+    finally:
+        server.shutdown()
+        server.server_close()

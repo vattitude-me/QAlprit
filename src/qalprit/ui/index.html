@@ -209,6 +209,15 @@
       margin-bottom: 16px;
       min-width: 0;
     }
+    .card-head-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+    .card-head-row h3 { margin: 0; }
     .card h3 {
       margin: 0 0 6px;
       font-size: 1rem;
@@ -712,6 +721,7 @@
       <span class="pill" id="osModePill">Detecting OS...</span>
       <span class="pill" id="verPill">Loading...</span>
       <span class="pill" id="workspacePath" title="Workspace directory">Workspace</span>
+      <button type="button" class="btn btn-sm" id="btnReloadWorkspace" title="Reload flows, specs, screens, apps, and results from disk">&#x21bb; Reload Workspace</button>
     </div>
   </header>
 
@@ -1195,7 +1205,10 @@
       </details>
 
       <article class="card">
-        <h3>Current Saved Screen Locators (<code>screens/screens.yaml</code>)</h3>
+        <div class="card-head-row">
+          <h3>Current Saved Screen Locators (<code>screens/screens.yaml</code>)</h3>
+          <button type="button" class="btn btn-sm" data-reload-workspace="screens" title="Re-read screens/screens.yaml from disk">&#x21bb; Reload Locators</button>
+        </div>
         <table>
           <thead>
             <tr><th>Target (<code>screen.element</code>)</th><th>Android</th><th>iOS</th><th>Sensitive</th></tr>
@@ -1251,7 +1264,10 @@
       </article>
 
       <article class="card">
-        <h3>Saved Workflows in Workspace</h3>
+        <div class="card-head-row">
+          <h3>Saved Workflows in Workspace</h3>
+          <button type="button" class="btn btn-sm" data-reload-workspace="flows" title="Re-read flows/*.md from disk">&#x21bb; Reload Flows</button>
+        </div>
         <table>
           <thead>
             <tr><th>Flow Name</th><th>Params</th><th>Steps</th><th>Source</th><th>Action</th></tr>
@@ -1347,7 +1363,10 @@
       </article>
 
       <article class="card">
-        <h3>Test Journeys in Workspace</h3>
+        <div class="card-head-row">
+          <h3>Test Journeys in Workspace</h3>
+          <button type="button" class="btn btn-sm" data-reload-workspace="specs" title="Re-read specs/*.md from disk">&#x21bb; Reload Journeys</button>
+        </div>
         <table>
           <thead>
             <tr><th>ID</th><th>Title</th><th>Suite</th><th>Platforms</th><th>Reset</th><th>Steps</th><th>Source</th></tr>
@@ -1497,6 +1516,9 @@
         overview: null,
         hostOs: "",
         activeApp: "",
+        overviewLoading: false,
+        lastOverviewReloadMs: 0,
+        envFormLoaded: false,
         emuEnvStatus: null,
         emuState: null,
         inspectCandidates: [],
@@ -1710,6 +1732,7 @@
           const h = $("heading-step-" + target);
           if (h) h.focus({ preventScroll: false });
         }
+        scheduleSilentWorkspaceReload();
         window.scrollTo({ top: 0, behavior: "smooth" });
       }
 
@@ -2029,7 +2052,7 @@
           $("inspectPlatform").value = targetPlat;
           $("runPlatformSelect").value = targetPlat;
         }
-        if (pkg) {
+        if (pkg && !options.preserveFormInputs) {
           if (isAndroid) $("envAndroidPkg").value = pkg;
           else $("envIosBundle").value = pkg;
 
@@ -2075,8 +2098,15 @@
         $("badgeSpecs").textContent = (data.specs || []).length + " journeys";
         $("badgeRuns").textContent = (data.runs || []).length + " runs";
 
+        const bannerWarnings = [];
         if (data.corrupt_runs && data.corrupt_runs.length) {
-          showBanner("corruptBanner", "Skipped " + data.corrupt_runs.length + " unreadable results folder(s): " + data.corrupt_runs.map((c) => c.run_id).join(", "), "warn");
+          bannerWarnings.push("Skipped " + data.corrupt_runs.length + " unreadable results folder(s): " + data.corrupt_runs.map((c) => c.run_id).join(", "));
+        }
+        if (data.parse_warnings && data.parse_warnings.length) {
+          bannerWarnings.push("Workspace file warning(s): " + data.parse_warnings.join(" | "));
+        }
+        if (bannerWarnings.length) {
+          showBanner("corruptBanner", bannerWarnings.join(" — "), "warn");
         } else {
           showBanner("corruptBanner", "", "");
         }
@@ -2101,12 +2131,17 @@
         populateSelect("inspectEnvSelect", envOpts);
         populateSelect("runEnvSelect", envOpts);
         const curEnvName = $("envNameInput").value.trim() || "qa";
-        if (envs[curEnvName]) {
+        if (!options.preserveFormInputs || !STATE.envFormLoaded) {
+          if (envs[curEnvName]) {
+            $("envPresetSelect").value = curEnvName;
+            loadEnvIntoForm(curEnvName);
+          } else if (envs.qa) {
+            $("envPresetSelect").value = "qa";
+            loadEnvIntoForm("qa");
+          }
+          STATE.envFormLoaded = true;
+        } else if (envs[curEnvName]) {
           $("envPresetSelect").value = curEnvName;
-          loadEnvIntoForm(curEnvName);
-        } else if (envs.qa) {
-          $("envPresetSelect").value = "qa";
-          loadEnvIntoForm("qa");
         }
 
         // Choose initial active session app (persisted choice -> package match -> first uploaded app)
@@ -2127,7 +2162,10 @@
           !options.skipAutoSync &&
           (!envs.qa || !envs.qa.android_package || envs.qa.android_package === "com.example.app")
         );
-        selectSessionApp(desiredApp, { autoSave: needInitialAutoSync });
+        selectSessionApp(desiredApp, {
+          autoSave: needInitialAutoSync,
+          preserveFormInputs: Boolean(options.preserveFormInputs)
+        });
 
         syncDeviceSelects();
 
@@ -2210,9 +2248,52 @@
       }
 
       async function loadOverview(opts) {
-        const res = await fetch("/api/overview", { cache: "no-store" });
-        const data = await res.json();
-        renderOverview(data, opts);
+        STATE.overviewLoading = true;
+        try {
+          const res = await fetch("/api/overview?_ts=" + Date.now(), { cache: "no-store" });
+          const data = await res.json();
+          STATE.lastOverviewReloadMs = Date.now();
+          renderOverview(data, opts);
+          return data;
+        } finally {
+          STATE.overviewLoading = false;
+        }
+      }
+
+      function scheduleSilentWorkspaceReload() {
+        const now = Date.now();
+        if (STATE.overviewLoading || now - STATE.lastOverviewReloadMs < 1200) return;
+        loadOverview({ skipAutoSync: true, preserveFormInputs: true }).catch(() => {});
+      }
+
+      async function reloadWorkspaceFromDisk(triggerBtn, scopeLabel) {
+        const origText = triggerBtn ? triggerBtn.textContent : "";
+        if (triggerBtn) {
+          triggerBtn.disabled = true;
+          triggerBtn.textContent = "Reloading...";
+        }
+        try {
+          const data = await loadOverview({ skipAutoSync: true, preserveFormInputs: true });
+          const counts = data
+            ? `${(data.flows || []).length} flow(s), ${(data.specs || []).length} journey(s), ${(data.screens || []).length} locator(s)`
+            : "workspace";
+          if (scopeLabel === "flows") {
+            showBanner("flowStatus", `Reloaded ${counts} from disk.`, "ok");
+          } else if (scopeLabel === "specs") {
+            showBanner("specStatus", `Reloaded ${counts} from disk.`, "ok");
+          } else if (scopeLabel === "screens") {
+            showBanner("inspectStatus", `Reloaded ${counts} from disk.`, "ok");
+          }
+          if (triggerBtn) {
+            triggerBtn.textContent = "Reloaded ✓";
+            setTimeout(() => { triggerBtn.textContent = origText; }, 1400);
+          }
+        } catch (err) {
+          showBanner("corruptBanner", "Reload failed: " + err.message, "error");
+          if (triggerBtn) triggerBtn.textContent = origText;
+        } finally {
+          if (triggerBtn) triggerBtn.disabled = false;
+        }
       }
 
       // ------------------------------------------------------------------
@@ -3304,6 +3385,21 @@
       // Seed initial empty builder rows
       $("flowStepsContainer").appendChild(createStepRowElement({ tap: "" }));
       $("specMainContainer").appendChild(createStepRowElement({ tap: "" }));
+
+      if ($("btnReloadWorkspace")) {
+        $("btnReloadWorkspace").addEventListener("click", (e) => {
+          reloadWorkspaceFromDisk(e.currentTarget, "all");
+        });
+      }
+      document.querySelectorAll("[data-reload-workspace]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          reloadWorkspaceFromDisk(btn, btn.dataset.reloadWorkspace || "all");
+        });
+      });
+      window.addEventListener("focus", () => scheduleSilentWorkspaceReload());
+      document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) scheduleSilentWorkspaceReload();
+      });
 
       loadOverview().catch((err) => {
         showBanner("corruptBanner", "Failed to load workspace overview: " + err.message, "error");
