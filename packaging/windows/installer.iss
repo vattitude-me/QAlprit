@@ -1,7 +1,7 @@
 ; Inno Setup script for QAlprit Windows Installer (per-user, no admin required)
 
 #ifndef QAlpritVersion
-  #define QAlpritVersion "0.1.19"
+  #define QAlpritVersion "0.1.20"
 #endif
 
 #ifndef DistDir
@@ -188,6 +188,7 @@ begin
   Result := ForceReinstallRuntime()
     or (not FileExists(ExpandConstant('{app}\runtime\android-sdk\platform-tools\adb.exe')))
     or (not FileExists(ExpandConstant('{app}\runtime\android-sdk\cmdline-tools\latest\bin\sdkmanager.bat')))
+    or (not FileExists(ExpandConstant('{app}\runtime\android-sdk\cmdline-tools\latest\bin\android.exe')))
     or (not FileExists(ExpandConstant('{app}\runtime\android-sdk\build-tools\35.0.1\aapt2.exe')));
 end;
 
