@@ -42,6 +42,18 @@ DMG_PATH="${DIST_MAC}/${DMG_NAME}"
 
 mkdir -p "${BUILD_WORK}" "${ICON_DIR}" "${DIST_MAC}"
 
+echo "==> Ensuring QAlprit dependencies and PyInstaller are installed..."
+if ! "${PYTHON_BIN}" -c "import PIL, PyInstaller, qalprit" >/dev/null 2>&1; then
+  if "${PYTHON_BIN}" -m pip --version >/dev/null 2>&1; then
+    "${PYTHON_BIN}" -m pip install -e . pyinstaller >/dev/null
+  elif command -v uv >/dev/null 2>&1; then
+    uv pip install --python "${PYTHON_BIN}" -e . pyinstaller >/dev/null
+  else
+    "${PYTHON_BIN}" -m ensurepip --upgrade >/dev/null
+    "${PYTHON_BIN}" -m pip install -e . pyinstaller >/dev/null
+  fi
+fi
+
 # 0. Generate QAlprit.icns icon via Pillow + macOS iconutil
 ICONSET_DIR="${ICON_DIR}/QAlprit.iconset"
 ICNS_PATH="${ICON_DIR}/QAlprit.icns"
@@ -141,17 +153,6 @@ if [ ! -x "${ANDROID_SDK_DEST}/platform-tools/adb" ]; then
 fi
 
 # 5. Build QAlprit.app with PyInstaller
-echo "==> Ensuring PyInstaller is installed..."
-if ! "${PYTHON_BIN}" -m PyInstaller --version >/dev/null 2>&1; then
-  if "${PYTHON_BIN}" -m pip --version >/dev/null 2>&1; then
-    "${PYTHON_BIN}" -m pip install -e . pyinstaller >/dev/null
-  elif command -v uv >/dev/null 2>&1; then
-    uv pip install --python "${PYTHON_BIN}" -e . pyinstaller >/dev/null
-  else
-    "${PYTHON_BIN}" -m ensurepip --upgrade >/dev/null
-    "${PYTHON_BIN}" -m pip install -e . pyinstaller >/dev/null
-  fi
-fi
 rm -rf "${DIST_APP}" "${REPO_ROOT}/dist/QAlprit"
 "${PYTHON_BIN}" -m PyInstaller --clean --noconfirm "${SCRIPT_DIR}/qalprit.spec"
 
