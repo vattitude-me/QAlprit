@@ -5,9 +5,11 @@ from __future__ import annotations
 import os
 import re
 import shutil
+import struct
 import subprocess
 import threading
 import time
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -20,7 +22,7 @@ from qalprit.config_loader import (
     load_devices,
     load_environments,
 )
-from qalprit.doctor import find_android_sdk
+from qalprit.doctor import find_android_sdk, win_subprocess_kwargs
 from qalprit.driver_factory import create_appium_driver
 from qalprit.env_loader import load_env
 from qalprit.inspector import extract_interactive_elements, format_inspect_output
@@ -40,8 +42,86 @@ def _safe_slug(raw: str, default: str = "item") -> str:
     return cleaned or default
 
 
+def _read_axml_len8(buf: bytes, offset: int) -> tuple[int, int]:
+    first = buf[offset]
+    if first & 0x80:
+        second = buf[offset + 1]
+        return ((first & 0x7F) << 8) | second, offset + 2
+    return first, offset + 1
+
+
+def _read_axml_len16(buf: bytes, offset: int) -> tuple[int, int]:
+    first = struct.unpack_from("<H", buf, offset)[0]
+    if first & 0x8000:
+        second = struct.unpack_from("<H", buf, offset + 2)[0]
+        return ((first & 0x7FFF) << 16) | second, offset + 4
+    return first, offset + 2
+
+
+def _parse_android_manifest_package(data: bytes) -> str:
+    """Extract the Android package ID from binary AndroidManifest.xml (AXML)."""
+    if len(data) < 16 or struct.unpack_from("<H", data, 0)[0] != 0x0003:
+        return ""
+
+    pos = struct.unpack_from("<H", data, 2)[0]
+    strings: list[str] = []
+    while pos + 8 <= len(data):
+        chunk_type, hdr_size, chunk_size = struct.unpack_from("<HHI", data, pos)
+        if chunk_size < 8 or pos + chunk_size > len(data):
+            break
+        if chunk_type == 0x0001 and hdr_size >= 28:  # RES_STRING_POOL_TYPE
+            str_count, _style_count, flags, strings_start = struct.unpack_from("<IIII", data, pos + 8)
+            is_utf8 = bool(flags & 0x0100)
+            offsets_base = pos + hdr_size
+            pool_base = pos + strings_start
+            for i in range(str_count):
+                if offsets_base + (i + 1) * 4 > pos + chunk_size:
+                    break
+                rel_off = struct.unpack_from("<I", data, offsets_base + i * 4)[0]
+                s_off = pool_base + rel_off
+                if s_off >= pos + chunk_size:
+                    strings.append("")
+                    continue
+                if is_utf8:
+                    _, cur = _read_axml_len8(data, s_off)
+                    byte_len, cur = _read_axml_len8(data, cur)
+                    strings.append(data[cur : cur + byte_len].decode("utf-8", errors="replace"))
+                else:
+                    char_len, cur = _read_axml_len16(data, s_off)
+                    strings.append(data[cur : cur + char_len * 2].decode("utf-16-le", errors="replace"))
+        elif chunk_type == 0x0102 and hdr_size >= 16 and pos + hdr_size + 20 <= pos + chunk_size:
+            name_idx = struct.unpack_from("<I", data, pos + hdr_size + 4)[0]
+            attr_start, attr_size, attr_count = struct.unpack_from("<HHH", data, pos + hdr_size + 8)
+            tag_name = strings[name_idx] if name_idx < len(strings) else ""
+            if tag_name == "manifest" and attr_size >= 20:
+                attr_pos = pos + hdr_size + attr_start
+                for i in range(attr_count):
+                    cur_attr = attr_pos + i * attr_size
+                    if cur_attr + 20 > pos + chunk_size:
+                        break
+                    attr_name_idx, raw_val_idx = struct.unpack_from("<II", data, cur_attr + 4)
+                    data_type, attr_data = struct.unpack_from("<BI", data, cur_attr + 15)
+                    attr_name = strings[attr_name_idx] if attr_name_idx < len(strings) else ""
+                    if attr_name == "package":
+                        if raw_val_idx < len(strings):
+                            return strings[raw_val_idx]
+                        if data_type == 3 and attr_data < len(strings):
+                            return strings[attr_data]
+        pos += chunk_size
+    return ""
+
+
 def _detect_apk_package(apk_path: Path) -> str:
-    """Best-effort Android package detection via local aapt2/aapt if installed."""
+    """Detect Android package ID directly from APK binary manifest or aapt2/aapt."""
+    try:
+        with zipfile.ZipFile(apk_path, "r") as zf:
+            if "AndroidManifest.xml" in zf.namelist():
+                pkg = _parse_android_manifest_package(zf.read("AndroidManifest.xml"))
+                if pkg:
+                    return pkg
+    except Exception:
+        pass
+
     candidates: list[Path] = []
     for name in ("aapt2", "aapt"):
         found = shutil.which(name)
@@ -62,6 +142,7 @@ def _detect_apk_package(apk_path: Path) -> str:
                 capture_output=True,
                 text=True,
                 timeout=8,
+                **win_subprocess_kwargs(),
             )
             if proc.returncode == 0 and proc.stdout.strip():
                 return proc.stdout.strip().splitlines()[0].strip()
@@ -446,10 +527,16 @@ class RunJobManager:
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
+        self._cancel_event = threading.Event()
+        self._active_mgr: AppiumManager | None = None
+        self._started_monotonic: float | None = None
         self._state: dict[str, Any] = {
             "running": False,
             "run_id": "",
             "status": "idle",
+            "phase": "Idle",
+            "progress_pct": 0,
+            "elapsed_sec": 0.0,
             "logs": [],
             "report_url": "",
             "summary": None,
@@ -458,10 +545,16 @@ class RunJobManager:
 
     def status(self) -> dict[str, Any]:
         with self._lock:
+            elapsed = self._state["elapsed_sec"]
+            if self._state["running"] and self._started_monotonic is not None:
+                elapsed = round(time.monotonic() - self._started_monotonic, 1)
             return {
                 "running": self._state["running"],
                 "run_id": self._state["run_id"],
                 "status": self._state["status"],
+                "phase": self._state["phase"],
+                "progress_pct": self._state["progress_pct"],
+                "elapsed_sec": elapsed,
                 "logs": list(self._state["logs"]),
                 "report_url": self._state["report_url"],
                 "summary": self._state["summary"],
@@ -471,6 +564,30 @@ class RunJobManager:
     def _append_log(self, line: str) -> None:
         with self._lock:
             self._state["logs"].append(line)
+
+    def _set_progress(self, phase: str, pct: int) -> None:
+        with self._lock:
+            self._state["phase"] = phase
+            self._state["progress_pct"] = max(0, min(100, pct))
+
+    def stop(self) -> dict[str, Any]:
+        """Request cancellation of the active test run and stop Appium if active."""
+        with self._lock:
+            if not self._state["running"]:
+                return {"ok": True, "running": False, "status": self._state["status"]}
+            self._cancel_event.set()
+            self._state["status"] = "stopping"
+            self._state["phase"] = "Stopping"
+            run_id = self._state["run_id"]
+            self._state["logs"].append(f"[{run_id}] Stop requested by user — halting test run...")
+            mgr = self._active_mgr
+
+        if mgr is not None:
+            try:
+                mgr.__exit__(None, None, None)
+            except Exception:
+                pass
+        return {"ok": True, "running": True, "status": "stopping"}
 
     def start(self, project_root: Path, results_dir: Path, payload: dict[str, Any]) -> dict[str, Any]:
         platform = str(payload.get("platform") or "android")
@@ -530,10 +647,16 @@ class RunJobManager:
             if self._state["running"]:
                 raise RuntimeError("A test run is already in progress. Wait for completion before starting another.")
             run_id = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S") + f"_{platform}_{env_name}"
+            self._cancel_event.clear()
+            self._active_mgr = None
+            self._started_monotonic = time.monotonic()
             self._state = {
                 "running": True,
                 "run_id": run_id,
                 "status": "running",
+                "phase": "Starting Appium",
+                "progress_pct": 15,
+                "elapsed_sec": 0.0,
                 "logs": [f"[{run_id}] Validated {len(specs)} journey(s). Starting Appium session..."],
                 "report_url": "",
                 "summary": None,
@@ -546,7 +669,13 @@ class RunJobManager:
             appium_log_path = run_dir / "appium.log"
             masker = val.env_ctx.masker if val.env_ctx else None
             try:
-                with AppiumManager(log_path=appium_log_path, masker=masker) as mgr:
+                mgr = AppiumManager(log_path=appium_log_path, masker=masker)
+                with self._lock:
+                    self._active_mgr = mgr
+                with mgr:
+                    if self._cancel_event.is_set():
+                        raise InterruptedError("Stopped by user.")
+                    self._set_progress("Executing Tests", 45)
                     self._append_log(f"[{run_id}] Appium ready at {mgr.url}. Executing tests...")
                     runner = TestRunner(
                         driver_factory=lambda auto_accept: create_appium_driver(
@@ -574,6 +703,9 @@ class RunJobManager:
                         specs,
                         appium_log_rel="appium.log" if appium_log_path.exists() else None,
                     )
+                if self._cancel_event.is_set():
+                    raise InterruptedError("Stopped by user.")
+                self._set_progress("Generating Report", 88)
                 write_results_json(run_result, run_dir / "results.json", masker=masker)
                 generate_reports(run_result, run_dir, masker=masker)
                 summary = run_result.summary.model_dump()
@@ -581,17 +713,42 @@ class RunJobManager:
                     f"[{run_id}] Finished: {summary['passed']} passed, {summary['failed']} failed, {summary['skipped']} skipped."
                 )
                 with self._lock:
+                    elapsed = round(time.monotonic() - (self._started_monotonic or time.monotonic()), 1)
                     self._state["running"] = False
                     self._state["status"] = "completed"
+                    self._state["phase"] = "Completed"
+                    self._state["progress_pct"] = 100
+                    self._state["elapsed_sec"] = elapsed
                     self._state["summary"] = summary
                     self._state["report_url"] = f"/results/{run_id}/report.html"
-            except Exception as exc:
-                msg = masker.mask(str(exc)) if masker else str(exc)
-                self._append_log(f"[{run_id}] ERROR: {msg}")
+            except InterruptedError:
+                self._append_log(f"[{run_id}] Stopped by user.")
                 with self._lock:
+                    elapsed = round(time.monotonic() - (self._started_monotonic or time.monotonic()), 1)
                     self._state["running"] = False
-                    self._state["status"] = "error"
-                    self._state["error"] = msg
+                    self._state["status"] = "stopped"
+                    self._state["phase"] = "Stopped"
+                    self._state["elapsed_sec"] = elapsed
+            except Exception as exc:
+                was_stopped = self._cancel_event.is_set()
+                msg = masker.mask(str(exc)) if masker else str(exc)
+                self._append_log(
+                    f"[{run_id}] Stopped by user." if was_stopped else f"[{run_id}] ERROR: {msg}"
+                )
+                with self._lock:
+                    elapsed = round(time.monotonic() - (self._started_monotonic or time.monotonic()), 1)
+                    self._state["running"] = False
+                    self._state["elapsed_sec"] = elapsed
+                    if was_stopped:
+                        self._state["status"] = "stopped"
+                        self._state["phase"] = "Stopped"
+                    else:
+                        self._state["status"] = "error"
+                        self._state["phase"] = "Error"
+                        self._state["error"] = msg
+            finally:
+                with self._lock:
+                    self._active_mgr = None
 
         t = threading.Thread(target=_worker, daemon=True)
         t.start()

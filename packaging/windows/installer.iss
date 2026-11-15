@@ -1,7 +1,7 @@
 ; Inno Setup script for QAlprit Windows Installer (per-user, no admin required)
 
 #ifndef QAlpritVersion
-  #define QAlpritVersion "0.1.7"
+  #define QAlpritVersion "0.1.8"
 #endif
 
 #ifndef DistDir
@@ -35,11 +35,26 @@ UninstallDisplayName=QAlprit {#QAlpritVersion}
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
+[Types]
+Name: "full"; Description: "Full Installation (Recommended — QAlprit + Bundled Appium, Node.js, Java 17 & Android ADB)"
+Name: "compact"; Description: "QAlprit Workbench Core Only (Use existing system Node/Appium/Java/ADB)"
+Name: "custom"; Description: "Custom Installation (Choose components)"; Flags: iscustom
+
+[Components]
+Name: "core"; Description: "QAlprit Workbench Desktop App, CLI & Python Engine"; Types: full compact custom; Flags: fixed
+Name: "android_engine"; Description: "Appium 2.19 + UiAutomator2 + Node.js v20 + Android ADB (USB & Device Automation)"; Types: full custom
+Name: "java_runtime"; Description: "Eclipse Temurin Java 17 JRE (required for Android APK & UiAutomator2)"; Types: full custom
+
 [Tasks]
 Name: "desktopicon"; Description: "Create a &Desktop shortcut for QAlprit Workbench"; GroupDescription: "Additional shortcuts:"
 
 [Files]
-Source: "{#DistDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#DistDir}\*"; DestDir: "{app}"; Excludes: "\runtime"; Components: core; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#DistDir}\runtime\node\*"; DestDir: "{app}\runtime\node"; Components: android_engine; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#DistDir}\runtime\appium\*"; DestDir: "{app}\runtime\appium"; Components: android_engine; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#DistDir}\runtime\appium_home\*"; DestDir: "{app}\runtime\appium_home"; Components: android_engine; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#DistDir}\runtime\android-sdk\*"; DestDir: "{app}\runtime\android-sdk"; Components: android_engine; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#DistDir}\runtime\jdk\*"; DestDir: "{app}\runtime\jdk"; Components: java_runtime; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\QAlprit Workbench"; Filename: "{app}\QAlprit.exe"; WorkingDir: "{userdocs}"

@@ -354,3 +354,97 @@ def test_native_window_falls_back_when_webview_errors_or_disabled(
 
     monkeypatch.delenv("QALPRIT_BROWSER", raising=False)
     assert desktop_mod._launch_native_window("http://127.0.0.1:8765", tmp_path) is False
+
+
+def test_ensure_portable_appium_home_rewrites_stale_runner_paths(tmp_path: Path) -> None:
+    import yaml
+    from qalprit.doctor import ensure_portable_appium_home
+
+    appium_home = tmp_path / "appium_home"
+    driver_dir = appium_home / "node_modules" / "appium-uiautomator2-driver"
+    driver_dir.mkdir(parents=True)
+    ext_file = appium_home / "node_modules" / ".cache" / "appium" / "extensions.yaml"
+    ext_file.parent.mkdir(parents=True)
+    ext_file.write_text(
+        yaml.safe_dump(
+            {
+                "drivers": {
+                    "uiautomator2": {
+                        "pkgName": "appium-uiautomator2-driver",
+                        "installPath": r"D:\a\QAlprit\QAlprit\build\win-runtime\appium_home\node_modules\appium-uiautomator2-driver",
+                    }
+                },
+                "plugins": {},
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    resolved = ensure_portable_appium_home(appium_home)
+    assert resolved == appium_home
+    updated = yaml.safe_load(ext_file.read_text(encoding="utf-8"))
+    assert updated["drivers"]["uiautomator2"]["installPath"] == str(driver_dir.resolve())
+
+
+def test_save_uploaded_app_extracts_package_from_binary_android_manifest(tmp_path: Path) -> None:
+    import io
+    import struct
+    import zipfile
+
+    ws = ensure_workspace(tmp_path)
+    strings = ["manifest", "package", "com.acme.sdk5"]
+    pool_blob = bytearray()
+    offsets: list[int] = []
+    for s in strings:
+        offsets.append(len(pool_blob))
+        enc = s.encode("utf-8")
+        pool_blob.extend(bytes([len(s), len(enc)]))
+        pool_blob.extend(enc)
+        pool_blob.append(0)
+    while len(pool_blob) % 4:
+        pool_blob.append(0)
+
+    sp_hdr_size = 28
+    strings_start = sp_hdr_size + 4 * len(strings)
+    sp_chunk = (
+        struct.pack("<HHIIIIII", 0x0001, sp_hdr_size, strings_start + len(pool_blob), len(strings), 0, 0x0100, strings_start, 0)
+        + b"".join(struct.pack("<I", off) for off in offsets)
+        + bytes(pool_blob)
+    )
+    attr = struct.pack("<IIIHBBI", 0xFFFFFFFF, 1, 2, 8, 0, 3, 2)
+    node_hdr = struct.pack("<HHII", 0x0102, 16, 16 + 20 + len(attr), 1) + struct.pack("<I", 0xFFFFFFFF)
+    attr_ext = struct.pack("<IIHHHHHH", 0xFFFFFFFF, 0, 20, 20, 1, 0, 0, 0)
+    start_chunk = node_hdr + attr_ext + attr
+    axml = struct.pack("<HHI", 0x0003, 8, 8 + len(sp_chunk) + len(start_chunk)) + sp_chunk + start_chunk
+
+    apk_buf = io.BytesIO()
+    with zipfile.ZipFile(apk_buf, "w") as zf:
+        zf.writestr("AndroidManifest.xml", axml)
+
+    uploaded = save_uploaded_app(ws, "sdk5-mobile.apk", apk_buf.getvalue())
+    assert uploaded["detected_package"] == "com.acme.sdk5"
+
+
+def test_run_job_manager_stop_transitions_idle_and_active() -> None:
+    mgr = RunJobManager()
+    assert mgr.stop() == {"ok": True, "running": False, "status": "idle"}
+
+    exited: list[bool] = []
+
+    class _FakeAppium:
+        def __exit__(self, *_args: object) -> None:
+            exited.append(True)
+
+    with mgr._lock:
+        mgr._state["running"] = True
+        mgr._state["status"] = "running"
+        mgr._state["run_id"] = "RUN-TEST"
+        mgr._active_mgr = _FakeAppium()  # type: ignore[assignment]
+
+    res = mgr.stop()
+    assert res == {"ok": True, "running": True, "status": "stopping"}
+    assert exited == [True]
+    st = mgr.status()
+    assert st["status"] == "stopping"
+    assert st["phase"] == "Stopping"
