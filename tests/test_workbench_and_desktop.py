@@ -591,3 +591,86 @@ def test_emulator_setup_sync_and_http_status_endpoint(
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_windows_sdk_sync_copies_real_dirs_and_heals_reparse_points(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import qalprit.doctor as doctor_mod
+
+    src = tmp_path / "bundled" / "platform-tools"
+    src.mkdir(parents=True)
+    (src / "adb.exe").write_text("adb", encoding="utf-8")
+
+    dst = tmp_path / "user-sdk" / "platform-tools"
+    dst.parent.mkdir(parents=True)
+    # Simulate an existing stale symlink/reparse point left by v0.1.11
+    stale_target = tmp_path / "old-bundled" / "platform-tools"
+    stale_target.mkdir(parents=True)
+    dst.symlink_to(stale_target)
+
+    monkeypatch.setattr(doctor_mod.platform, "system", lambda: "Windows")
+    ran_subprocess = []
+    monkeypatch.setattr(doctor_mod.subprocess, "run", lambda *a, **kw: ran_subprocess.append(a))
+
+    doctor_mod._link_or_copy_dir(src, dst)
+    assert ran_subprocess == []  # Never invokes mklink /J
+    assert not dst.is_symlink()
+    assert (dst / "adb.exe").read_text(encoding="utf-8") == "adb"
+
+
+def test_stream_command_wraps_bat_files_on_windows(monkeypatch: pytest.MonkeyPatch) -> None:
+    import qalprit.emulator_manager as emu_mod
+
+    recorded: list[list[str]] = []
+
+    class _FakeProc:
+        stdout = None
+        stdin = None
+
+        def poll(self) -> int:
+            return 0
+
+        def wait(self) -> int:
+            return 0
+
+    def _fake_popen(cmd: list[str], **_kwargs: object) -> _FakeProc:
+        recorded.append(list(cmd))
+        return _FakeProc()
+
+    monkeypatch.setattr(emu_mod.platform, "system", lambda: "Windows")
+    monkeypatch.setattr(emu_mod.subprocess, "Popen", _fake_popen)
+    rc, _ = emu_mod._stream_command([r"C:\sdk\cmdline-tools\latest\bin\sdkmanager.bat", "--licenses"], env={})
+    assert rc == 0
+    assert recorded[0][:3] == ["cmd.exe", "/c", r"C:\sdk\cmdline-tools\latest\bin\sdkmanager.bat"]
+
+
+def test_workspace_apps_detect_android_and_ios_packages_and_ui_layout(tmp_path: Path) -> None:
+    import io
+    import plistlib
+    import zipfile
+    from qalprit.workbench_api import list_workspace_apps
+
+    ws = ensure_workspace(tmp_path)
+    ios_buf = io.BytesIO()
+    with zipfile.ZipFile(ios_buf, "w") as zf:
+        zf.writestr(
+            "Payload/DemoBank.app/Info.plist",
+            plistlib.dumps({"CFBundleIdentifier": "com.demobank.ios"}),
+        )
+    up = save_uploaded_app(ws, "DemoBank.ipa", ios_buf.getvalue())
+    assert up["detected_package"] == "com.demobank.ios"
+
+    apps = list_workspace_apps(ws)
+    assert len(apps) == 1
+    assert apps[0]["detected_package"] == "com.demobank.ios"
+
+    overview = collect_workspace_overview(ws)
+    assert "host_os" in overview and overview["host_os"]
+
+    ui_html = (Path(__file__).resolve().parents[1] / "src" / "qalprit" / "ui" / "index.html").read_text(
+        encoding="utf-8"
+    )
+    assert "[hidden] { display: none !important; }" in ui_html
+    assert ui_html.index("Step 1A") < ui_html.index("Step 1B") < ui_html.index("Step 1C")
+    assert 'id="activeAppSelect"' in ui_html

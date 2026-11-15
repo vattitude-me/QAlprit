@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import json
 import mimetypes
+import platform
 from dataclasses import asdict
 from functools import partial
 from http import HTTPStatus
@@ -128,6 +129,7 @@ def collect_workspace_overview(
     return {
         "tool": "QAlprit",
         "version": __version__,
+        "host_os": platform.system(),
         "tagline": "Mobile QA. Bugs caught with proof.",
         "project_root": str(root),
         "apps": apps,

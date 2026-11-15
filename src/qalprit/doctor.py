@@ -7,6 +7,7 @@ import os
 import platform
 import re
 import shutil
+import stat
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -155,34 +156,61 @@ def get_user_android_sdk_dir() -> Path:
     return (Path.home() / ".qalprit" / "android-sdk").resolve()
 
 
-def _link_or_copy_dir(src: Path, dst: Path) -> None:
+def _is_reparse_or_symlink(path: Path) -> bool:
+    """Inspect path with lstat (without traversing) to detect symlinks or Windows junctions."""
+    try:
+        st = os.lstat(path)
+    except OSError:
+        return False
+    if stat.S_ISLNK(st.st_mode):
+        return True
+    attrs = getattr(st, "st_file_attributes", 0)
+    return bool(attrs & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400))
+
+
+def _unlink_reparse_or_symlink(path: Path) -> None:
+    """Safely remove a symlink or NTFS junction entry without deleting target files."""
+    if not _is_reparse_or_symlink(path):
+        return
+    try:
+        st = os.lstat(path)
+    except OSError:
+        return
+    if platform.system() == "Windows" and stat.S_ISDIR(st.st_mode):
+        try:
+            os.rmdir(path)
+            return
+        except OSError:
+            pass
+    try:
+        path.unlink()
+    except OSError:
+        if stat.S_ISDIR(st.st_mode):
+            os.rmdir(path)
+
+
+def _link_or_copy_dir(src: Path, dst: Path, *, force_refresh: bool = False) -> None:
     """Expose bundled read-only SDK subfolders inside user-writable Android SDK."""
     if not src.exists():
         return
-    # Refresh stale/dangling symlinks/junctions if bundled app path changed after upgrade
-    if dst.is_symlink():
-        try:
-            if dst.resolve() == src.resolve():
-                return
-        except OSError:
-            pass
-        dst.unlink()
-    elif dst.exists():
+
+    # Heal any NTFS directory junctions (which raise WinError 448 on Windows traversal)
+    # and refresh stale/dangling POSIX symlinks when bundled app paths change on upgrade.
+    if _is_reparse_or_symlink(dst):
+        if platform.system() != "Windows":
+            try:
+                if dst.resolve() == src.resolve():
+                    return
+            except OSError:
+                pass
+        _unlink_reparse_or_symlink(dst)
+    elif os.path.lexists(dst) and not force_refresh:
         return
 
     dst.parent.mkdir(parents=True, exist_ok=True)
     if platform.system() == "Windows":
-        try:
-            proc = subprocess.run(
-                ["cmd", "/c", "mklink", "/J", str(dst), str(src)],
-                capture_output=True,
-                text=True,
-                **win_subprocess_kwargs(),
-            )
-            if proc.returncode == 0 and dst.exists():
-                return
-        except Exception:
-            pass
+        # Copy real directories on Windows so Python & Java tools never hit
+        # WinError 448 ("untrusted mount point") on NTFS junctions.
         shutil.copytree(src, dst, dirs_exist_ok=True)
     else:
         try:
@@ -195,12 +223,26 @@ def _sync_bundled_sdk_into(user_sdk: Path) -> None:
     rt = find_bundled_runtime_dir()
     if rt is None:
         return
+    marker_file = user_sdk / ".qalprit_sdk_src"
     for cand_root in (rt / "android-sdk", rt / "android"):
         if not cand_root.exists():
             continue
+        resolved_src = str(cand_root.resolve())
+        prev_src = ""
+        try:
+            if marker_file.is_file():
+                prev_src = marker_file.read_text(encoding="utf-8").strip()
+        except OSError:
+            prev_src = ""
+        source_changed = bool(prev_src != resolved_src)
         for sub in ("platform-tools", "build-tools", "cmdline-tools"):
-            if (cand_root / sub).exists():
-                _link_or_copy_dir(cand_root / sub, user_sdk / sub)
+            src_sub = cand_root / sub
+            if src_sub.exists():
+                _link_or_copy_dir(src_sub, user_sdk / sub, force_refresh=source_changed)
+        try:
+            marker_file.write_text(resolved_src, encoding="utf-8")
+        except OSError:
+            pass
         break
 
 
@@ -266,13 +308,19 @@ def find_android_tool(name: str) -> str | None:
             sdk / "tools" / "bin",
         ]
         bt_dir = sdk / "build-tools"
-        if bt_dir.is_dir():
-            rel_dirs.extend(sorted((p for p in bt_dir.iterdir() if p.is_dir()), reverse=True))
+        try:
+            if bt_dir.is_dir():
+                rel_dirs.extend(sorted((p for p in bt_dir.iterdir() if p.is_dir()), reverse=True))
+        except OSError:
+            pass
         for directory in rel_dirs:
             for fname in names:
                 cand = directory / fname
-                if cand.exists():
-                    return str(cand)
+                try:
+                    if cand.exists():
+                        return str(cand)
+                except OSError:
+                    continue
 
     direct = shutil.which(name)
     if direct:

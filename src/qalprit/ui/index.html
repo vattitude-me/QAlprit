@@ -505,6 +505,24 @@
       background: var(--accent);
       transition: width 0.25s ease;
     }
+    [hidden] { display: none !important; }
+    .progress-fill.is-active {
+      background: linear-gradient(
+        135deg,
+        var(--accent) 25%,
+        var(--accent-hover) 25%,
+        var(--accent-hover) 50%,
+        var(--accent) 50%,
+        var(--accent) 75%,
+        var(--accent-hover) 75%
+      );
+      background-size: 28px 28px;
+      animation: qalprit-stripes 0.9s linear infinite;
+    }
+    @keyframes qalprit-stripes {
+      0% { background-position: 0 0; }
+      100% { background-position: 28px 0; }
+    }
     .progress-fill.is-indeterminate {
       width: 38% !important;
       position: absolute;
@@ -513,6 +531,26 @@
     @keyframes qalprit-indeterminate {
       0% { left: -38%; }
       100% { left: 100%; }
+    }
+
+    .active-app-box {
+      padding: 12px 14px;
+      border: 1px solid var(--accent);
+      border-radius: 9px;
+      background: var(--accent-soft);
+      margin-bottom: 14px;
+    }
+    .tr-active td {
+      background: var(--accent-soft);
+    }
+    .os-pill {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent-ink);
+      font-size: 0.75rem;
+      font-weight: 700;
     }
 
     .guide-details {
@@ -581,10 +619,11 @@
       </svg>
       <div>
         <h1>QAlprit Workbench</h1>
-        <p>Guided Mobile QA — Upload APK &rarr; Identify Screens &rarr; Workflows &rarr; Journeys &rarr; Runs &amp; Reports</p>
+        <p>Guided Mobile QA &mdash; Setup Emulator &rarr; Choose Active App &rarr; Identify Screens &rarr; Workflows &rarr; Journeys &rarr; Runs</p>
       </div>
     </div>
     <div class="meta-pills">
+      <span class="pill" id="osModePill">Detecting OS...</span>
       <span class="pill" id="verPill">Loading...</span>
       <span class="pill" id="workspacePath" title="Workspace directory">Workspace</span>
     </div>
@@ -596,8 +635,8 @@
         <li>
           <button type="button" class="step-btn" data-step="1" aria-current="step">
             <span class="step-kicker">Step 1 <span class="step-badge" id="badgeApps">0 apps</span></span>
-            <span class="step-title">APK Upload &amp; Devices</span>
-            <span class="step-sub">App binary, package ID &amp; device check</span>
+            <span class="step-title">Emulator &amp; Active App</span>
+            <span class="step-sub">Setup virtual phone &amp; choose 1 app</span>
           </button>
         </li>
         <li>
@@ -636,139 +675,76 @@
     <div id="corruptBanner" class="status-banner status-warn" hidden role="status" aria-live="polite"></div>
 
     <!-- ================================================================ -->
-    <!-- STEP 1: APK UPLOAD & DEVICES                                      -->
+    <!-- STEP 1: VIRTUAL EMULATOR FIRST -> CHOOSE ACTIVE APP -> PACKAGE    -->
     <!-- ================================================================ -->
     <section class="wizard-step" id="step-1" data-step-panel="1" aria-labelledby="heading-step-1">
       <div class="step-header">
-        <h2 id="heading-step-1" tabindex="-1">1. Follow 1A &rarr; 1B &rarr; 1C to Prepare Your App &amp; Device</h2>
-        <p>Complete these three steps in order before mapping screens: upload your app binary, confirm its package ID, and verify QAlprit's tools and phone/emulator connection.</p>
+        <h2 id="heading-step-1" tabindex="-1">1. Follow 1A &rarr; 1B &rarr; 1C to Prepare Your Emulator &amp; Active App</h2>
+        <p id="step1OsIntro">Set up your Virtual Emulator first, then choose or upload the ONE app you want to test in this session.</p>
       </div>
 
       <div class="seq-strip" aria-label="Step 1 Setup Checklist">
         <div class="seq-item is-next" id="seqItem1a">
           <span class="seq-num" id="seqNum1a">1A</span>
           <div>
-            <strong>Upload App Binary</strong>
-            <div class="muted" id="seqSub1a">Upload an .apk, .ipa, or .zip file</div>
+            <strong>Setup Virtual Emulator</strong>
+            <div class="muted" id="seqSub1a">Install &amp; boot QAlprit_Pixel</div>
           </div>
         </div>
         <div class="seq-item" id="seqItem1b">
           <span class="seq-num" id="seqNum1b">1B</span>
           <div>
-            <strong>Save Package ID</strong>
-            <div class="muted" id="seqSub1b">Confirm detected package ID &amp; save</div>
+            <strong>Choose Active App (1/session)</strong>
+            <div class="muted" id="seqSub1b">Select or upload your .apk / .ipa</div>
           </div>
         </div>
         <div class="seq-item" id="seqItem1c">
           <span class="seq-num" id="seqNum1c">1C</span>
           <div>
-            <strong>Tools &amp; Device Check</strong>
-            <div class="muted" id="seqSub1c">Click Run All Checks below</div>
+            <strong>Package ID &amp; Environment</strong>
+            <div class="muted" id="seqSub1c">Auto-filled from your active app</div>
           </div>
         </div>
       </div>
 
-      <div class="grid-2">
-        <article class="card">
-          <h3><span class="substep-kicker">Step 1A</span> Upload App Binary (<code>apps/</code>)</h3>
-          <p class="card-help">Choose an Android <code>.apk</code> or iOS simulator <code>.zip</code> / <code>.ipa</code> file from your computer (up to 300 MB).</p>
-          <form id="uploadAppForm" method="POST">
-            <div class="form-grid">
-              <div class="field">
-                <label for="appFileInput">App File (.apk, .ipa, .zip)</label>
-                <input id="appFileInput" name="appFile" type="file" accept=".apk,.ipa,.zip" required />
-              </div>
-            </div>
-            <div class="btn-row">
-              <button type="submit" class="btn btn-primary" id="btnUploadApp">Start Upload</button>
-              <button type="button" class="btn btn-danger" id="btnCancelUpload" hidden>Stop Upload</button>
-            </div>
-            <div class="progress-box" id="uploadProgressBox" hidden>
-              <div class="progress-head">
-                <strong id="uploadProgressText">Uploading...</strong>
-                <span class="muted" id="uploadProgressPct">0%</span>
-              </div>
-              <div class="progress-track"><div class="progress-fill" id="uploadProgressFill"></div></div>
-            </div>
-            <div id="uploadStatus" class="status-banner" hidden aria-live="polite"></div>
-          </form>
-
-          <h4 style="margin:18px 0 8px;font-size:0.88rem;">Available Binaries in Workspace</h4>
-          <table>
-            <thead>
-              <tr><th>File</th><th>Type</th><th>Size</th><th>Path</th></tr>
-            </thead>
-            <tbody id="appsTable">
-              <tr><td colspan="4" class="muted">No app binaries uploaded yet.</td></tr>
-            </tbody>
-          </table>
-        </article>
-
-        <article class="card">
-          <h3><span class="substep-kicker">Step 1B</span> Confirm Package ID &amp; Save Environment</h3>
-          <p class="card-help">Tell QAlprit which Android package ID (or iOS bundle ID) this environment tests against.</p>
-          <form id="envSaveForm" method="POST">
-            <div class="form-grid">
-              <div class="field">
-                <label for="envNameInput">Environment Name</label>
-                <input id="envNameInput" type="text" value="qa" placeholder="qa" required />
-              </div>
-              <div class="field">
-                <label for="envTimeoutInput">Default Step Timeout (sec)</label>
-                <input id="envTimeoutInput" type="number" min="1" step="0.5" value="12" required />
-              </div>
-            </div>
-            <div class="form-grid">
-              <div class="field">
-                <label for="envAndroidPkg">Android Package ID</label>
-                <input id="envAndroidPkg" type="text" placeholder="com.example.myapp" />
-                <span class="hint">Auto-filled directly from your <code>.apk</code>'s <code>AndroidManifest.xml</code> upon upload.</span>
-              </div>
-              <div class="field">
-                <label for="envIosBundle">iOS Bundle ID (optional)</label>
-                <input id="envIosBundle" type="text" placeholder="com.example.MyApp" />
-              </div>
-            </div>
-            <div class="btn-row">
-              <button type="submit" class="btn btn-primary" id="btnSaveEnv">Save Environment Config</button>
-            </div>
-            <div id="envStatus" class="status-banner" hidden aria-live="polite"></div>
-          </form>
-        </article>
-      </div>
-
+      <!-- STEP 1A: EMULATOR & TOOLS FIRST -->
       <article class="card">
-        <h3><span class="substep-kicker">Step 1C</span> Virtual Emulator Setup (Primary) &amp; Toolchain Verification</h3>
-        <p class="card-help">Use QAlprit's built-in <strong>Virtual Android Phone (<code>QAlprit_Pixel</code>)</strong> or macOS <strong>iOS Simulator</strong> so QA teams need zero phone developer menus or helper approvals. Connect a physical USB phone optionally below.</p>
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:6px;">
+          <h3 style="margin:0;"><span class="substep-kicker">Step 1A</span> Prepare Virtual Emulator &amp; Verify Tools</h3>
+          <span class="os-pill" id="osCapabilityBadge">Detecting OS capabilities...</span>
+        </div>
+        <p class="card-help" id="emuPlatformExplain">Checking operating system capabilities...</p>
 
         <div class="emu-panel">
           <div class="emu-panel-head">
-            <strong>Primary Device: Virtual Emulator / Simulator</strong>
+            <strong>Virtual Android Emulator (<code>QAlprit_Pixel</code> &mdash; Android 34)</strong>
             <span class="badge b-skip" id="emuStatusBadge">Checking emulator status...</span>
           </div>
           <p class="muted" id="emuStatusDesc" style="margin:0 0 8px;font-size:0.82rem;">Checks whether QAlprit_Pixel (Android 34) is installed or booted.</p>
           <div class="btn-row">
+            <button type="button" class="btn btn-primary" id="btnEmuSetup" hidden>Setup Virtual Android Emulator (~1.8 GB)</button>
             <button type="button" class="btn btn-primary" id="btnEmuBoot" hidden>Boot Android Emulator</button>
-            <button type="button" class="btn btn-primary" id="btnEmuSetup">Setup Virtual Android Emulator (~1.8 GB)</button>
-            <button type="button" class="btn btn-danger" id="btnEmuStop" hidden>Stop Emulator</button>
+            <button type="button" class="btn btn-danger" id="btnEmuStop" hidden>Stop</button>
           </div>
-          <div id="iosSimRow" class="btn-row" style="margin-top:8px;" hidden>
-            <select id="iosSimSelect" style="max-width:320px;"></select>
-            <button type="button" class="btn" id="btnIosBoot">Boot iOS Simulator</button>
+          <div id="iosSimRow" class="btn-row" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);" hidden>
+            <strong style="font-size:0.84rem;">macOS iOS Simulator:</strong>
+            <select id="iosSimSelect" style="max-width:320px;" aria-label="Choose iOS Simulator"></select>
+            <button type="button" class="btn btn-primary" id="btnIosBoot">Boot iOS Simulator</button>
           </div>
           <div class="progress-box" id="emuProgressBox" hidden>
             <div class="progress-head">
-              <strong id="emuProgressPhase">Preparing...</strong>
+              <strong id="emuProgressPhase">Running inside QAlprit...</strong>
               <span class="muted" id="emuProgressMeta">0% &middot; 0.0s</span>
             </div>
             <div class="progress-track"><div class="progress-fill" id="emuProgressFill"></div></div>
+            <div class="muted" id="emuBgHint" style="font-size:0.76rem;margin-top:6px;">Setup runs inside QAlprit in the background &mdash; keep this window open until finished.</div>
           </div>
           <div id="emuStatusBanner" class="status-banner" hidden aria-live="polite"></div>
           <pre id="emuLiveLog" class="console" hidden></pre>
         </div>
 
         <div class="btn-row" style="margin-bottom:8px;">
-          <button type="button" class="btn btn-primary" id="btnRunPreflight">Start All Checks (Tools + Devices)</button>
+          <button type="button" class="btn" id="btnRunPreflight">Start All Checks (Tools + Devices)</button>
           <button type="button" class="btn" id="btnRefreshDevices">Scan Devices Only</button>
           <button type="button" class="btn" id="btnRunDoctor">Run System Doctor Only</button>
           <button type="button" class="btn btn-danger" id="btnStopPreflight" hidden>Stop Check</button>
@@ -782,7 +758,7 @@
         </div>
         <div class="step1c-grid">
           <div>
-            <h4 style="margin:0 0 8px;font-size:0.86rem;">Connected Devices &amp; Emulators</h4>
+            <h4 style="margin:0 0 8px;font-size:0.86rem;">Ready Devices &amp; Emulators</h4>
             <div class="table-scroll">
               <table>
                 <thead><tr><th>Platform</th><th>Name</th><th>Identifier</th><th>State</th></tr></thead>
@@ -804,12 +780,97 @@
         <details class="guide-details">
           <summary>Optional: Connect a Physical USB Phone instead (or Firewall help)</summary>
           <ul>
-            <li><strong>Recommended path (Virtual Emulator):</strong> Using the <strong>Virtual Android Emulator / iOS Simulator</strong> panel above avoids USB cables, Developer options, Play Protect warnings, and per-phone security approvals.</li>
-            <li><strong><code>adb.exe</code> Firewall prompt:</strong> <code>adb.exe</code> is Google's Android Debug Bridge. Windows Firewall asks once when it listens on port 5037 — click <strong>Allow access</strong>.</li>
+            <li><strong>Recommended path (Virtual Emulator):</strong> Using the Virtual Emulator above avoids USB cables, Developer options, Play Protect warnings, and per-phone security approvals.</li>
+            <li><strong><code>adb.exe</code> Firewall prompt:</strong> <code>adb.exe</code> is Google's Android Debug Bridge. Windows Firewall asks once when it listens on port 5037 &mdash; click <strong>Allow access</strong>.</li>
             <li><strong>Physical USB Android phone (optional):</strong> Enable <em>Settings &rarr; About phone &rarr; Tap Build number 7 times</em>, turn on <em>Developer options &rarr; USB debugging</em>, check <em>Always allow from this computer</em> and tap <strong>Allow</strong> on the phone, then approve <em>More details &rarr; Install anyway</em> once when Appium installs <code>io.appium.settings</code>.</li>
           </ul>
         </details>
       </article>
+
+      <!-- STEP 1B (ACTIVE APP) & STEP 1C (PACKAGE + ENVIRONMENT) -->
+      <div class="grid-2">
+        <article class="card">
+          <h3><span class="substep-kicker">Step 1B</span> Choose Active App for This Session (<code>apps/</code>)</h3>
+          <p class="card-help">Test <strong>one active app per session</strong>. Pick any already-uploaded binary below or upload a new build &mdash; QAlprit syncs it into Steps 1C, 2, and 5 automatically.</p>
+
+          <div class="active-app-box">
+            <div class="field" style="margin-bottom:0;">
+              <label for="activeAppSelect">Active App Under Test (1 App / Session)</label>
+              <select id="activeAppSelect"></select>
+              <span class="hint" id="activeAppSummary">Upload or select an app binary below.</span>
+            </div>
+          </div>
+
+          <form id="uploadAppForm" method="POST">
+            <div class="form-grid">
+              <div class="field">
+                <label for="appFileInput" id="appFileInputLabel">Upload App File (.apk, .ipa, .zip)</label>
+                <input id="appFileInput" name="appFile" type="file" accept=".apk,.ipa,.zip" required />
+              </div>
+            </div>
+            <div class="btn-row">
+              <button type="submit" class="btn btn-primary" id="btnUploadApp">Upload &amp; Set as Active App</button>
+              <button type="button" class="btn btn-danger" id="btnCancelUpload" hidden>Stop Upload</button>
+            </div>
+            <div class="progress-box" id="uploadProgressBox" hidden>
+              <div class="progress-head">
+                <strong id="uploadProgressText">Uploading...</strong>
+                <span class="muted" id="uploadProgressPct">0%</span>
+              </div>
+              <div class="progress-track"><div class="progress-fill" id="uploadProgressFill"></div></div>
+            </div>
+            <div id="uploadStatus" class="status-banner" hidden aria-live="polite"></div>
+          </form>
+
+          <h4 style="margin:18px 0 8px;font-size:0.88rem;">Uploaded Apps in Workspace (<code>apps/</code>)</h4>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr><th>File</th><th>Package / Bundle ID</th><th>Size</th><th>Session</th></tr>
+              </thead>
+              <tbody id="appsTable">
+                <tr><td colspan="4" class="muted">No app binaries uploaded yet.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="card">
+          <h3><span class="substep-kicker">Step 1C</span> App Package &amp; Target Environment</h3>
+          <p class="card-help"><strong>Auto-filled from your Active App.</strong> Android launches your app using its <strong>Package ID</strong> inside the selected environment profile (usually <code>qa</code>). You don't need to click Save unless customizing timeout or adding <code>staging</code> / <code>prod</code>.</p>
+          <form id="envSaveForm" method="POST">
+            <div class="form-grid">
+              <div class="field">
+                <label for="envPresetSelect">Saved Environment Profile</label>
+                <select id="envPresetSelect"></select>
+              </div>
+              <div class="field">
+                <label for="envNameInput">Profile Name (e.g. <code>qa</code>, <code>staging</code>)</label>
+                <input id="envNameInput" type="text" value="qa" placeholder="qa" required />
+              </div>
+              <div class="field">
+                <label for="envTimeoutInput">Default Step Timeout (sec)</label>
+                <input id="envTimeoutInput" type="number" min="1" step="0.5" value="12" required />
+              </div>
+            </div>
+            <div class="form-grid">
+              <div class="field">
+                <label for="envAndroidPkg">Android Package ID</label>
+                <input id="envAndroidPkg" type="text" placeholder="com.example.myapp" />
+                <span class="hint">Auto-filled &amp; synced from your active <code>.apk</code> manifest.</span>
+              </div>
+              <div class="field" id="envIosBundleField">
+                <label for="envIosBundle">iOS Bundle ID <span class="muted" id="envIosBundleNote">(optional)</span></label>
+                <input id="envIosBundle" type="text" placeholder="com.example.MyApp" />
+              </div>
+            </div>
+            <div class="btn-row">
+              <button type="submit" class="btn" id="btnSaveEnv">Save / Update Environment Config</button>
+            </div>
+            <div id="envStatus" class="status-banner" hidden aria-live="polite"></div>
+          </form>
+        </article>
+      </div>
 
       <div class="step-footer-nav">
         <span class="muted" id="step1FooterHint">Complete 1A &rarr; 1B &rarr; 1C above, then continue to Screen Identification.</span>
@@ -1214,6 +1275,10 @@
 
       let STATE = {
         overview: null,
+        hostOs: "",
+        activeApp: "",
+        emuEnvStatus: null,
+        emuState: null,
         inspectCandidates: [],
         pollTimer: null,
         emuPollTimer: null,
@@ -1237,6 +1302,54 @@
       };
 
       const $ = (id) => document.getElementById(id);
+
+      function applyHostOsUi(hostOs) {
+        const osName = String(hostOs || "");
+        const isWin = osName === "Windows";
+        const isMac = osName === "Darwin";
+
+        if ($("osModePill")) {
+          $("osModePill").innerHTML = isWin
+            ? "<strong>OS:</strong> Windows &middot; Android"
+            : (isMac ? "<strong>OS:</strong> macOS &middot; Android + iOS" : ("<strong>OS:</strong> " + esc(osName || "Linux") + " &middot; Android"));
+        }
+        if ($("osCapabilityBadge")) {
+          $("osCapabilityBadge").textContent = isWin
+            ? "Windows PC — Android Emulator Mode"
+            : (isMac ? "macOS — Android Emulator & iOS Simulator" : `${osName || "Linux"} — Android Emulator Mode`);
+        }
+        if ($("emuPlatformExplain")) {
+          $("emuPlatformExplain").textContent = isWin
+            ? "Windows supports Android testing using QAlprit's built-in Virtual Android Emulator (or an optional USB phone). iOS Simulator requires macOS + Xcode. Set up and boot the emulator first before selecting your app."
+            : (isMac
+              ? "macOS supports both Virtual Android Emulator (QAlprit_Pixel) and Apple iOS Simulator. Set up & boot your emulator or simulator below first, then pick your active app."
+              : "Set up & boot QAlprit's Virtual Android Emulator first (iOS Simulator requires macOS + Xcode), then choose your active app below.");
+        }
+        if ($("appFileInput") && $("appFileInputLabel")) {
+          if (isWin) {
+            $("appFileInput").accept = ".apk";
+            $("appFileInputLabel").textContent = "Upload Android App (.apk)";
+          } else {
+            $("appFileInput").accept = ".apk,.ipa,.zip";
+            $("appFileInputLabel").textContent = "Upload App File (.apk, .ipa, .zip)";
+          }
+        }
+        if ($("envIosBundleNote")) {
+          $("envIosBundleNote").textContent = isWin ? "(optional — iOS requires macOS)" : "(optional, macOS only)";
+        }
+        ["inspectPlatform", "runPlatformSelect"].forEach((selId) => {
+          const sel = $(selId);
+          if (!sel) return;
+          const iosOpt = Array.from(sel.options).find((o) => o.value === "ios");
+          if (iosOpt) {
+            iosOpt.disabled = !isMac;
+            iosOpt.textContent = isMac ? "ios" : "ios (requires macOS)";
+          }
+          if (!isMac && sel.value === "ios") {
+            sel.value = "android";
+          }
+        });
+      }
 
       function esc(val) {
         return String(val ?? "")
@@ -1295,11 +1408,20 @@
       function updateStep1Checklist() {
         const data = STATE.overview || {};
         const apps = data.apps || [];
-        const hasApp = apps.length > 0;
+        const activeObj = apps.find((a) => a.rel_path === STATE.activeApp) || apps[0] || null;
+        const hasApp = Boolean(activeObj);
         const envs = data.environments || {};
-        const qaPkg = (envs.qa && envs.qa.android_package) || "";
-        const pkgSaved = Boolean(qaPkg && qaPkg !== "com.example.app");
-        const toolsDone = STATE.doctorChecked && STATE.doctorOk;
+        const curEnvName = ($("envNameInput") && $("envNameInput").value.trim()) || "qa";
+        const curEnv = envs[curEnvName] || envs.qa || {};
+        const savedPkg = curEnv.android_package || curEnv.ios_bundle_id || "";
+        const pkgSaved = Boolean(savedPkg && savedPkg !== "com.example.app");
+
+        const emuEnv = STATE.emuEnvStatus || {};
+        const emuSt = STATE.emuState || {};
+        const emuBooted = (emuEnv.running_android_emulators || []).length > 0;
+        const iosBooted = (emuEnv.ios_simulators || []).some((s) => s.state === "Booted");
+        const emuInstalled = Boolean(emuEnv.emulator_installed && (emuEnv.avds || []).length);
+        const emuReady = emuBooted || iosBooted || STATE.deviceCount > 0;
 
         const setSeq = (id, numId, subId, numText, done, next, subText) => {
           const item = $(id);
@@ -1312,28 +1434,36 @@
           if (sub) sub.textContent = subText;
         };
 
+        let emuSub = "Click Setup Virtual Android Emulator below";
+        if (emuSt.running) {
+          emuSub = `${emuSt.phase || "Running"} (${Number(emuSt.progress_pct || 0)}%)`;
+        } else if (emuBooted) {
+          emuSub = "Booted: " + emuEnv.running_android_emulators[0];
+        } else if (iosBooted) {
+          emuSub = "Booted: iOS Simulator";
+        } else if (STATE.deviceCount > 0) {
+          emuSub = STATE.deviceCount + " device(s) ready";
+        } else if (emuInstalled) {
+          emuSub = `Installed (${emuEnv.avds[0]}) — click Boot`;
+        }
+
+        setSeq("seqItem1a", "seqNum1a", "seqSub1a", "1A", emuReady, !emuReady, emuSub);
         setSeq(
-          "seqItem1a", "seqNum1a", "seqSub1a", "1A", hasApp, !hasApp,
-          hasApp ? ("Ready: " + apps[0].name) : "Upload an .apk, .ipa, or .zip file"
+          "seqItem1b", "seqNum1b", "seqSub1b", "1B", hasApp, emuReady && !hasApp,
+          hasApp ? ("Active: " + activeObj.name) : "Select or upload 1 app binary below"
         );
         setSeq(
-          "seqItem1b", "seqNum1b", "seqSub1b", "1B", pkgSaved, hasApp && !pkgSaved,
-          pkgSaved ? ("Saved: " + qaPkg) : "Enter or confirm Package ID & save"
+          "seqItem1c", "seqNum1c", "seqSub1c", "1C", pkgSaved, emuReady && hasApp && !pkgSaved,
+          pkgSaved ? ("Ready: " + savedPkg + " (" + curEnvName + ")") : "Auto-fills when an app is selected"
         );
-        const devSummary = STATE.deviceCount > 0
-          ? STATE.deviceCount + " device(s) ready"
-          : (STATE.unauthorizedCount > 0 ? STATE.unauthorizedCount + " unauthorized (tap Allow on phone)" : "No USB phone/emulator");
-        const toolsSub = !STATE.doctorChecked && !STATE.devicesChecked
-          ? "Click Start All Checks below"
-          : (toolsDone ? "Tools OK" : "Check Toolchain Health") + " · " + devSummary;
-        setSeq("seqItem1c", "seqNum1c", "seqSub1c", "1C", toolsDone && STATE.deviceCount > 0, hasApp && pkgSaved && !(toolsDone && STATE.deviceCount > 0), toolsSub);
 
         const hint = $("step1FooterHint");
         if (hint) {
-          if (!hasApp) hint.textContent = "Next: upload your .apk in Step 1A.";
-          else if (!pkgSaved) hint.textContent = "Next: confirm the Android Package ID in Step 1B and click Save Environment Config.";
-          else if (!STATE.doctorChecked) hint.textContent = "Next: click Start All Checks in Step 1C to verify tools and devices.";
-          else hint.textContent = "Workspace configured. Click Next to identify screens (live device or sample XML).";
+          if (!emuReady && !emuInstalled) hint.textContent = "Next (1A): click Setup Virtual Android Emulator in Step 1A.";
+          else if (!emuReady && emuInstalled) hint.textContent = "Next (1A): click Boot Android Emulator in Step 1A.";
+          else if (!hasApp) hint.textContent = "Next (1B): choose or upload your app binary in Step 1B.";
+          else if (!pkgSaved) hint.textContent = "Next (1C): confirm Package ID in Step 1C.";
+          else hint.textContent = "Emulator & active app ready! Click Next to identify screens.";
         }
       }
 
@@ -1612,8 +1742,103 @@
         });
       }
 
-      function renderOverview(data) {
+      function renderAppsTable(apps) {
+        const list = apps || [];
+        $("appsTable").innerHTML = list.length
+          ? list.map((a) => {
+              const isActive = a.rel_path === STATE.activeApp;
+              const pkgLabel = a.detected_package ? `<code>${esc(a.detected_package)}</code>` : '<span class="muted">unknown</span>';
+              const actionCell = isActive
+                ? '<span class="badge b-ok">Active Session App</span>'
+                : `<button type="button" class="btn btn-sm" data-select-app="${esc(a.rel_path)}">Use This App</button>`;
+              return `<tr class="${isActive ? "tr-active" : ""}"><td><strong>${esc(a.name)}</strong><div class="muted" style="font-size:0.74rem;">${esc(a.kind)} &middot; <code>${esc(a.rel_path)}</code></div></td><td>${pkgLabel}</td><td>${fmtBytes(a.size_bytes)}</td><td>${actionCell}</td></tr>`;
+            }).join("")
+          : '<tr><td colspan="4" class="muted">No app binaries uploaded yet.</td></tr>';
+      }
+
+      function loadEnvIntoForm(envName) {
+        const envs = (STATE.overview && STATE.overview.environments) || {};
+        const cfg = envs[envName];
+        if (!cfg) return;
+        $("envNameInput").value = envName;
+        $("envTimeoutInput").value = cfg.default_timeout || 12;
+        if (cfg.android_package) $("envAndroidPkg").value = cfg.android_package;
+        if (cfg.ios_bundle_id) $("envIosBundle").value = cfg.ios_bundle_id;
+        if ($("inspectEnvSelect") && Array.from($("inspectEnvSelect").options).some((o) => o.value === envName)) {
+          $("inspectEnvSelect").value = envName;
+        }
+        if ($("runEnvSelect") && Array.from($("runEnvSelect").options).some((o) => o.value === envName)) {
+          $("runEnvSelect").value = envName;
+        }
+      }
+
+      async function selectSessionApp(relPath, opts) {
+        const options = opts || {};
+        const apps = (STATE.overview && STATE.overview.apps) || [];
+        const app = apps.find((a) => a.rel_path === relPath) || null;
+        STATE.activeApp = app ? app.rel_path : "";
+        try {
+          if (STATE.activeApp) localStorage.setItem("qalprit.activeApp", STATE.activeApp);
+        } catch (_) {}
+
+        ["activeAppSelect", "inspectAppSelect", "runAppSelect"].forEach((selId) => {
+          const sel = $(selId);
+          if (sel && Array.from(sel.options).some((o) => o.value === STATE.activeApp)) {
+            sel.value = STATE.activeApp;
+          }
+        });
+        renderAppsTable(apps);
+
+        if (!app) {
+          if ($("activeAppSummary")) $("activeAppSummary").textContent = "Upload or select an app binary below.";
+          updateStep1Checklist();
+          return;
+        }
+
+        const isAndroid = app.kind === "apk";
+        const pkg = app.detected_package || "";
+        if ($("activeAppSummary")) {
+          $("activeAppSummary").textContent = `Testing ${app.name} (${app.kind}, ${fmtBytes(app.size_bytes)}${pkg ? ", " + pkg : ""}) — synced across Steps 1C, 2 & 5.`;
+        }
+        if ($("inspectPlatform") && $("runPlatformSelect") && STATE.hostOs === "Darwin") {
+          const targetPlat = isAndroid ? "android" : "ios";
+          $("inspectPlatform").value = targetPlat;
+          $("runPlatformSelect").value = targetPlat;
+        }
+        if (pkg) {
+          if (isAndroid) $("envAndroidPkg").value = pkg;
+          else $("envIosBundle").value = pkg;
+
+          const envName = $("envNameInput").value.trim() || "qa";
+          const envs = (STATE.overview && STATE.overview.environments) || {};
+          const existing = envs[envName] || {};
+          const savedVal = isAndroid ? (existing.android_package || "") : (existing.ios_bundle_id || "");
+          if (options.autoSave && savedVal !== pkg) {
+            try {
+              const savedRes = await apiJson("/api/environments/save", {
+                env_name: envName,
+                android_package: isAndroid ? pkg : $("envAndroidPkg").value.trim(),
+                ios_bundle_id: isAndroid ? $("envIosBundle").value.trim() : pkg,
+                default_timeout: Number($("envTimeoutInput").value) || 12
+              });
+              if (STATE.overview && STATE.overview.environments) {
+                STATE.overview.environments[savedRes.env_name] = savedRes.config;
+              }
+              showBanner("envStatus", `Auto-synced '${pkg}' from ${app.name} into environment '${savedRes.env_name}' — ready to test.`, "ok");
+            } catch (err) {
+              showBanner("envStatus", err.message, "error");
+            }
+          }
+        }
+        updateStep1Checklist();
+      }
+
+      function renderOverview(data, opts) {
+        const options = opts || {};
         STATE.overview = data;
+        STATE.hostOs = data.host_os || STATE.hostOs || "";
+        applyHostOsUi(STATE.hostOs);
+
         if (Array.isArray(data.step_vocabulary) && data.step_vocabulary.length) {
           STATE.stepVocab = data.step_vocabulary;
         }
@@ -1632,28 +1857,51 @@
           showBanner("corruptBanner", "", "");
         }
 
-        // Apps table & selectors
+        // Apps dropdowns & table (1 active app per session)
         const apps = data.apps || [];
-        $("appsTable").innerHTML = apps.length
-          ? apps.map((a) => `<tr><td><strong>${esc(a.name)}</strong></td><td>${esc(a.kind)}</td><td>${fmtBytes(a.size_bytes)}</td><td><code>${esc(a.rel_path)}</code></td></tr>`).join("")
-          : '<tr><td colspan="4" class="muted">No app binaries uploaded yet.</td></tr>';
-        const appOpts = apps.map((a) => ({ value: a.rel_path, label: `${a.name} (${a.kind})` }));
+        const appOpts = apps.map((a) => ({
+          value: a.rel_path,
+          label: `${a.name} (${a.kind}${a.detected_package ? " · " + a.detected_package : ""})`
+        }));
+        populateSelect("activeAppSelect", appOpts, apps.length ? null : "-- Upload an app below --");
         populateSelect("inspectAppSelect", appOpts, "-- Use installed package / none --");
         populateSelect("runAppSelect", appOpts, "-- Select app binary --");
 
         // Environments & Device profiles
-        const envNames = Object.keys(data.environments || {});
+        const envs = data.environments || {};
+        const envNames = Object.keys(envs);
         const envOpts = (envNames.length ? envNames : ["qa"]).map((k) => ({ value: k, label: k }));
+        populateSelect("envPresetSelect", envOpts.concat([{ value: "__new__", label: "+ Create new environment..." }]));
         populateSelect("inspectEnvSelect", envOpts);
         populateSelect("runEnvSelect", envOpts);
-        if (data.environments && data.environments.qa) {
-          if (!$("envAndroidPkg").value && data.environments.qa.android_package) {
-            $("envAndroidPkg").value = data.environments.qa.android_package;
-          }
-          if (!$("envIosBundle").value && data.environments.qa.ios_bundle_id) {
-            $("envIosBundle").value = data.environments.qa.ios_bundle_id;
+        const curEnvName = $("envNameInput").value.trim() || "qa";
+        if (envs[curEnvName]) {
+          $("envPresetSelect").value = curEnvName;
+          loadEnvIntoForm(curEnvName);
+        } else if (envs.qa) {
+          $("envPresetSelect").value = "qa";
+          loadEnvIntoForm("qa");
+        }
+
+        // Choose initial active session app (persisted choice -> package match -> first uploaded app)
+        let desiredApp = STATE.activeApp;
+        if (!desiredApp || !apps.some((a) => a.rel_path === desiredApp)) {
+          let stored = "";
+          try { stored = localStorage.getItem("qalprit.activeApp") || ""; } catch (_) {}
+          if (stored && apps.some((a) => a.rel_path === stored)) {
+            desiredApp = stored;
+          } else {
+            const qaPkg = (envs.qa && envs.qa.android_package) || "";
+            const matched = qaPkg ? apps.find((a) => a.detected_package === qaPkg) : null;
+            desiredApp = matched ? matched.rel_path : (apps[0] ? apps[0].rel_path : "");
           }
         }
+        const needInitialAutoSync = Boolean(
+          desiredApp &&
+          !options.skipAutoSync &&
+          (!envs.qa || !envs.qa.android_package || envs.qa.android_package === "com.example.app")
+        );
+        selectSessionApp(desiredApp, { autoSave: needInitialAutoSync });
 
         syncDeviceSelects();
 
@@ -1735,15 +1983,37 @@
         updateStep1Checklist();
       }
 
-      async function loadOverview() {
+      async function loadOverview(opts) {
         const res = await fetch("/api/overview", { cache: "no-store" });
         const data = await res.json();
-        renderOverview(data);
+        renderOverview(data, opts);
       }
 
       // ------------------------------------------------------------------
-      // Step 1 Event Handlers (1A Upload -> 1B Package ID -> 1C Checks)
+      // Step 1 Event Handlers (1A Emulator -> 1B Active App -> 1C Package/Env)
       // ------------------------------------------------------------------
+      $("activeAppSelect").addEventListener("change", () => {
+        selectSessionApp($("activeAppSelect").value, { autoSave: true });
+      });
+
+      $("appsTable").addEventListener("click", (e) => {
+        const btn = e.target.closest("[data-select-app]");
+        if (!btn) return;
+        selectSessionApp(btn.dataset.selectApp, { autoSave: true });
+      });
+
+      $("envPresetSelect").addEventListener("change", () => {
+        const val = $("envPresetSelect").value;
+        if (val === "__new__") {
+          $("envNameInput").value = "";
+          $("envNameInput").focus();
+          showBanner("envStatus", "Type a new profile name (e.g. staging or prod) and click Save / Update Environment Config.", "");
+        } else {
+          loadEnvIntoForm(val);
+          updateStep1Checklist();
+        }
+      });
+
       $("btnCancelUpload").addEventListener("click", () => {
         if (STATE.uploadXhr) {
           STATE.uploadXhr.abort();
@@ -1794,18 +2064,17 @@
             xhr.send(file);
           });
 
-          let msg = "Saved to " + data.rel_path + " (" + fmtBytes(data.size_bytes) + ").";
+          let msg = "Uploaded & set active app: " + data.name + " (" + fmtBytes(data.size_bytes) + ").";
           if (data.detected_package) {
-            $("envAndroidPkg").value = data.detected_package;
-            msg += " Detected Android package: " + data.detected_package + " (auto-filled in Step 1B — click Save Environment Config).";
+            msg += " Detected package '" + data.detected_package + "' and synced to environment.";
           } else {
-            msg += " Enter your Android Package ID in Step 1B and click Save Environment Config.";
+            msg += " Enter Package ID in Step 1C if needed.";
           }
           showBanner("uploadStatus", msg, "ok");
           $("appFileInput").value = "";
-          await loadOverview();
-          $("inspectAppSelect").value = data.rel_path;
-          $("runAppSelect").value = data.rel_path;
+          STATE.activeApp = data.rel_path;
+          await loadOverview({ skipAutoSync: true });
+          await selectSessionApp(data.rel_path, { autoSave: true });
         } catch (err) {
           showBanner("uploadStatus", err.message, err.message.includes("stopped") ? "warn" : "error");
         } finally {
@@ -1826,7 +2095,8 @@
             default_timeout: Number($("envTimeoutInput").value) || 12
           });
           showBanner("envStatus", "Saved environment '" + data.env_name + "' into config/environments.yaml.", "ok");
-          await loadOverview();
+          await loadOverview({ skipAutoSync: true });
+          $("envPresetSelect").value = data.env_name;
         } catch (err) {
           showBanner("envStatus", err.message, "error");
         }
@@ -1931,6 +2201,12 @@
 
       function renderEmulatorStatus(st) {
         const env = (st && st.env_status) || {};
+        STATE.emuEnvStatus = env;
+        STATE.emuState = st;
+        if (env.os && !STATE.hostOs) {
+          STATE.hostOs = env.os;
+          applyHostOsUi(STATE.hostOs);
+        }
         const runningEmus = env.running_android_emulators || [];
         const avds = env.avds || [];
         const installed = Boolean(env.emulator_installed && avds.length);
@@ -1938,7 +2214,11 @@
 
         const badge = $("emuStatusBadge");
         const desc = $("emuStatusDesc");
-        if (runningEmus.length) {
+        if (busy) {
+          badge.className = "badge b-warn";
+          badge.textContent = (st.phase || "Running") + " (" + Number(st.progress_pct || 0) + "%)";
+          desc.textContent = "Running in background inside QAlprit Workbench — watch live progress & logs below.";
+        } else if (runningEmus.length) {
           badge.className = "badge b-ok";
           badge.textContent = "Running: " + runningEmus[0];
           desc.textContent = "Virtual Android phone is booted and ready for Step 2 & Step 5.";
@@ -1949,7 +2229,7 @@
         } else if (env.sdkmanager_ready) {
           badge.className = "badge b-warn";
           badge.textContent = "Not Installed Yet";
-          desc.textContent = `Downloads Google Emulator + ${env.system_image_package || "Android 34"} into ~/.qalprit/android-sdk (survives app updates).`;
+          desc.textContent = `Click Setup below to download Google Emulator + ${env.system_image_package || "Android 34"} (~1.8 GB) into ~/.qalprit/android-sdk.`;
         } else {
           badge.className = "badge b-warn";
           badge.textContent = "SDK Tools Missing";
@@ -1959,7 +2239,7 @@
         $("btnEmuSetup").hidden = busy || installed;
         $("btnEmuBoot").hidden = busy || !installed || runningEmus.length > 0;
         $("btnEmuStop").hidden = !busy && runningEmus.length === 0;
-        $("btnEmuStop").textContent = busy ? "Stop" : "Stop Running Emulator";
+        $("btnEmuStop").textContent = busy ? "Stop Setup / Boot" : "Stop Running Emulator";
 
         if (env.ios_supported && (env.ios_simulators || []).length) {
           $("iosSimRow").hidden = false;
@@ -1973,17 +2253,20 @@
 
         if (st && (st.running || (st.status && st.status !== "idle"))) {
           $("emuProgressBox").hidden = false;
-          $("emuProgressPhase").textContent = st.phase || st.status || "Working...";
+          $("emuProgressPhase").textContent = (st.running ? "Running in background: " : "") + (st.phase || st.status || "Working...");
           const pct = Math.max(0, Math.min(100, Number(st.progress_pct || 0)));
           const sec = Number(st.elapsed_sec || 0).toFixed(1);
           $("emuProgressMeta").textContent = `${pct}% · ${sec}s`;
-          $("emuProgressFill").style.width = `${pct}%`;
+          $("emuProgressFill").style.width = `${Math.max(busy ? 6 : 0, pct)}%`;
+          $("emuProgressFill").classList.toggle("is-active", busy);
+          if ($("emuBgHint")) $("emuBgHint").hidden = !busy;
         }
-        if (st && st.logs && st.logs.length && (st.running || st.status === "failed" || st.status === "stopped")) {
+        if (st && st.logs && st.logs.length && (st.running || st.status === "failed" || st.status === "stopped" || st.status === "completed")) {
           $("emuLiveLog").hidden = false;
           $("emuLiveLog").textContent = st.logs.join("\n");
           $("emuLiveLog").scrollTop = $("emuLiveLog").scrollHeight;
         }
+        updateStep1Checklist();
       }
 
       async function pollEmulatorStatus() {
@@ -1993,7 +2276,7 @@
           clearInterval(STATE.emuPollTimer);
           STATE.emuPollTimer = null;
           if (st.status === "completed") {
-            showBanner("emuStatusBanner", st.phase === "Booted & Ready" ? "Virtual Android phone is booted and selected!" : "Virtual Android Emulator setup complete!", "ok");
+            showBanner("emuStatusBanner", st.phase === "Booted & Ready" ? "Virtual Android phone is booted and selected!" : "Virtual Android Emulator setup complete! Click Boot Android Emulator next.", "ok");
             await runPreflightChecks({ devices: true, doctor: false });
           } else if (st.status === "stopped") {
             showBanner("emuStatusBanner", st.error || "Stopped by user.", "warn");
@@ -2008,25 +2291,39 @@
         if (STATE.emuPollTimer) clearInterval(STATE.emuPollTimer);
         STATE.emuPollTimer = setInterval(() => {
           pollEmulatorStatus().catch(() => {});
-        }, 1200);
+        }, 900);
         pollEmulatorStatus().catch(() => {});
       }
 
       $("btnEmuSetup").addEventListener("click", async () => {
         showBanner("emuStatusBanner", "", "");
+        $("emuProgressBox").hidden = false;
+        $("emuProgressPhase").textContent = "Running in background: Preparing SDK tools...";
+        $("emuProgressMeta").textContent = "5% · 0.0s";
+        $("emuProgressFill").style.width = "6%";
+        $("emuProgressFill").classList.add("is-active");
+        $("emuLiveLog").hidden = false;
+        $("emuLiveLog").textContent = "Starting emulator setup inside QAlprit Workbench...";
         try {
           await apiJson("/api/emulator/setup", {});
           startEmulatorPolling();
         } catch (err) {
+          $("emuProgressFill").classList.remove("is-active");
           showBanner("emuStatusBanner", err.message, "error");
         }
       });
 
       $("btnEmuBoot").addEventListener("click", async () => {
         showBanner("emuStatusBanner", "", "");
+        $("emuProgressBox").hidden = false;
+        $("emuProgressPhase").textContent = "Running in background: Booting QAlprit_Pixel...";
+        $("emuProgressMeta").textContent = "10% · 0.0s";
+        $("emuProgressFill").style.width = "10%";
+        $("emuProgressFill").classList.add("is-active");
         try {
           const res = await apiJson("/api/emulator/boot", { target: "android" });
           if (res.already_running) {
+            $("emuProgressFill").classList.remove("is-active");
             showBanner("emuStatusBanner", "Android emulator already running: " + res.serial, "ok");
             await runPreflightChecks({ devices: true, doctor: false });
             await pollEmulatorStatus();
@@ -2034,6 +2331,7 @@
           }
           startEmulatorPolling();
         } catch (err) {
+          $("emuProgressFill").classList.remove("is-active");
           showBanner("emuStatusBanner", err.message, "error");
         }
       });
