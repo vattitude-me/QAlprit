@@ -3091,20 +3091,29 @@
               && (el.clickable || el.editable || el.text || el.hint)
             ))
             .map(({ el, idx }) => {
-              const [x1, y1, x2, y2] = el.rect;
-              const area = Math.max(1, (x2 - x1) * (y2 - y1));
+              const [rx1, ry1, rx2, ry2] = el.rect;
+              const x1 = Math.max(0, Math.min(w, rx1));
+              const y1 = Math.max(0, Math.min(h, ry1));
+              const x2 = Math.max(0, Math.min(w, rx2));
+              const y2 = Math.max(0, Math.min(h, ry2));
+              const area = (x2 > x1 && y2 > y1) ? (x2 - x1) * (y2 - y1) : 0;
               return { el, idx, x1, y1, x2, y2, area };
             })
-            .filter(({ area }) => (area / totalArea) <= 0.85)
-            // Render largest boxes first and smallest controls on top so small buttons stay clickable.
-            .sort((a, b) => b.area - a.area);
+            .filter(({ area }) => area > 0 && (area / totalArea) <= 0.75)
+            // Keep interactive controls on top of static labels, and smaller targets on top of containers.
+            .sort((a, b) => {
+              const aInt = (a.el.clickable || a.el.editable) ? 1 : 0;
+              const bInt = (b.el.clickable || b.el.editable) ? 1 : 0;
+              if (aInt !== bInt) return aInt - bInt;
+              return b.area - a.area;
+            });
 
           overlays.innerHTML = overlayItems
             .map(({ el, idx, x1, y1, x2, y2 }, orderIdx) => {
-              const left = Math.max(0, (x1 / w) * 100).toFixed(2);
-              const top = Math.max(0, (y1 / h) * 100).toFixed(2);
-              const width = Math.min(100, ((x2 - x1) / w) * 100).toFixed(2);
-              const height = Math.min(100, ((y2 - y1) / h) * 100).toFixed(2);
+              const left = ((x1 / w) * 100).toFixed(2);
+              const top = ((y1 / h) * 100).toFixed(2);
+              const width = (((x2 - x1) / w) * 100).toFixed(2);
+              const height = (((y2 - y1) / h) * 100).toFixed(2);
               const isStaticLabel = !el.clickable && !el.editable;
               const lbl = el.display_label || el.key || "Element";
               return `<div class="rec-box${isStaticLabel ? " is-label" : ""}${STATE.recSelectedIdx === idx ? " is-selected" : ""}" data-rec-box="${idx}" title="${esc(lbl)}" style="left:${left}%;top:${top}%;width:${width}%;height:${height}%;z-index:${orderIdx + 1};"></div>`;
