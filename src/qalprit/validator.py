@@ -475,7 +475,8 @@ def validate_project(
         flow_obj = flows[flow_name]
         slug = re.sub(r"[^A-Za-z0-9]+", "_", flow_name).strip("_").upper()[:24] or "WORKFLOW"
         spec_plats: list[Literal["android", "ios"]] = (
-            [platform] if platform in ("android", "ios") else ["android", "ios"]  # type: ignore[list-item]
+            [platform] if platform in ("android", "ios")  # type: ignore[list-item]
+            else (list(flow_obj.platforms) or ["android", "ios"])
         )
         selected_specs = [
             TestSpec(
@@ -579,12 +580,14 @@ def validate_project(
                         f"Declared flow param '{param_name}' is not referenced in any step",
                     )
                 )
+        # A flow recorded on iOS only has iOS locators; do not flag the missing Android ones.
+        own_platforms = [p for p in flow_platforms if not flow.platforms or p in flow.platforms]
         for idx, step in enumerate(flow.steps, start=1):
             loc = f"flow:{flow.name}.steps[{idx}]"
             _validate_step_shape(step, flow.source_path, loc, result.issues, allow_run_flow=False)
             _validate_locator_and_env(
                 step,
-                flow_platforms,
+                own_platforms,
                 result.screens,
                 result.env_ctx,
                 extra_env_vars,

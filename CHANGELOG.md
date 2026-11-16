@@ -10,6 +10,96 @@ All notable backend, UI, packaging, and documentation changes to **QAlprit** are
 
 ---
 
+## [v0.1.32] - 2026-11-16
+
+### Live recorder reliability (`recorder.py`, `driver_factory.py`, `inspector.py`, `error_text.py`)
+- The recorder now spots the iOS "Save Password" sheet and similar system prompts and taps "Not Now" for you. Before, the sheet covered the app, every tap missed, and the mirror looked frozen.
+- iOS sessions turn off password autofill (`appium:autoFillPasswords: false`), so the sheet shows up less often to begin with.
+- The iOS mirror takes screenshots with `xcrun simctl io <udid> screenshot`, which includes the keyboard. WDA screenshots leave it out. If simctl fails twice, the mirror goes back to WDA.
+- Keyboard detection on iOS checks for a visible `XCUIElementTypeKeyboard` element instead of trusting WDA's flag, which stays "shown" after the keyboard closes.
+- If the Appium session dies, the recorder reports "Session lost" with a next step and keeps the recorded steps so you can still save them.
+- Only editable fields count as sensitive. Short tokens such as "pin" must stand alone to match, so labels like "Spinner" are no longer masked.
+- New `error_text.py` turns stack traces into one readable line with a hint (`friendly_error`, `clean_error`).
+
+### Typed values as variables (`recorder.py`, `workbench_api.py`, `ui_server.py`)
+- "Save" can turn typed values into `${variables}` (on by default). The variable name comes from the field, so a login becomes `${username}` and `${password}`.
+- Saving seeds `datasets/flows/<name>.csv` with a `recorded` row and marks password columns as secret. Saving again keeps rows you added. If "Also create a journey" is on, the journey gets the same dataset.
+- The password stays out of the flow file, reports, and logs.
+
+### Flows remember their platform (`spec_loader.py`, `workbench_api.py`, `validator.py`)
+- Flows accept an optional `platforms:` list, like journeys. The recorder writes the platform it recorded on, and editing a flow keeps it.
+- Validation only checks locators for those platforms. A flow recorded on iOS no longer fails with "missing definition for platform 'android'". Flows without the field behave as before.
+- The Workflows view opens a single-platform flow on that platform.
+
+### Workbench UI (`ui/index.html`, `desktop.py`)
+- Replaced every browser `alert`, `confirm`, and `prompt` with in-app toasts and dialogs. These work in the .dmg and .exe, where pywebview blocked or hid the browser ones.
+- The Record panel is simpler. Removed the nested CSV import (it stays in the Workflows rail), the Wait mode, the duplicate redaction checkbox, and the extra hide keyboard button. Added gesture buttons (swipe up and down, back, hide keyboard, wait 2s), Enter and Escape shortcuts, and cancel buttons on the type and assert panels.
+- The recorder sends one action at a time and shows "Working..." while it runs, so double clicks no longer record duplicate steps.
+- Secret values show as dots in the step list and use password inputs when edited.
+- Starting a new recording asks before it discards unsaved steps. Save stays disabled until there are steps, and it then opens the workflow on its Variables tab.
+- Desktop builds allow downloads (`ALLOW_DOWNLOADS`), so CSV export works in the .dmg and .exe.
+- When the server stops responding, the UI says so in plain words instead of showing "Failed to fetch".
+
+### Docs and diagrams
+- `README.md` covers the desktop installers and a new "Record in the Workbench and replay with CSV data" walkthrough.
+- `docs/authoring-guide.md` has a new section on flow files (`platforms:`), recording with variables, and CSV datasets, including `${ENV_VAR}` cells for real credentials.
+- `docs/agent-instructions.md` and `AGENTS.md` describe recorded flows, their datasets, and `error_text.py`.
+- `web/architecture.svg` and `docs/architecture.drawio` show "Record or Author" and one run per CSV row. The website's recorder card mentions dataset replay.
+- `docs/QAlprit-Overview.pptx` shows the current version and test count.
+
+### New logo (`web/`, `docs/logo/`, `ui/`, `report.html.j2`, `packaging/`)
+- Replaced the cartoon phone logo with a flat mark: a magnifier with a check inside, on a teal tile. A wide lockup with the wordmark lives in `qalprit-logo.svg`.
+- The same mark is used for the web favicon, the Workbench header, both report headers, the macOS `.icns` and the Windows `.ico` (drawn by the build scripts).
+- Swapped the mark in the three checked-in sample reports in place. Their embedded screenshots are unchanged because the original run folders no longer exist.
+
+### README and website (`README.md`, `web/index.html`, `web/styles.css`, `web/screenshots/`)
+- README now leads with the desktop app and a five step walkthrough: install, record by clicking, save, add data rows, run. CLI, CI and hand-edited files moved to a section for engineers.
+- Website hero and copy are click-first, with a "How it works" tour and a download call to action.
+- Added five real Workbench screenshots (iOS login recording, Android add to cart recording, workflow steps, datasets, runs) taken against the public Sauce Labs demo app.
+- Added `web/social-card.png` (1200x630) for link previews.
+
+### Root causes and lessons learned
+- **Frozen mirror on "Save Password".** iOS shows the sheet above the app after a password field is filled. The recorder kept tapping app coordinates under it. System prompts need their own detection pass on each refresh, before any hit test.
+- **Keyboard missing from the mirror.** WDA screenshots render the app layer only. Use the simulator's own screenshot when you need what the user sees.
+- **Recorded iOS flows failed validation.** Flows had no platform field, so the validator checked them for both platforms. Anything the recorder creates should carry the context it was recorded in.
+
+### Tests
+- Added `tests/test_recorder_reliability.py`: prompt detection, sensitivity rules, friendly errors, typed value parameterization, saving with variables and dataset seeding, iOS-only flow validation, iOS keyboard detection, and simctl screenshots with WDA fallback.
+- Updated the UI structure tests for the new Record panel and the in-app dialogs.
+- Live check on the iOS Simulator: recorded a login, saved it with variables, added a second CSV row, and ran both rows. Both passed and the password appeared nowhere in the output.
+
+---
+
+## [v0.1.31] — 2026-11-16
+
+### macOS DMG & Workbench Redesign (`src/qalprit/ui/index.html`, `driver_factory.py`, `recorder.py`, `emulator_manager.py`, `ui_server.py`, `workbench_api.py`)
+- **Daily-First Navigation (`Workflows` Default + `Settings & Setup` Sub-Tabs)**: Promoted daily views to the top of `WORKBENCH` (`Workflows` default landing page, `Journeys`, `Record`, `Runs & Reports`) and moved 1-time setup (`Setup & Devices`, Environment & Package Config, App Binaries, Toolchain Doctor, Storage & Cleanup) into clean sub-tabs inside **`Settings & Setup`** (`Environments & Apps`, `Devices & Toolchain`, `Storage & Cleanup`), eliminating overlapping tables and card clutter.
+- **Auto-Booting on `Start recording` & `Run`, Stop-All Cleanup, Flow Naming & Hide Keyboard (`src/qalprit/driver_factory.py`, `recorder.py`, `ui/index.html`)**:
+  - Updated `_ensure_ios_simulator_ready()` in `create_appium_driver()` so any live `Start recording`, `Workflow`, `Journey`, or CLI run automatically boots a shutdown macOS iOS Simulator and populates valid `udid` + `platformVersion` (eliminating `'' cannot be coerced to a valid version number` without needing a separate Boot click).
+  - Simplified the `Record` toolbar (removed redundant `Boot` button; **`Start recording`** boots device + app, **`Stop recording`** ends recording + shuts down the virtual emulator/simulator, replaced confusing **`Screen tag`** input with synced **`Flow name`** deriving clean locator prefixes).
+  - Cleared `#recPhoneImg`, `#recOverlays`, and elements immediately in `RecorderManager.stop()` and `applyRecorderState()` whenever stopped or shut down.
+  - Added **`Hide keyboard`** (`#btnRecHideKeyboard` & `#btnRecTypeHideKb`), verified `is_keyboard_shown()` after `self._driver.hide_keyboard()` (falling through to keyboard dismiss keys, `mobile: hideKeyboard`, safe header tap, and scroll-drag dismiss when XCUITest returns silently), filtered `XCUIElementTypeKeyboard` / `XCUIElementTypeKey` boxes out of `inspector.py` overlays (so keyboard outlines never block app CTAs like Login), treated accessible React Native `XCUIElementTypeOther` CTAs as clickable, and widened `.rec-step-row` action badge track to prevent `hide_keyboard` label overlap.
+  - Made `#recStartForm` the single source of truth on the Record page (hiding competing topbar `.hide-on-record` switchers while recording), preserved `avd:<name>` and `sim:ios:<udid>` dropdown choices into `_resolve_device_profile()` (shutting down mismatched virtual devices before switching targets), and ensured `Stop recording` kills both Android emulators (`adb emu kill` + `_emulator_proc`) and iOS Simulators (`xcrun simctl shutdown` + closing `Simulator.app`).
+  - Added step reordering (`↑` / `↓` + drag-and-drop) and step duplication (`Duplicate` / `⧉`) to both the Live Recorder (`RecorderManager.update_step` + `/api/recorder/update`) and Workflows/Journeys Steps Editors, while hiding unnecessary value/secret/update inputs for `tap`, `assert_visible`, `back`, and `hide_keyboard` steps.
+- **Resizable Split Panels, Default `Steps` Tab & `Record New` CTA (`src/qalprit/ui/index.html`)**:
+  - Added draggable `split-handle` resizers (clamped `min`/`max` limits + `localStorage` persistence + double-click reset) across Sidebar, Workflows, Journeys, Dataset/Run Config, Recorder, and Runs & Reports panels, and widened the default Workflows/Journeys rail (`272px`) so names stay readable.
+  - Changed default active sub-tab on **Workflows** (`flowTab`) and **Journeys** (`specTab`) from `Variables & datasets` to **`Steps`**.
+  - Added prominent **`Record New`** buttons in the Workflows rail and header (`#btnRailRecordNew`, `#btnWorkflowRecordNew`) that launch straight into the Live Recorder.
+  - Made topbar `.ctx-chip` labels cleanly ellipsize on narrower windows.
+- **Added Emulator / Simulator Shutdown API (`src/qalprit/emulator_manager.py`, `src/qalprit/ui_server.py`)**: Implemented `EmulatorJobManager.shutdown()` and `POST /api/emulator/shutdown` to shut down running Android emulators (`adb emu kill`) and macOS iOS Simulators (`xcrun simctl shutdown <udid>`), wired to `#devicePopoverMenu`, per-row `Shutdown` buttons, and `Stop recording`.
+- **Fixed `Device 'android_emulator' is for 'android', not 'ios'` Mismatch**: Fixed `/api/recorder/start`, `/api/inspect/live`, and `RunJobManager.start()` defaulting `device_profile` to `"ios_simulator"` when `platform == "ios"`, added built-in `ios_simulator`/`android_emulator` fallback in `_resolve_device_profile()`, and synced `Platform` ↔ `Device` ↔ `App Binary` across Record/Journeys/Workflows.
+- **Fixed Top-Right Overflow Menu (`#topMoreMenu`), Horizontal Grid Clipping & Settings Keys**: Anchored `.menu-popover` cleanly below triggers, removed duplicate `"Workflows library"`, constrained CSS grid tracks (`minmax(0, 1fr)`, `min-width: 0`), and aligned `loadSystemPreflight()`, `loadCleanupTargets()`, `btnCleanupSelected`, and `btnRecSaveAll` with exact backend JSON keys.
+
+### Root Causes & Lessons Learned
+- **iOS `'' cannot be coerced to a valid version number` on Shutdown Simulator**: Leaving `platformVersion` blank while no iOS Simulator is booted caused Appium XCUITest to pass an empty runtime string during version parsing. Resolving and booting the target simulator in `create_appium_driver()` guarantees every run and recorder session starts cleanly even from a cold Shutdown state.
+- **Hardcoded Fallback `android_emulator` vs Nested UI Popups**: Omitting or clearing `device_profile` on `/api/recorder/start`, `/api/inspect/live`, or `/api/runs/start` previously defaulted to `"android_emulator"` even when `platform == "ios"`. Always derive platform-matched defaults on the server and expose live platform/device selection explicitly.
+- **CSS `[popover]` Placement & `minmax(0, 1fr)`**: Native `[popover]` defaults to `(0, 0)` unless anchored via coordinates, and CSS Grid `1fr` expands to `min-content` width unless written `minmax(0, 1fr)` with `min-width: 0` on ancestors.
+
+### Tests
+- Added `test_hide_keyboard_ios_continues_when_silent_no_op` in `tests/test_driver_factory.py` and `test_ui_redesign_layout_ios_boot_and_api_contracts`, `test_ios_default_device_profile_and_emulator_shutdown`, `test_ios_auto_boot_in_driver_factory_and_recorder_stop_clears_preview`, and `test_inspector_ignores_ios_keyboard_overlays_and_marks_cta_clickable` in `tests/test_datasets_and_redesign.py`, and verified all views via headless Chrome DevTools DOM + screenshot checks.
+
+---
+
 ## [v0.1.30] — 2026-11-16
 
 ### Desktop Workbench Redesign (`src/qalprit/ui/index.html`)

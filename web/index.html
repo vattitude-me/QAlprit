@@ -4,21 +4,21 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="color-scheme" content="light dark" />
-  <title>QAlprit — Mobile QA. Bugs caught with proof.</title>
-  <meta name="description" content="Deterministic, Markdown-driven mobile UI test automation for Android and iOS powered by Appium 2, with in-memory Pillow secret redaction and self-contained proof reports." />
+  <title>QAlprit: mobile QA. Bugs caught with proof.</title>
+  <meta name="description" content="Record mobile tests by clicking through your app on a live Android emulator or iOS simulator. Replay them with CSV data on Appium 2 and get a report with every step and every secret blacked out." />
   <link rel="canonical" href="https://qalprit.vattitude.ca/" />
   <link rel="icon" type="image/svg+xml" href="qalprit-icon.svg" />
   <link rel="alternate icon" type="image/png" href="qalprit-logo.png" />
   <link rel="apple-touch-icon" href="qalprit-logo.png" />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://qalprit.vattitude.ca/" />
-  <meta property="og:title" content="QAlprit — Mobile QA. Bugs caught with proof." />
-  <meta property="og:description" content="Deterministic, Markdown-driven mobile UI test automation for Android and iOS powered by Appium 2, with in-memory Pillow secret redaction and self-contained proof reports." />
-  <meta property="og:image" content="https://qalprit.vattitude.ca/qalprit-logo.png" />
-  <meta name="twitter:card" content="summary" />
-  <meta name="twitter:title" content="QAlprit — Mobile QA. Bugs caught with proof." />
-  <meta name="twitter:description" content="Deterministic Markdown mobile QA with Appium 2 and in-memory secret redaction." />
-  <meta name="twitter:image" content="https://qalprit.vattitude.ca/qalprit-logo.png" />
+  <meta property="og:title" content="QAlprit: mobile QA. Bugs caught with proof." />
+  <meta property="og:description" content="Record mobile tests by clicking through your app on a live Android emulator or iOS simulator. Replay them with CSV data on Appium 2 and get a report with every step and every secret blacked out." />
+  <meta property="og:image" content="https://qalprit.vattitude.ca/social-card.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="QAlprit: mobile QA. Bugs caught with proof." />
+  <meta name="twitter:description" content="Record mobile tests by clicking through your app on live Android and iOS emulators. No scripts." />
+  <meta name="twitter:image" content="https://qalprit.vattitude.ca/social-card.png" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -35,10 +35,10 @@
       </a>
       <nav aria-label="Primary">
         <ul class="nav-links">
-          <li><a href="#evidence">Evidence</a></li>
-          <li><a href="#workbench">Workbench</a></li>
-          <li><a href="#proof-viewer">Case Files</a></li>
-          <li><a href="#spec-studio">Spec Studio</a></li>
+          <li><a href="#how-it-works">How it works</a></li>
+          <li><a href="#evidence">Why QAlprit</a></li>
+          <li><a href="#workbench">Desktop app</a></li>
+          <li><a href="#proof-viewer">Reports</a></li>
           <li><a href="#architecture">Architecture</a></li>
           <li><a href="https://github.com/vattitude-me/QAlprit/releases/latest" target="_blank" rel="noopener">Releases</a></li>
           <li><a href="https://github.com/vattitude-me/QAlprit" target="_blank" rel="noopener">GitHub</a></li>
@@ -52,97 +52,145 @@
       <div class="container hero-grid">
         <div class="hero-copy">
           <p class="case-meta">
-            <span>Case File · Mobile QA · Android &amp; iOS</span>
-            <span class="case-badge"><span aria-hidden="true">✓</span> v0.1.30 · Verified</span>
+            <span>Mobile QA · Android &amp; iOS</span>
+            <span class="case-badge"><span aria-hidden="true">✓</span> v0.1.32 · Verified</span>
           </p>
-          <h1>Bugs caught.<br /><span class="proof-highlight">With proof.</span></h1>
+          <h1>Click through your app once.<br /><span class="proof-highlight">Test it forever.</span></h1>
           <p class="lead">
-            Stream your Android Emulator or iOS Simulator live inside QAlprit to capture screens, build reusable workflows and smoke tests visually, and keep AI / LLM usage to the minimum—executing deterministically on Appium 2 with in-memory secret redaction.
+            QAlprit mirrors your Android emulator or iOS simulator on your desktop. Click through a journey and it becomes a test you can replay on every build, with a screenshot of each step and every password blacked out. No scripts to write.
           </p>
           <div class="hero-actions">
-            <a class="btn-primary" href="#proof-viewer">Inspect Case Files</a>
-            <a class="btn-secondary" href="https://github.com/vattitude-me/QAlprit/releases/latest" target="_blank" rel="noopener">Download Desktop App</a>
-            <a class="btn-secondary" href="https://github.com/vattitude-me/QAlprit" target="_blank" rel="noopener">View Source</a>
+            <a class="btn-primary" href="https://github.com/vattitude-me/QAlprit/releases/latest" target="_blank" rel="noopener">Download for Mac or Windows</a>
+            <a class="btn-secondary" href="#how-it-works">See how it works</a>
           </div>
+          <ul class="hero-points">
+            <li>Free and open source</li>
+            <li>Runs on your machine</li>
+            <li>Appium 2 bundled</li>
+          </ul>
           <div class="hero-utility">
-            <div class="install-box">
-              <code><span class="t-dim">$</span> pip install qalprit</code>
-              <button type="button" class="copy-btn" data-copy="pip install qalprit" aria-label="Copy pip install command">Copy</button>
-            </div>
-            <div class="hero-report-links" aria-label="Installers and sample HTML reports">
-              <span class="hero-report-label">Reports:</span>
+            <div class="hero-report-links" aria-label="Sample HTML reports">
+              <span class="hero-report-label">Sample reports:</span>
               <a class="utility-link" href="sample-report.html">Android (5/5)</a>
               <span class="t-dim" aria-hidden="true">·</span>
               <a class="utility-link" href="sample-report-ios.html">iOS (3/3)</a>
-              <span class="t-dim" aria-hidden="true">·</span>
-              <a class="utility-link" href="https://github.com/vattitude-me/QAlprit/releases/latest" target="_blank" rel="noopener">Win .exe / Mac .dmg</a>
             </div>
           </div>
         </div>
 
-        <aside class="exhibit-stage" aria-label="Exhibit A: In-memory secret redaction preview">
-          <span class="exhibit-tag">Exhibit A</span>
-          <div class="exhibit-phone">
-            <h2 class="exhibit-phone-title">Payment Checkout</h2>
-            <div class="mock-field">
-              <span class="mock-label">Cardholder</span>
-              <div class="mock-input">Rebecca Winter</div>
-            </div>
-            <div class="mock-field">
-              <span class="mock-label">Card Number (sensitive: true)</span>
-              <div class="mock-redacted">
-                <span>████████ ████ ████ ████</span>
-                <span>PILLOW</span>
-              </div>
-            </div>
-            <div class="mock-grid">
-              <div class="mock-field">
-                <span class="mock-label">Expires</span>
-                <div class="mock-input">03/25</div>
-              </div>
-              <div class="mock-field">
-                <span class="mock-label">CVV</span>
-                <div class="mock-redacted">
-                  <span>███</span>
-                  <span>MASKED</span>
-                </div>
-              </div>
-            </div>
-            <div class="mock-cta">Review Order</div>
-            <div class="stamp-passed"><span aria-hidden="true">✓</span> PASSED</div>
+        <figure class="hero-shot">
+          <div class="app-window">
+            <div class="app-window-bar" aria-hidden="true"><span></span><span></span><span></span><em>QAlprit Workbench · Record</em></div>
+            <a href="screenshots/record-ios.png" target="_blank" rel="noopener">
+              <img src="screenshots/record-ios.png" width="1600" height="1000" alt="QAlprit Workbench recording a login on a live iPhone simulator. Four steps are captured and the password field is blacked out." fetchpriority="high" />
+            </a>
           </div>
-          <p class="exhibit-caption">Card no. &amp; CVV blacked out in memory before any screenshot touches disk.</p>
-        </aside>
+          <figcaption>Recording a login on a live iPhone simulator. The password is blacked out before the frame is shown or saved.</figcaption>
+        </figure>
       </div>
     </section>
 
     <div class="ledger-strip" aria-label="QAlprit execution guarantees">
       <div class="container ledger-items">
-        <span>Minimal AI · Zero Runtime LLMs</span>
+        <span>No Scripts to Write</span>
         <span class="ledger-dot" aria-hidden="true">·</span>
-        <span>Live Emulator Screen Capture</span>
+        <span>Live Android &amp; iOS Mirror</span>
         <span class="ledger-dot" aria-hidden="true">·</span>
-        <span>Auto-Built Workflows &amp; Smoke Tests</span>
+        <span>One Recording, Many Data Rows</span>
         <span class="ledger-dot" aria-hidden="true">·</span>
-        <span>Environment-Aware Redaction</span>
+        <span>Secrets Blacked Out</span>
       </div>
     </div>
 
-    <section id="evidence" class="section-band">
+    <section id="how-it-works" class="section-band">
       <div class="container">
         <div class="section-head">
           <div>
-            <p class="eyebrow">4 Exhibits on File</p>
-            <h2>The evidence.</h2>
+            <p class="eyebrow">How it works</p>
+            <h2>From first click to a report, without writing a line.</h2>
+            <p class="section-desc">These are real screenshots of QAlprit testing the Sauce Labs demo shop on an Android emulator and an iPhone simulator.</p>
+          </div>
+        </div>
+
+        <div class="tour">
+          <article class="tour-row">
+            <div class="tour-copy">
+              <span class="tour-num" aria-hidden="true">1</span>
+              <h3>Record by clicking</h3>
+              <p>Pick a device and your app file, then press Start. QAlprit boots the emulator, installs the app and shows it live. Click a button to record a tap, a field to type, a label to check it is there.</p>
+              <ul class="tour-list">
+                <li>Android emulators, iOS simulators and USB phones</li>
+                <li>Swipe, back, hide keyboard and wait in one click</li>
+                <li>System pop-ups such as "Save Password" are dismissed for you</li>
+              </ul>
+            </div>
+            <a class="app-window tour-shot" href="screenshots/record-android.png" target="_blank" rel="noopener">
+              <img src="screenshots/record-android.png" width="1600" height="1000" loading="lazy" alt="Recording an add to cart flow on a live Android emulator. Three steps are listed next to the phone mirror." />
+            </a>
+          </article>
+
+          <article class="tour-row flip">
+            <div class="tour-copy">
+              <span class="tour-num" aria-hidden="true">2</span>
+              <h3>Save it as a workflow</h3>
+              <p>Your clicks become a readable list of steps. Reorder, duplicate or edit them with the mouse. What you typed is replaced by variables, and passwords are marked secret.</p>
+              <ul class="tour-list">
+                <li>Elements are named and stored for Android and iOS separately</li>
+                <li>Saved as plain text files, ready for git</li>
+              </ul>
+            </div>
+            <a class="app-window tour-shot" href="screenshots/workflow-steps.png" target="_blank" rel="noopener">
+              <img src="screenshots/workflow-steps.png" width="1600" height="1000" loading="lazy" alt="Workflow editor showing seven recorded steps with username and password variables." />
+            </a>
+          </article>
+
+          <article class="tour-row">
+            <div class="tour-copy">
+              <span class="tour-num" aria-hidden="true">3</span>
+              <h3>Add rows of test data</h3>
+              <p>The values you typed are the first row of a table. Add more rows or import a CSV, and the same recording runs once per row. Good for many users, locales or edge cases.</p>
+              <ul class="tour-list">
+                <li>Secret columns show as dots and never reach the report</li>
+                <li>Real credentials can come from your local <code>.env</code></li>
+              </ul>
+            </div>
+            <a class="app-window tour-shot" href="screenshots/datasets.png" target="_blank" rel="noopener">
+              <img src="screenshots/datasets.png" width="1600" height="1000" loading="lazy" alt="Dataset table with three rows, a masked password column and a run panel showing two selected datasets." />
+            </a>
+          </article>
+
+          <article class="tour-row flip">
+            <div class="tour-copy">
+              <span class="tour-num" aria-hidden="true">4</span>
+              <h3>Run and get proof</h3>
+              <p>Press Run. Each row starts from a clean app and ends with a pass or fail, the final screen, and a full HTML report you can share. JUnit XML and a Markdown summary are ready for CI and pull requests.</p>
+              <div class="cta-row">
+                <a class="btn-secondary" href="sample-report.html">Open a sample report</a>
+              </div>
+            </div>
+            <a class="app-window tour-shot" href="screenshots/runs.png" target="_blank" rel="noopener">
+              <img src="screenshots/runs.png" width="1600" height="1000" loading="lazy" alt="Runs and Reports view with two dataset runs passed and links to HTML, Markdown and JUnit output." />
+            </a>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="evidence" class="section-band alt-band">
+      <div class="container">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Why QAlprit</p>
+            <h2>Built so you can trust a red result.</h2>
           </div>
         </div>
         <div class="exhibits-grid">
           <article class="exhibit-card">
             <header>
               <span class="exhibit-num">Exhibit A</span>
-              <h3>Minimal AI, 100% Deterministic</h3>
+              <h3>Same steps every run</h3>
             </header>
-            <p>Build workflows and smoke tests visually from live emulator screen capture instead of burning LLM tokens—every run replays deterministically on Appium 2 at zero AI cost.</p>
+            <p>A recording replays the exact steps you clicked, on Appium 2. No AI guesses at run time, so a failure means the app changed, and there is no token bill.</p>
           </article>
 
           <article class="exhibit-card featured">
@@ -150,7 +198,7 @@
               <span class="exhibit-num">Exhibit B</span>
               <h3>Secrets stay hidden</h3>
             </header>
-            <p>Fields marked <code>secret: true</code> or <code>sensitive: true</code> are blacked out via Pillow in memory—enabled for <code>qa</code>, <code>pre-prod</code> &amp; <code>prod</code>, or toggled off in <code>dev</code>.</p>
+            <p>Fields marked <code>secret: true</code> or <code>sensitive: true</code> are blacked out in memory before a screenshot is saved. On for <code>qa</code>, <code>pre-prod</code> and <code>prod</code>, optional in <code>dev</code>.</p>
           </article>
 
           <article class="exhibit-card">
@@ -164,28 +212,28 @@
           <article class="exhibit-card">
             <header>
               <span class="exhibit-num">Exhibit D</span>
-              <h3>Written in Markdown</h3>
+              <h3>No scripts to write</h3>
             </header>
-            <p>Author tests cleanly in YAML front matter with 1-level reusable <code>flows/</code> and separate Android/iOS locators—no Python needed.</p>
+            <p>Tests are recorded with clicks and saved as plain text, so they diff cleanly in git. Engineers can still edit them by hand or run them from the CLI.</p>
           </article>
         </div>
       </div>
     </section>
 
-    <section id="procedure" class="section-band alt-band">
+    <section id="procedure" class="section-band">
       <div class="container">
         <div class="section-head">
           <div>
-            <p class="eyebrow">Standard Procedure</p>
-            <h2>Four steps to a verdict.</h2>
+            <p class="eyebrow">For engineers</p>
+            <h2>The same tests from the CLI, CI or an AI agent.</h2>
           </div>
         </div>
 
         <div class="steps-ledger">
           <article class="verdict-step">
             <span class="verdict-num" aria-hidden="true">01</span>
-            <h3>Record or Write</h3>
-            <p>Use Live Emulator Screen Capture to tap through screens and generate workflows &amp; smoke tests with zero LLM calls—keeping AI optional only for edge-case locator fixes.</p>
+            <h3>Record</h3>
+            <p>Click through the app in the Workbench. QAlprit saves the workflow, the locators and a CSV dataset as plain files in your project.</p>
           </article>
           <article class="verdict-step">
             <span class="verdict-num" aria-hidden="true">02</span>
@@ -266,17 +314,17 @@ Report HTML : results/20261113_183328_ios_mda/report.html</code></pre>
       </div>
     </section>
 
-    <section id="workbench" class="section-band">
+    <section id="workbench" class="section-band alt-band">
       <div class="container">
         <div class="section-head">
           <div>
             <p class="eyebrow">Desktop App &amp; Visual Workbench</p>
-            <h2>Capture your emulator live—build workflows &amp; smoke tests with minimal AI.</h2>
+            <h2>One installer. Emulator, recorder and runner included.</h2>
             <p class="section-desc">
-              Launch the native Desktop Workbench on Windows (<code>.exe</code>) and macOS (<code>.dmg</code>) with a bundled Appium 2 runtime: mirror your phone screen live, record actions straight into reusable <code>flows/</code> and smoke <code>specs/</code>, and replay forever with zero LLM usage.
+              The desktop app for Windows (<code>.exe</code>) and macOS (<code>.dmg</code>) ships with Appium 2, Node and Java. Install it, let it set up an emulator, and start recording.
             </p>
           </div>
-          <a class="btn-secondary" href="https://github.com/vattitude-me/QAlprit/releases/latest" target="_blank" rel="noopener">Get Desktop Installers</a>
+          <a class="btn-primary" href="https://github.com/vattitude-me/QAlprit/releases/latest" target="_blank" rel="noopener">Download the desktop app</a>
         </div>
         <div class="exhibits-grid">
           <article class="exhibit-card">
@@ -292,7 +340,7 @@ Report HTML : results/20261113_183328_ios_mda/report.html</code></pre>
               <span class="exhibit-num">02 · Live Screen Capture</span>
               <h3>Emulator Workflow &amp; Smoke Recorder</h3>
             </header>
-            <p>Mirror your booted Android Emulator or iOS Simulator live inside QAlprit, capture taps, credential inputs, and <strong>Error / Text Assertions</strong>, and export <code>screens.yaml</code>, <code>flows/</code>, and smoke <code>specs/</code> with zero AI calls.</p>
+            <p>Mirror your booted Android Emulator or iOS Simulator live inside QAlprit, capture taps, typed values, and visibility checks, and save <code>screens.yaml</code>, <code>flows/</code>, and smoke <code>specs/</code> with zero AI calls. Typed values become <code>${variables}</code> in a CSV dataset, so one recording replays once per row.</p>
           </article>
 
           <article class="exhibit-card">
@@ -300,7 +348,7 @@ Report HTML : results/20261113_183328_ios_mda/report.html</code></pre>
               <span class="exhibit-num">03 · Privacy Toggle</span>
               <h3>Dev Clarity, Prod Safety</h3>
             </header>
-            <p>Black-marker PII redaction defaults <strong>OFF in <code>dev</code></strong> for faster debugging and <strong>ON in <code>pre-prod</code> / <code>prod</code></strong>—toggleable live on the mirror, in the runner, or via <code>--no-redact</code>.</p>
+            <p>Black-marker PII redaction defaults <strong>OFF in <code>dev</code></strong> for faster debugging and <strong>ON in <code>pre-prod</code> / <code>prod</code></strong>. You can toggle it live on the mirror, in the runner, or via <code>--no-redact</code>.</p>
           </article>
 
           <article class="exhibit-card">
@@ -563,11 +611,13 @@ mda_payment:
 
     <section class="closing-band alt-band" aria-label="Explore full sample case files">
       <div class="container">
-        <p class="eyebrow">Verdict Delivered</p>
-        <h2>Case closed?<br />See for yourself.</h2>
-        <div class="cta-row">
-          <a class="btn-primary" href="sample-report.html">Android Report (5/5)</a>
-          <a class="btn-secondary" href="sample-report-ios.html">iOS Report (3/3)</a>
+        <p class="eyebrow">Try it on your app</p>
+        <h2>Record your first test today.</h2>
+        <p class="section-desc">Install the desktop app, open your build on an emulator and click through one journey. It takes about five minutes.</p>
+        <div class="cta-row" style="margin-top: 18px;">
+          <a class="btn-primary" href="https://github.com/vattitude-me/QAlprit/releases/latest" target="_blank" rel="noopener">Download for Mac or Windows</a>
+          <a class="btn-secondary" href="sample-report.html">Android report (5/5)</a>
+          <a class="btn-secondary" href="sample-report-ios.html">iOS report (3/3)</a>
           <a class="btn-secondary" href="https://github.com/vattitude-me/QAlprit/blob/main/docs/agent-instructions.md" target="_blank" rel="noopener">AI Agent Runbook</a>
         </div>
       </div>
@@ -577,8 +627,8 @@ mda_payment:
   <footer class="site-footer">
     <div class="container footer-row">
       <p class="footer-brand">
-        <img class="footer-logo" src="qalprit-logo.svg" alt="QAlprit logo" width="40" height="40" />
-        <span><strong>QAlprit</strong> — Mobile QA. Bugs caught with proof. · MIT License · Managed by <a href="https://vattitude.ca" target="_blank" rel="noopener">vattitude.ca</a></span>
+        <img class="footer-logo" src="qalprit-icon.svg" alt="QAlprit logo" width="40" height="40" />
+        <span><strong>QAlprit</strong> · Mobile QA. Bugs caught with proof. · MIT License · Managed by <a href="https://vattitude.ca" target="_blank" rel="noopener">vattitude.ca</a></span>
       </p>
       <p>
         <a href="https://qalprit.vattitude.ca" target="_blank" rel="noopener">qalprit.vattitude.ca</a> ·

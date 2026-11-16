@@ -139,7 +139,62 @@ teardown:
 
 ---
 
-## 4. Locators (`screens/screens.yaml`)
+## 4. Reusable flows and CSV datasets
+
+### Flow files (`flows/<name>.md`)
+
+A flow is a list of steps that journeys call with `run_flow`. Flows are one level deep, so a flow cannot call another flow.
+
+```markdown
+---
+name: demo/login
+params: [username, password]
+platforms: [ios]
+steps:
+  - tap: demo.login_button
+  - type: {target: demo.username, value: "${username}"}
+  - type: {target: demo.password, value: "${password}", secret: true}
+  - tap: demo.submit
+---
+```
+
+| Field | Required | Notes |
+|---|---|---|
+| `name` | Yes | Matches the path under `flows/` without `.md` |
+| `params` | No | Variables the steps use as `${name}` |
+| `platforms` | No | Platforms the flow has locators for. Leave it out to check both. The recorder fills it in. |
+| `steps` | Yes | Same step vocabulary as specs, except `run_flow` |
+
+`qalprit validate` checks a flow's locators only for its `platforms`. A flow recorded on iOS will not fail for missing Android locators. To make it run on Android too, add `android:` locators in `screens/screens.yaml` and add `android` to `platforms`, or record it again on Android.
+
+### Recording a flow
+
+The Workbench **Record** view writes the flow, its locators, and (optionally) a journey that calls it. With **Typed values as variables** on, each typed value becomes a variable named after its field:
+
+- `username_field` becomes `${username}`
+- a secret field with a generic name becomes `${password}`
+- a generic field with an `@` in the value becomes `${username}`
+- the same value typed into the same field twice shares one variable
+
+The values you typed are saved as the `recorded` row of the flow's dataset. Saving the same flow again keeps rows you added.
+
+### Datasets (`datasets/flows/<name>.csv`, `datasets/specs/<id>.csv`)
+
+One row per test case. The first column names the row (`dataset`, `name`, or `case`), and the rest match variable names. Optional `expected` and `selected` columns add a note to the report and choose which rows run.
+
+```csv
+dataset,username,password,selected
+recorded,bob@example.com,${QA_PASS},true
+locked_out,alice@example.com,${QA_PASS},false
+```
+
+- A cell can hold `${ENV_VAR}`, resolved from `.env` at run time. Use this for real credentials.
+- Columns whose name contains a secret marker (such as `PASSWORD`, `TOKEN`, or `PIN`) are masked in logs, reports, and the UI. The `<name>.meta.json` file next to the CSV lists extra `secret_columns`.
+- In the Workbench, edit rows on the **Variables** tab, import or export CSV, select rows, and click **Run**. Each selected row runs once and the batch report shows one result per row.
+
+---
+
+## 5. Locators (`screens/screens.yaml`)
 
 - Prefer a single `accessibility_id` shared by Android and iOS.
 - Add per-platform overrides (`android:` / `ios:`) or `text:` fallback only when needed.
@@ -148,7 +203,7 @@ teardown:
 
 ---
 
-## 5. Important Platform Caveat: iOS Simulator Keychain Reset
+## 6. Important Platform Caveat: iOS Simulator Keychain Reset
 
 On Android, `reset: clear_data` executes `adb shell pm clear <android_package>`, which wipes app preferences, databases, and stored tokens.
 
@@ -159,7 +214,7 @@ On **iOS Simulators**, `clear_data` terminates, uninstalls, and reinstalls the `
 
 ---
 
-## 6. Retries, Failure Taxonomy & Visual Baselines
+## 7. Retries, Failure Taxonomy & Visual Baselines
 
 - **Transient-Only Retries:** With `--retries N` (or per-spec `retries:`), QAlprit retries transient failures (`locator_not_found`, `locator_timeout`, `stale_element`, `driver_session_error`, `app_launch_failure`) by default and stops immediately on deterministic assertion failures unless `retry_on_assertion: true` is set.
 - **Locator Single-Strategy Rule:** Each platform locator block in `screens/screens.yaml` should define only one primary selector key (`accessibility_id`, `id`, `text`, or `xpath`) per target/override.

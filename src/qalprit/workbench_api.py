@@ -390,6 +390,22 @@ def _resolve_device_profile(
     platform: str,
 ) -> DeviceProfile:
     """Resolve a named YAML device profile or a live USB/emulator identifier (`live:<plat>:<serial>`)."""
+    if device_profile.startswith("avd:"):
+        avd_name = device_profile.split(":", 1)[1].strip()
+        if not avd_name:
+            raise ValueError(f"Invalid AVD identifier '{device_profile}'.")
+        if platform != "android":
+            raise ValueError(f"AVD '{avd_name}' is for 'android', not '{platform}'.")
+        return DeviceProfile(
+            platform="android",
+            target_type="simulator",
+            device_name=avd_name,
+            avd=avd_name,
+            automation_name="UiAutomator2",
+            auto_accept_alerts=True,
+            capabilities={"appWaitActivity": "*"},
+        )
+
     if device_profile.startswith("live:"):
         parts = device_profile.split(":", 2)
         if len(parts) == 3 and parts[1] in {"android", "ios"} and parts[2].strip():
@@ -414,6 +430,24 @@ def _resolve_device_profile(
         )
 
     if device_profile not in devices:
+        if device_profile == "ios_simulator" and platform == "ios":
+            return DeviceProfile(
+                platform="ios",
+                target_type="simulator",
+                device_name="iPhone Simulator",
+                automation_name="XCUITest",
+                auto_accept_alerts=True,
+                capabilities={},
+            )
+        if device_profile == "android_emulator" and platform == "android":
+            return DeviceProfile(
+                platform="android",
+                target_type="simulator",
+                device_name="Android Emulator",
+                automation_name="UiAutomator2",
+                auto_accept_alerts=True,
+                capabilities={"appWaitActivity": "*"},
+            )
         raise ValueError(f"Unknown device profile '{device_profile}'.")
     profile = devices[device_profile]
     if profile.platform != platform:
@@ -529,8 +563,13 @@ def save_flow_spec(
     params: list[str],
     steps: list[Any],
     notes: str = "",
+    platforms: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Save a reusable workflow (`flows/<name>.md`) and validate it parses cleanly."""
+    """Save a reusable workflow (`flows/<name>.md`) and validate it parses cleanly.
+
+    ``platforms`` is merged with the platforms already in the file, so editing a flow in the
+    Workbench keeps them and recording it on a second platform adds that platform.
+    """
     clean_parts = [_safe_slug(part, "flow") for part in (name or "").replace("\\", "/").split("/") if part.strip()]
     if not clean_parts:
         raise ValueError("Flow name is required (for example `auth/login`).")
@@ -545,11 +584,24 @@ def save_flow_spec(
         raise ValueError("Flow path escapes flows/ directory.")
     dest.parent.mkdir(parents=True, exist_ok=True)
 
+    kept_platforms: list[str] = []
+    if dest.is_file():
+        try:
+            old_meta = frontmatter.loads(dest.read_text(encoding="utf-8")).metadata
+            kept_platforms = [str(p).strip().lower() for p in (old_meta.get("platforms") or [])]
+        except Exception:
+            kept_platforms = []
+    merged_platforms = [
+        p for p in dict.fromkeys([*kept_platforms, *(str(x).strip().lower() for x in (platforms or []))])
+        if p in ("android", "ios")
+    ]
     meta: dict[str, Any] = {
         "name": rel_name,
         "params": [str(p).strip() for p in params if str(p).strip()],
-        "steps": steps,
     }
+    if merged_platforms:
+        meta["platforms"] = sorted(merged_platforms)
+    meta["steps"] = steps
     dest.write_text(_dump_frontmatter_md(meta, notes or f"Reusable workflow `{rel_name}`."), encoding="utf-8")
     flows, errors = load_flows(flows_dir)
     if rel_name not in flows or errors:
@@ -989,8 +1041,9 @@ class RunJobManager:
         return {"ok": True, "running": True, "status": "stopping"}
 
     def start(self, project_root: Path, results_dir: Path, payload: dict[str, Any]) -> dict[str, Any]:
-        platform = str(payload.get("platform") or "android")
-        device_profile = str(payload.get("device_profile") or "android_emulator")
+        platform = str(payload.get("platform") or "android").lower()
+        default_dev = "ios_simulator" if platform == "ios" else "android_emulator"
+        device_profile = str(payload.get("device_profile") or default_dev)
         env_name = str(payload.get("env_name") or "qa")
         suite = str(payload.get("suite") or "").strip() or None
         spec_id = str(payload.get("spec_id") or "").strip() or None

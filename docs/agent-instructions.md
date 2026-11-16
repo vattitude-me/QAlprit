@@ -59,6 +59,10 @@ qalprit validate --suite <suite> --env <env> --platform <android|ios>
 
 Fix any missing locators, invalid step names, nested flow calls (flows are 1 level deep), or missing `.env` variables before running `qalprit run`.
 
+Flows recorded in the Workbench carry `platforms: [ios]` or `platforms: [android]`, and validation checks only those platforms. To extend a recorded flow to the other platform, inspect that platform's screens, add its locators under `android:` or `ios:` in `screens/screens.yaml`, then add the platform to the flow's `platforms:` list.
+
+Recorded flows also come with a CSV dataset (`datasets/flows/<name>.csv`) whose `recorded` row holds the typed values. Keep password columns secret, and prefer `${ENV_VAR}` cells over literal credentials.
+
 ### 4. Execute & Triage Failures Automatically
 
 Run the suite (or rerun only failed tests after fixing a locator with `--rerun-failed`):
@@ -82,7 +86,7 @@ Classify the failure (`failure_category` in `results.json` / `report.html`) and 
 | **Wrong / Changed Locator** (`locator_not_found`, `locator_timeout`) | Element missing from XML or different attribute on this OS/version | Update only the affected platform (`android:` or `ios:`) in `screens/screens.yaml` from `*_FAIL.xml` or `qalprit inspect`. |
 | **iOS Keyboard Covering Fields** (`locator_not_visible`) | `XCUIElementTypeKeyboard` overlaps a lower field (`visible="false"` in `*_FAIL.xml`) | Insert `- hide_keyboard: true` (or `scroll_until_visible`, or `wait_for_keyboard: {visible: false}`) after typing into the field above it. |
 | **Platform Formatting Difference** (`assertion_failure`) | Semantic match with different punctuation/spacing (e.g., `$29.99` vs `$ 29.99`) | Switch brittle `equals:` checks to `contains:` or `matches:` regex when valid on both OSes. |
-| **Platform-Only Fixture or Flow** | A test user, screen, or OS feature only exists on Android or iOS | Scope that spec with `platforms: [android]` or `platforms: [ios]` and explain why. |
+| **Platform-Only Fixture or Flow** | A test user, screen, or OS feature only exists on Android or iOS | Scope that spec or flow with `platforms: [android]` or `platforms: [ios]` and explain why. |
 | **Real App Bug** (`assertion_failure`, `visual_regression`) | Wrong data, crash, missing screen, broken button, or visual diff | **Do not weaken assertions to pass.** Report the bug to the user with the `*_FAIL.png` screenshot, diff image, and `report.html`. |
 
 ### 5. Safety Boundaries

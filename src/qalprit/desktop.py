@@ -153,6 +153,8 @@ def _launch_native_window(url: str, workspace: Path) -> bool:
         settings = getattr(webview, "settings", None)
         if isinstance(settings, dict):
             settings["OPEN_EXTERNAL_LINKS_IN_BROWSER"] = True
+            # Without this the webview drops "download" links (CSV dataset export).
+            settings["ALLOW_DOWNLOADS"] = True
 
         storage_dir = workspace / ".webview"
         storage_dir.mkdir(parents=True, exist_ok=True)

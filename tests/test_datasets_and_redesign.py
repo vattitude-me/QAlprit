@@ -344,3 +344,288 @@ def test_inspector_includes_redacted_xml_snippet() -> None:
     assert "MySecret123" not in by_id["com.demo:id/password"]["xml_snippet"]
     assert 'password="true"' in by_id["com.demo:id/password"]["xml_snippet"]
     assert 'text="Password is required"' in by_id["com.demo:id/err"]["xml_snippet"]
+
+
+def test_ui_redesign_layout_ios_boot_and_api_contracts() -> None:
+    ui_html = (Path(__file__).resolve().parents[1] / "src" / "qalprit" / "ui" / "index.html").read_text(encoding="utf-8")
+
+    # 1. Topbar overflow & device popover menus positioned via JS/CSS (no duplicate Workflows library)
+    menu_start = ui_html.index('<div id="topMoreMenu"')
+    menu_end = ui_html.index("<!-- LEFT SIDEBAR -->")
+    top_more_block = ui_html[menu_start:menu_end]
+    assert "Workflows library" not in top_more_block
+    assert 'id="devicePopoverMenu"' in ui_html
+    assert 'id="btnTopBootDevice"' in ui_html
+    assert 'id="btnTopShutdownDevice"' in ui_html
+    assert 'id="btnOpenFlowsModal" data-nav="workflows"' in ui_html
+    assert "anchorPopover" in ui_html
+
+    # 2. Workflows is default Workbench landing view; 1-time Setup & Devices is nested inside Settings
+    assert 'data-nav="workflows" aria-current="step"' in ui_html
+    settings_start = ui_html.index('id="view-settings"')
+    settings_block = ui_html[settings_start:]
+    assert 'data-settings-tab="env"' in settings_block
+    assert 'data-settings-tab="devices"' in settings_block
+    assert 'data-settings-tab="storage"' in settings_block
+    assert 'id="envSaveForm"' in settings_block
+    assert 'id="view-setup"' in settings_block
+    assert 'id="storagePreflightCard"' in settings_block
+
+    # 3. Record bar exposes Platform, Device, Shutdown, App launcher, and Flow name (auto-boots on Start Recording)
+    rec_start = ui_html.index('id="recStartForm"')
+    rec_end = ui_html.index("</form>", rec_start)
+    rec_toolbar = ui_html[rec_start:rec_end]
+    assert 'id="recPlatform"' in rec_toolbar
+    assert 'id="recDeviceSelect"' in rec_toolbar
+    assert 'id="btnRecShutdownDevice"' in rec_toolbar
+    assert 'id="recAppSelect"' in rec_toolbar
+    assert 'id="recFlowNameInput"' in rec_toolbar
+    assert 'id="btnRecHideKeyboard"' in ui_html
+    # One Hide keyboard control. The duplicate inside the type bar was removed.
+    assert 'id="btnRecHideKeyboard"' in ui_html
+    assert 'id="btnRecTypeHideKb"' not in ui_html
+    assert "resolveSelectedDeviceForAction" in ui_html
+    assert "else if (!starting)" in ui_html
+
+    # 4. iOS Simulator + Android AVD boot & shutdown controls unwrap env_status/running
+    assert "const env = st.env_status || st;" in ui_html
+    assert "st.running ?? st.busy" in ui_html
+    assert "data-boot-avd=" in ui_html
+    assert "data-boot-ios=" in ui_html
+    assert "data-shutdown-ios=" in ui_html
+    assert "data-shutdown-android=" in ui_html
+
+    # 5. Settings preflight, cleanup, and recorder save keys align with backend schemas
+    assert "pf.paths || pf" in ui_html
+    assert "sw.label || sw.name" in ui_html
+    assert "it.existing_paths" in ui_html
+    assert "res.removed_ids || res.deleted" in ui_html
+    assert "res.flow && res.flow.name" in ui_html
+
+    # 6. Grid tracks constrain 1fr with minmax(0, 1fr) and resizable clamp bounds so Workflows/Journeys never clip horizontally
+    assert "grid-template-columns: clamp(200px, var(--rail-w, 272px), 480px) 10px minmax(0, 1fr);" in ui_html
+    assert "grid-template-columns: minmax(0, 1fr) 10px clamp(240px, var(--ds-right-w, 300px), 460px);" in ui_html
+
+
+def test_ios_default_device_profile_and_emulator_shutdown(tmp_path: Path, monkeypatch) -> None:
+    import json
+    import threading
+    import urllib.request
+    from qalprit.desktop import ensure_workspace
+    from qalprit.devices import DiscoveredDevice
+    from qalprit.emulator_manager import EmulatorJobManager
+    from qalprit.ui_server import create_ui_server
+    from qalprit.workbench_api import _resolve_device_profile, list_workspace_configs, save_screen_locators, save_test_journey
+
+    # Default ios profile resolution avoids falling back to android_emulator when devices.yaml lacks ios_simulator
+    _, profiles = list_workspace_configs(ensure_workspace(tmp_path / "ws"))
+    stripped = {k: v for k, v in profiles.items() if k != "ios_simulator"}
+    ios_prof = _resolve_device_profile(stripped, "ios_simulator", "ios")
+    assert ios_prof.platform == "ios"
+
+    ws = (tmp_path / "srv").resolve()
+    ensure_workspace(ws)
+    save_screen_locators(
+        ws,
+        screen_name="login",
+        platform="ios",
+        entries=[{"key": "btn", "strategy": "id", "value": "loginBtn"}],
+    )
+    save_test_journey(
+        ws,
+        {"id": "SMK-001", "title": "iOS Dry", "suite": "smoke", "platforms": ["ios"], "steps": [{"tap": "login.btn"}]},
+    )
+
+    # Mock simctl shutdown + adb emu kill cleanly
+    calls: list[list[str]] = []
+
+    def fake_run(cmd, **_kwargs):
+        calls.append([str(c) for c in cmd])
+
+        class _R:
+            returncode = 0
+            stdout = ""
+            stderr = ""
+
+        return _R()
+
+    monkeypatch.setattr("qalprit.emulator_manager.platform.system", lambda: "Darwin")
+    monkeypatch.setattr("qalprit.emulator_manager.find_android_tool", lambda name: "/fake/adb" if name == "adb" else "")
+    monkeypatch.setattr(
+        "qalprit.emulator_manager.list_android_devices",
+        lambda: ([DiscoveredDevice(platform="android", identifier="emulator-5554", name="Pixel", state="device", kind="emulator")], ""),
+    )
+    monkeypatch.setattr(
+        "qalprit.emulator_manager.list_ios_simulators",
+        lambda: ([DiscoveredDevice(platform="ios", identifier="UUID-1234", name="iPhone 17 Pro", state="Booted", kind="simulator")], ""),
+    )
+    monkeypatch.setattr("qalprit.emulator_manager.subprocess.run", fake_run)
+
+    mgr = EmulatorJobManager()
+    shut_res = mgr.shutdown("all")
+    assert shut_res["killed_android"] == ["emulator-5554"]
+    assert shut_res["shutdown_ios"] == ["UUID-1234"]
+    assert ["/fake/adb", "-s", "emulator-5554", "emu", "kill"] in calls
+    assert ["xcrun", "simctl", "shutdown", "UUID-1234"] in calls
+
+    # HTTP /api/runs/start with platform=ios and omitted device_profile defaults to ios_simulator (never android_emulator!)
+    server = create_ui_server(ws, host="127.0.0.1", port=0)
+    port = server.server_address[1]
+    t = threading.Thread(target=server.serve_forever, daemon=True)
+    t.start()
+    try:
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{port}/api/runs/start",
+            data=json.dumps({"platform": "ios", "env_name": "qa", "suite": "smoke", "dry_run": True}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req) as resp:
+            run_res = json.loads(resp.read().decode("utf-8"))
+        assert run_res["platform"] == "ios"
+
+        shut_req = urllib.request.Request(
+            f"http://127.0.0.1:{port}/api/emulator/shutdown",
+            data=json.dumps({"target": "ios", "identifier": "UUID-1234"}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(shut_req) as resp:
+            http_shut = json.loads(resp.read().decode("utf-8"))
+        assert http_shut["ok"] is True
+        assert http_shut["shutdown_ios"] == ["UUID-1234"]
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_ios_auto_boot_in_driver_factory_and_recorder_stop_clears_preview(monkeypatch) -> None:
+    from qalprit.config_loader import DeviceProfile
+    from qalprit.devices import DiscoveredDevice
+    from qalprit.driver_factory import _ensure_ios_simulator_ready, _extract_ios_version_from_name
+    from qalprit.recorder import RecorderManager
+
+    assert _extract_ios_version_from_name("iPhone 17 Pro (iOS 26 5)") == "26.5"
+
+    cmds: list[list[str]] = []
+
+    def fake_run(cmd, **_kwargs):
+        cmds.append([str(c) for c in cmd])
+
+        class _R:
+            returncode = 0
+            stdout = ""
+            stderr = ""
+
+        return _R()
+
+    monkeypatch.setattr("qalprit.driver_factory.platform.system", lambda: "Darwin")
+    monkeypatch.setattr("qalprit.driver_factory._xcode_has_legacy_simulator_app", lambda: True)
+    monkeypatch.setattr(
+        "qalprit.driver_factory.list_ios_simulators",
+        lambda: (
+            [DiscoveredDevice(platform="ios", identifier="SIM-UUID-1", name="iPhone 17 Pro (iOS 26 5)", state="Shutdown", kind="simulator")],
+            None,
+        ),
+    )
+    monkeypatch.setattr("qalprit.driver_factory.subprocess.run", fake_run)
+
+    prof = DeviceProfile(platform="ios", target_type="simulator", device_name="iPhone 17 Pro", automation_name="XCUITest")
+    udid, ver, dev_name = _ensure_ios_simulator_ready(prof)
+    assert udid == "SIM-UUID-1"
+    assert ver == "26.5"
+    assert dev_name == "iPhone 17 Pro"
+    assert ["xcrun", "simctl", "boot", "SIM-UUID-1"] in cmds
+
+    # RecorderManager.stop() clears live preview screenshot & overlays while keeping steps for saving
+    rm = RecorderManager()
+    rm._active = True
+    rm._screenshot_png = b"fake-png"
+    rm._elements = [{"key": "btn"}]
+    rm._steps = [{"action": "tap", "target": "flow.btn", "value": "", "secret": False, "label": "Tap"}]
+    rm.stop()
+    st = rm.status()
+    assert st["active"] is False
+    assert st["has_screenshot"] is False
+    assert st["elements"] == []
+    assert len(st["steps"]) == 1
+
+
+def test_inspector_ignores_ios_keyboard_overlays_and_marks_cta_clickable() -> None:
+    xml = """<XCUIElementTypeApplication name="MyDemoApp">
+      <XCUIElementTypeWindow>
+        <XCUIElementTypeOther name="Login button" label="Login" accessible="true" x="16" y="600" width="361" height="45" enabled="true" visible="true"/>
+        <XCUIElementTypeKeyboard x="0" y="540" width="393" height="312" enabled="true" visible="true">
+          <XCUIElementTypeKey name="a" label="a" x="0" y="560" width="40" height="45" enabled="true" visible="true"/>
+          <XCUIElementTypeButton name="Return" label="return" x="300" y="740" width="90" height="45" enabled="true" visible="true"/>
+        </XCUIElementTypeKeyboard>
+      </XCUIElementTypeWindow>
+    </XCUIElementTypeApplication>"""
+    elems = extract_interactive_elements(xml, platform="ios")
+    keys = [e["key"] for e in elems]
+    assert "login_btn" in keys
+    assert all(k not in keys for k in ("a", "return", "keyboard"))
+    login = next(e for e in elems if e["key"] == "login_btn")
+    assert login["clickable"] is True
+
+    ui_html = (Path(__file__).resolve().parents[1] / "src" / "qalprit" / "ui" / "index.html").read_text(encoding="utf-8")
+    assert 'flowTab: "steps"' in ui_html
+    assert 'specTab: "steps"' in ui_html
+    assert 'id="btnRailRecordNew"' in ui_html
+    assert 'id="btnWorkflowRecordNew"' in ui_html
+    assert 'class="split-handle"' in ui_html
+    assert 'grid-template-columns: 24px minmax(112px, auto) minmax(0, 1fr) auto;' in ui_html
+    assert 'hide-on-record' in ui_html
+    assert 'id="btnRecStepMoveUp"' in ui_html
+    assert 'id="btnRecStepMoveDown"' in ui_html
+    assert 'id="btnRecStepDup"' in ui_html
+    assert 'if (val.startsWith("avd:"))' in ui_html
+    assert 'const needsValue = ["type", "assert_text", "wait", "swipe"].includes(act);' in ui_html
+
+
+def test_avd_profile_resolution_and_recorder_step_reorder_duplicate(tmp_path: Path) -> None:
+    import json
+    import threading
+    import urllib.request
+    from qalprit.desktop import ensure_workspace
+    from qalprit.ui_server import create_ui_server
+    from qalprit.workbench_api import _resolve_device_profile
+
+    avd_prof = _resolve_device_profile({}, "avd:mbtest", "android")
+    assert avd_prof.platform == "android"
+    assert avd_prof.target_type == "simulator"
+    assert avd_prof.avd == "mbtest"
+
+    ws = ensure_workspace(tmp_path / "rec_edit_ws")
+    server = create_ui_server(ws, host="127.0.0.1", port=0)
+    port = server.server_address[1]
+    rm = server.RequestHandlerClass.keywords["recorder_manager"]  # type: ignore[attr-defined]
+    rm._active = True
+    rm._steps = [
+        {"action": "tap", "target": "login.user", "value": "", "secret": False, "label": "Tap user"},
+        {"action": "type", "target": "login.pass", "value": "p", "secret": True, "label": "Type pass"},
+        {"action": "tap", "target": "login.btn", "value": "", "secret": False, "label": "Tap login"},
+    ]
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        def _post(path: str, payload: dict):
+            req = urllib.request.Request(
+                f"http://127.0.0.1:{port}{path}",
+                data=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+
+        moved = _post("/api/recorder/update", {"index": 2, "move_to": 0})
+        assert moved["selected_index"] == 0
+        assert [s["target"] for s in moved["steps"]] == ["login.btn", "login.user", "login.pass"]
+
+        duped = _post("/api/recorder/update", {"index": 0, "duplicate": True})
+        assert duped["selected_index"] == 1
+        assert [s["target"] for s in duped["steps"]] == ["login.btn", "login.btn", "login.user", "login.pass"]
+    finally:
+        server.shutdown()
+        server.server_close()
+

@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import platform
 import plistlib
+import re
+import subprocess
+import time
 import zipfile
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
 from qalprit.config_loader import DeviceProfile, EnvironmentConfig
-from qalprit.devices import list_android_devices
+from qalprit.devices import _macos_xcode_env, list_android_devices, list_ios_simulators
 from qalprit.doctor import find_xcode_developer_dir
 
 
@@ -72,9 +75,11 @@ class DriverProtocol(Protocol):
 class AppiumDriverAdapter:
     """Adapts Appium-Python-Client Remote WebDriver to qalprit's DriverProtocol."""
 
-    def __init__(self, raw_driver: Any, platform: str) -> None:
+    def __init__(self, raw_driver: Any, platform: str, simulator_udid: str = "") -> None:
         self._driver = raw_driver
         self.platform = platform
+        self._simulator_udid = simulator_udid
+        self._simctl_failures = 0
 
     @property
     def page_source(self) -> str:
@@ -114,23 +119,28 @@ class AppiumDriverAdapter:
         raise ValueError(f"Unsupported locator strategy: {strategy}")
 
     def is_keyboard_shown(self) -> bool:
+        shown: bool | None = None
         try:
-            shown = self._driver.is_keyboard_shown()
-            if shown is not None:
-                return bool(shown)
+            raw = self._driver.is_keyboard_shown()
+            if raw is not None:
+                shown = bool(raw)
         except Exception:
-            pass
-        if self.platform == "ios":
-            try:
-                from appium.webdriver.common.appiumby import AppiumBy
+            shown = None
+        if self.platform != "ios":
+            return bool(shown)
+        if shown is False:
+            return False
+        # WDA keeps answering "shown" after the keyboard has slid off screen, so the keyboard
+        # element itself is the source of truth on iOS.
+        try:
+            from appium.webdriver.common.appiumby import AppiumBy
 
-                return any(
-                    el.is_displayed()
-                    for el in self._driver.find_elements(AppiumBy.CLASS_NAME, "XCUIElementTypeKeyboard")
-                )
-            except Exception:
-                return False
-        return False
+            return any(
+                el.is_displayed()
+                for el in self._driver.find_elements(AppiumBy.CLASS_NAME, "XCUIElementTypeKeyboard")
+            )
+        except Exception:
+            return bool(shown)
 
     def find_element(self, strategy: str, value: str) -> Any:
         by, loc = self._to_by_and_val(strategy, value)
@@ -141,7 +151,40 @@ class AppiumDriverAdapter:
         return list(self._driver.find_elements(by, loc))
 
     def get_screenshot_as_png(self) -> bytes:
+        png = self._simulator_screenshot()
+        if png:
+            return png
         return self._driver.get_screenshot_as_png()
+
+    def _simulator_screenshot(self) -> bytes | None:
+        """Capture the whole simulator display.
+
+        WDA screenshots leave out the software keyboard and system sheets on recent iOS
+        versions, so the picture disagrees with what a tap will hit. simctl captures the
+        real display. Falls back to WDA when simctl is missing or keeps failing.
+        """
+        if not self._simulator_udid or self._simctl_failures >= 2:
+            return None
+        import tempfile
+
+        try:
+            with tempfile.TemporaryDirectory(prefix="qalprit-shot-") as tmp:
+                out = Path(tmp) / "screen.png"
+                proc = subprocess.run(
+                    ["xcrun", "simctl", "io", self._simulator_udid, "screenshot", "--type=png", str(out)],
+                    capture_output=True,
+                    env=_macos_xcode_env(),
+                    timeout=8,
+                )
+                if proc.returncode == 0 and out.is_file():
+                    data = out.read_bytes()
+                    if data.startswith(b"\x89PNG"):
+                        self._simctl_failures = 0
+                        return data
+        except Exception:
+            pass
+        self._simctl_failures += 1
+        return None
 
     def get_window_size(self) -> dict[str, int]:
         return dict(self._driver.get_window_size())
@@ -164,31 +207,138 @@ class AppiumDriverAdapter:
     def back(self) -> None:
         self._driver.back()
 
-    def hide_keyboard(self) -> None:
+    def _hardware_keyboard_connected(self) -> bool:
         try:
-            self._driver.hide_keyboard()
-            return
+            caps = self.capabilities
         except Exception:
-            pass
+            return False
+        for key in ("connectHardwareKeyboard", "appium:connectHardwareKeyboard"):
+            if key in caps:
+                return bool(caps[key])
+        return False
 
-        # On iOS Simulator with AutomaticMinimizationEnabled=true, tapping a text field
-        # minimizes the software keyboard when WDA's hideKeyboard finds no 'Done' button.
-        if self.platform == "ios":
+    def hide_keyboard(self) -> None:
+        if self.platform != "ios":
+            try:
+                self._driver.hide_keyboard()
+            except Exception:
+                pass
+            return
+
+        if not self.is_keyboard_shown():
+            return
+
+        def _closed(timeout: float = 1.2) -> bool:
+            # The dismiss animation takes about half a second. Checking sooner reports the
+            # keyboard as still open and sends us down every slow fallback for nothing.
+            deadline = time.monotonic() + timeout
+            while True:
+                time.sleep(0.15)
+                if not self.is_keyboard_shown():
+                    return True
+                if time.monotonic() >= deadline:
+                    return False
+
+        def _refocus_text_field() -> bool:
+            # Simulators run with a hardware keyboard attached, so the software keyboard is
+            # only up because Appium typed into a field. Tapping another field drops it.
             try:
                 from appium.webdriver.common.appiumby import AppiumBy
 
-                if self._driver.find_elements(AppiumBy.CLASS_NAME, "XCUIElementTypeKeyboard"):
-                    for field in self._driver.find_elements(
-                        AppiumBy.CLASS_NAME, "XCUIElementTypeTextField"
-                    ):
+                tried = 0
+                for cls in ("XCUIElementTypeTextField", "XCUIElementTypeSecureTextField"):
+                    for field in self._driver.find_elements(AppiumBy.CLASS_NAME, cls):
                         try:
-                            if field.is_displayed():
-                                field.click()
-                                return
+                            if not field.is_displayed():
+                                continue
+                            field.click()
+                            tried += 1
+                            if _closed(0.9):
+                                return True
+                            if tried >= 2:
+                                return False
                         except Exception:
                             continue
             except Exception:
                 pass
+            return False
+
+        hardware_keyboard = self._hardware_keyboard_connected()
+        if hardware_keyboard and _refocus_text_field():
+            return
+
+        # 1. Tap a non-input header area to blur the focused field.
+        try:
+            win = self.get_window_size()
+            w = int(win.get("width") or 390)
+            h = int(win.get("height") or 844)
+            points = [(w // 2, max(64, int(h * 0.14)))]
+            if not hardware_keyboard:
+                points.append((max(24, int(w * 0.12)), max(72, int(h * 0.18))))
+            for tx, ty in points:
+                try:
+                    self._driver.execute_script("mobile: tap", {"x": tx, "y": ty})
+                    if _closed(0.8):
+                        return
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
+        # 2. Explicit dismiss keys on the keyboard or its accessory toolbar (one query).
+        try:
+            from appium.webdriver.common.appiumby import AppiumBy
+
+            for b in self._driver.find_elements(
+                AppiumBy.XPATH,
+                "//*[self::XCUIElementTypeKeyboard or self::XCUIElementTypeToolbar]"
+                "//*[self::XCUIElementTypeButton or self::XCUIElementTypeKey]"
+                "[@name='Hide keyboard' or @name='Hide' or @name='Dismiss' or @name='Done' or @name='done' "
+                "or @label='Done' or @label='done' or @label='Hide keyboard']",
+            ):
+                try:
+                    if b.is_displayed():
+                        b.click()
+                        if _closed(0.9):
+                            return
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
+        # The remaining WDA calls cost 3-4 seconds each and cannot close a simulator keyboard
+        # that Appium itself raised, so they are for real devices and software keyboards only.
+        if hardware_keyboard:
+            return
+
+        # 3. Standard Appium / WDA dismissal.
+        try:
+            self._driver.hide_keyboard()
+        except Exception:
+            pass
+        if _closed(0.6):
+            return
+
+        # 4. Swipe down for scroll views that dismiss the keyboard on drag.
+        try:
+            self._driver.execute_script("mobile: swipe", {"direction": "down", "velocity": 250})
+            if _closed(0.9):
+                return
+        except Exception:
+            pass
+
+        # 5. The return key (may submit a form, so it comes after everything else).
+        try:
+            self._driver.execute_script(
+                "mobile: hideKeyboard", {"keys": ["Return", "return", "Go", "Search", "Next"]}
+            )
+            if _closed(0.6):
+                return
+        except Exception:
+            pass
+
+        # 6. Last resort: move focus to another field.
+        _refocus_text_field()
 
     def swipe(self, start_x: int, start_y: int, end_x: int, end_y: int, duration: int = 300) -> None:
         self._driver.swipe(start_x, start_y, end_x, end_y, duration)
@@ -272,6 +422,79 @@ def _validate_ios_simulator_app_binary(app_path: Path | None) -> None:
         )
 
 
+def _extract_ios_version_from_name(name: str) -> str:
+    """Parse runtime version like '26.5' from 'iPhone 17 Pro (iOS 26 5)'."""
+    m = re.search(r"\(iOS\s+(\d+(?:[\s._-]\d+)+)\)", name or "", re.IGNORECASE)
+    if not m:
+        return ""
+    return re.sub(r"[\s_-]+", ".", m.group(1).strip())
+
+
+def _ensure_ios_simulator_ready(profile: DeviceProfile) -> tuple[str, str, str]:
+    """Ensure a macOS iOS Simulator is booted and return `(udid, platform_version, device_name)`."""
+    udid = profile.udid or ""
+    plat_ver = profile.platform_version or ""
+    dev_name = profile.device_name or "iPhone Simulator"
+
+    if platform.system() != "Darwin" or profile.target_type != "simulator":
+        return udid, plat_ver, dev_name
+
+    sims, _ = list_ios_simulators()
+    if not sims:
+        return udid, plat_ver, dev_name
+
+    target = None
+    if udid:
+        target = next((s for s in sims if s.identifier == udid), None)
+    if target is None:
+        booted = [s for s in sims if str(s.state or "").lower() == "booted"]
+        if dev_name:
+            target = next((s for s in booted if dev_name.lower() in s.name.lower()), None)
+        if target is None and booted:
+            target = booted[0]
+        if target is None and dev_name:
+            target = next((s for s in sims if dev_name.lower() in s.name.lower()), None)
+        if target is None:
+            target = sims[0]
+
+    udid = target.identifier
+    if not plat_ver:
+        plat_ver = _extract_ios_version_from_name(target.name)
+    base_name = re.sub(r"\s*\(iOS[^)]*\)\s*$", "", target.name).strip()
+    if base_name:
+        dev_name = base_name
+
+    if str(target.state or "").lower() != "booted":
+        xc_env = _macos_xcode_env()
+        boot_proc = subprocess.run(
+            ["xcrun", "simctl", "boot", udid],
+            capture_output=True,
+            text=True,
+            env=xc_env,
+            timeout=30,
+        )
+        if boot_proc.returncode != 0 and "Unable to boot device in current state: Booted" not in (boot_proc.stderr or ""):
+            raise RuntimeError((boot_proc.stderr or boot_proc.stdout).strip() or f"Failed to boot iOS Simulator {target.name}.")
+        try:
+            subprocess.run(["xcrun", "simctl", "bootstatus", udid, "-b"], capture_output=True, text=True, env=xc_env, timeout=45)
+        except Exception:
+            for _ in range(15):
+                cur, _ = list_ios_simulators()
+                if any(s.identifier == udid and str(s.state or "").lower() == "booted" for s in cur):
+                    break
+                time.sleep(1.0)
+        if _xcode_has_legacy_simulator_app():
+            subprocess.run(["open", "-a", "Simulator"], capture_output=True, text=True, env=xc_env, timeout=10)
+        else:
+            xcode_dev = find_xcode_developer_dir(xc_env)
+            if xcode_dev is not None:
+                device_hub = xcode_dev.parent / "Applications" / "DeviceHub.app"
+                if device_hub.exists():
+                    subprocess.run(["open", "-a", str(device_hub)], capture_output=True, text=True, timeout=10)
+
+    return udid, plat_ver, dev_name
+
+
 def create_appium_driver(
     appium_url: str,
     profile: DeviceProfile,
@@ -312,14 +535,15 @@ def create_appium_driver(
         for k, v in profile.capabilities.items():
             opts.set_capability(k, v)
     else:
+        resolved_udid, resolved_ver, resolved_dev_name = _ensure_ios_simulator_ready(profile)
         opts = XCUITestOptions()
         opts.platform_name = "iOS"
         opts.automation_name = profile.automation_name or "XCUITest"
-        opts.device_name = profile.device_name
-        if profile.platform_version:
-            opts.platform_version = profile.platform_version
-        if profile.udid:
-            opts.udid = profile.udid
+        opts.device_name = resolved_dev_name
+        if resolved_ver:
+            opts.platform_version = resolved_ver
+        if resolved_udid:
+            opts.udid = resolved_udid
         if app_path is not None:
             opts.app = str(app_path.resolve())
         if env_cfg.ios_bundle_id:
@@ -331,6 +555,9 @@ def create_appium_driver(
             _validate_ios_simulator_app_binary(app_path)
             opts.connect_hardware_keyboard = True
             opts.force_simulator_software_keyboard_presence = False
+            # Stops the system "Save Password?" sheet from covering the app after a login.
+            if not any(k in profile.capabilities for k in ("appium:autoFillPasswords", "autoFillPasswords")):
+                opts.set_capability("appium:autoFillPasswords", False)
             has_headless_override = any(
                 k in profile.capabilities for k in ("appium:isHeadless", "isHeadless")
             )
@@ -343,4 +570,7 @@ def create_appium_driver(
             opts.set_capability(k, v)
 
     raw_driver = webdriver.Remote(appium_url, options=opts)
-    return AppiumDriverAdapter(raw_driver, platform=profile.platform)
+    simulator_udid = ""
+    if profile.platform == "ios" and profile.target_type == "simulator" and platform.system() == "Darwin":
+        simulator_udid = str(getattr(opts, "udid", "") or "")
+    return AppiumDriverAdapter(raw_driver, platform=profile.platform, simulator_udid=simulator_udid)

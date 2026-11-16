@@ -65,13 +65,55 @@
     .app-shell {
       display: grid;
       grid-template-rows: 46px 1fr 28px;
-      grid-template-columns: 218px 1fr;
+      grid-template-columns: clamp(172px, var(--sidebar-w, 218px), 320px) minmax(0, 1fr);
       grid-template-areas:
         "topbar topbar"
         "sidebar main"
         "statusbar statusbar";
       height: 100dvh;
       overflow: hidden;
+    }
+    .app-shell > * { min-width: 0; }
+
+    /* Resizable Split Handles */
+    .split-handle {
+      width: 10px;
+      min-width: 10px;
+      cursor: col-resize;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      touch-action: none;
+      user-select: none;
+      z-index: 5;
+    }
+    .split-handle::before {
+      content: "";
+      width: 2px;
+      height: 36px;
+      max-height: 55%;
+      border-radius: 999px;
+      background: var(--border-strong);
+      transition: background 0.12s, height 0.12s;
+    }
+    .split-handle:hover::before,
+    .split-handle.is-dragging::before {
+      background: var(--accent);
+      height: 56px;
+    }
+    .split-handle.is-sidebar-edge {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      right: -5px;
+      width: 10px;
+      z-index: 12;
+    }
+    .split-handle.is-sidebar-edge::before { height: 42px; }
+    body.is-resizing, body.is-resizing * {
+      cursor: col-resize !important;
+      user-select: none !important;
     }
 
     /* Topbar */
@@ -85,12 +127,14 @@
       justify-content: space-between;
       gap: 12px;
       min-width: 0;
+      overflow: hidden;
     }
     .brand {
       display: flex;
       align-items: center;
       gap: 9px;
       min-width: 0;
+      flex: 1 1 auto;
     }
     .brand-icon { width: 22px; height: 22px; flex-shrink: 0; }
     .brand-title {
@@ -112,7 +156,8 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      max-width: 260px;
+      max-width: 240px;
+      min-width: 0;
       font-family: inherit;
     }
     .ws-pill:hover { color: var(--text); background: var(--surface-2); }
@@ -121,7 +166,8 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      flex-shrink: 0;
+      flex: 0 1 auto;
+      min-width: 0;
     }
     .ctx-chip {
       display: inline-flex;
@@ -138,6 +184,15 @@
       white-space: nowrap;
       cursor: pointer;
       font-family: inherit;
+      min-width: 0;
+      max-width: 260px;
+    }
+    #topDeviceLabel, #topAppLabel {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 190px;
+      display: inline-block;
     }
     .ctx-chip:hover { border-color: #3a4a63; color: var(--text); background: var(--surface-2); }
     .ctx-chip select {
@@ -166,7 +221,10 @@
     /* Popover overflow menu */
     .menu-popover {
       position: fixed;
-      inset: auto;
+      top: 44px;
+      right: 14px;
+      bottom: auto;
+      left: auto;
       margin: 0;
       padding: 6px;
       background: var(--surface-2);
@@ -175,8 +233,9 @@
       box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55);
       color: var(--text);
       min-width: 210px;
+      z-index: 60;
     }
-    .menu-popover button {
+    .menu-popover > button:not(.btn) {
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -191,12 +250,13 @@
       cursor: pointer;
       text-align: left;
     }
-    .menu-popover button:hover { background: var(--surface-hover); color: var(--text); }
+    .menu-popover > button:not(.btn):hover { background: var(--surface-hover); color: var(--text); }
     .menu-sep { height: 1px; background: var(--border); margin: 4px 0; }
 
     /* Sidebar */
     .sidebar {
       grid-area: sidebar;
+      position: relative;
       background: var(--bg-sidebar);
       border-right: 1px solid var(--border);
       display: flex;
@@ -204,6 +264,7 @@
       justify-content: space-between;
       padding: 12px 10px;
       overflow-y: auto;
+      overflow-x: visible;
       user-select: none;
     }
     .nav-group { margin-bottom: 16px; }
@@ -273,6 +334,7 @@
     .workspace-main {
       grid-area: main;
       overflow-y: auto;
+      overflow-x: hidden;
       padding: 16px 20px;
       display: flex;
       flex-direction: column;
@@ -284,6 +346,7 @@
       flex-direction: column;
       gap: 14px;
       flex: 1;
+      min-width: 0;
       min-height: 0;
     }
 
@@ -414,7 +477,9 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 10px;
+      gap: 8px 10px;
+      flex-wrap: wrap;
+      min-width: 0;
     }
     .panel-kicker {
       font-size: 11px;
@@ -531,6 +596,8 @@
     /* Tables */
     .table-wrap {
       overflow: auto;
+      max-width: 100%;
+      min-width: 0;
       border-radius: 8px;
       border: 1px solid var(--border);
       background: var(--surface);
@@ -617,26 +684,42 @@
       display: flex;
       align-items: flex-end;
       justify-content: space-between;
-      gap: 12px;
+      gap: 10px 14px;
       flex-wrap: wrap;
+      padding: 10px 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
     }
     .rec-toolbar-left {
       display: flex;
       align-items: flex-end;
-      gap: 10px;
+      gap: 8px 10px;
       flex-wrap: wrap;
+      flex: 1 1 560px;
+      min-width: 0;
     }
     .rec-toolbar-right {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 8px 10px;
       flex-wrap: wrap;
+      margin-left: auto;
     }
+    .rec-field-sm { width: 96px; flex-shrink: 0; }
+    .rec-field-md { width: 170px; min-width: 140px; flex: 1 1 155px; max-width: 230px; }
+    .rec-field-dev { min-width: 240px; flex: 1.5 1 250px; max-width: 340px; }
+    .dev-combo { display: flex; align-items: center; gap: 6px; }
+    .dev-combo select { flex: 1; min-width: 0; }
+    .menu-popover-wide { min-width: 290px; max-width: 340px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+    .menu-popover-wide:not(:popover-open) { display: none; }
+    .menu-popover-wide label { margin-bottom: 2px; }
     .rec-grid {
       display: grid;
-      grid-template-columns: minmax(310px, 42%) 1fr;
-      gap: 14px;
+      grid-template-columns: clamp(290px, var(--rec-left-w, 420px), 680px) 10px minmax(0, 1fr);
+      gap: 2px;
       flex: 1;
+      min-width: 0;
       min-height: 0;
     }
     .mirror-panel {
@@ -773,7 +856,7 @@
     }
     .rec-step-row {
       display: grid;
-      grid-template-columns: 24px 74px 1fr auto;
+      grid-template-columns: 24px minmax(112px, auto) minmax(0, 1fr) auto;
       align-items: center;
       gap: 10px;
       padding: 8px 14px;
@@ -785,7 +868,7 @@
     .rec-step-row:hover { background: var(--surface-hover); }
     .rec-step-row.is-selected { background: rgba(45, 212, 191, 0.08); }
     .rec-step-num { color: var(--muted); font-variant-numeric: tabular-nums; }
-    .rec-step-act { font-weight: 600; color: var(--accent); }
+    .rec-step-act { font-weight: 600; color: var(--accent); white-space: nowrap; }
     .rec-step-act.is-tap { color: var(--text-soft); }
     .rec-step-act.is-assert { color: #38bdf8; }
     .rec-step-target { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -838,9 +921,10 @@
        ================================================================ */
     .split-library {
       display: grid;
-      grid-template-columns: 220px 1fr;
-      gap: 16px;
+      grid-template-columns: clamp(200px, var(--rail-w, 272px), 480px) 10px minmax(0, 1fr);
+      gap: 2px;
       flex: 1;
+      min-width: 0;
       min-height: 0;
     }
     .library-rail {
@@ -849,6 +933,7 @@
       border-radius: var(--radius);
       display: flex;
       flex-direction: column;
+      min-width: 0;
       min-height: 0;
       overflow: hidden;
     }
@@ -859,6 +944,28 @@
       align-items: center;
       justify-content: space-between;
       gap: 6px;
+      flex-wrap: wrap;
+    }
+    .btn-record-cta {
+      width: 100%;
+      height: 36px;
+      font-size: 13px;
+      font-weight: 700;
+      gap: 7px;
+    }
+    .btn-record-lg {
+      height: 36px;
+      padding: 0 16px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .rec-btn-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      display: inline-block;
+      flex-shrink: 0;
     }
     .library-rail-list {
       flex: 1;
@@ -929,17 +1036,20 @@
 
     .dataset-workspace {
       display: grid;
-      grid-template-columns: 1fr 310px;
-      gap: 14px;
+      grid-template-columns: minmax(0, 1fr) 10px clamp(240px, var(--ds-right-w, 300px), 460px);
+      gap: 2px;
       flex: 1;
+      min-width: 0;
       min-height: 0;
       align-items: stretch;
     }
     .dataset-card {
       display: flex;
       flex-direction: column;
+      min-width: 0;
       min-height: 0;
     }
+    .run-config-card { min-width: 0; }
     .dataset-card .table-wrap {
       border: none;
       border-radius: 0;
@@ -1037,12 +1147,13 @@
     .runs-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     .runs-grid {
       display: grid;
-      grid-template-columns: 1fr minmax(300px, 36%);
-      gap: 14px;
+      grid-template-columns: minmax(0, 1fr) 10px clamp(280px, var(--runs-insp-w, 380px), 620px);
+      gap: 2px;
       flex: 1;
+      min-width: 0;
       min-height: 0;
     }
-    .runs-table-panel { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+    .runs-table-panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
     .runs-table-panel .table-wrap { border: none; border-radius: 0; flex: 1; }
     .batch-child-row td:first-child { padding-left: 24px; color: var(--text-soft); }
     .art-link { color: #38bdf8; text-decoration: none; font-weight: 500; }
@@ -1151,11 +1262,86 @@
       gap: 8px;
     }
 
-    @media (max-width: 1060px) {
-      .rec-grid, .dataset-workspace, .runs-grid, .grid-2, .split-library {
+    @media (max-width: 1180px) {
+      .dataset-workspace {
         grid-template-columns: 1fr;
+        gap: 12px;
+        flex: none;
+        min-height: auto;
       }
-      .app-shell { grid-template-columns: 190px 1fr; }
+      .dataset-workspace > .split-handle { display: none; }
+      .split-library, .detail-main {
+        flex: none;
+        min-height: auto;
+      }
+      .dataset-card .table-wrap { min-height: 200px; }
+    }
+    @media (max-width: 1060px) {
+      .rec-grid, .runs-grid, .grid-2, .split-library {
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
+      .rec-grid > .split-handle,
+      .runs-grid > .split-handle,
+      .split-library > .split-handle { display: none; }
+      .library-rail { max-height: 240px; }
+      .app-shell { grid-template-columns: clamp(160px, var(--sidebar-w, 190px), 280px) minmax(0, 1fr); }
+    }
+
+    /* Toasts and in-app ask dialog (replace native alert/confirm/prompt, which webviews block or style badly) */
+    .toast-host {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      z-index: 2147483000;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-width: min(420px, calc(100vw - 32px));
+      pointer-events: none;
+    }
+    .toast {
+      pointer-events: auto;
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border-strong);
+      border-left: 4px solid var(--accent);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 12.5px;
+      line-height: 1.45;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+      animation: toast-in 0.18s ease-out;
+    }
+    .toast.is-error { border-left-color: #ef4444; }
+    .toast.is-ok { border-left-color: #22c55e; }
+    .toast.is-warn { border-left-color: #f59e0b; }
+    .toast-msg { flex: 1; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .toast-close {
+      border: 0;
+      background: none;
+      color: inherit;
+      opacity: 0.6;
+      cursor: pointer;
+      font-size: 14px;
+      line-height: 1;
+      padding: 2px;
+    }
+    .toast-close:hover { opacity: 1; }
+    @keyframes toast-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    #uiAskDialog { width: min(460px, calc(100vw - 32px)); }
+    #uiAskMsg { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.5; margin: 0; }
+    #uiAskInput { width: 100%; margin-top: 10px; }
+    .rec-phone-frame.is-busy { cursor: progress; }
+    .rec-phone-frame.is-busy .rec-overlays { pointer-events: none; }
+    .rec-phone-frame.is-busy img { opacity: 0.82; }
+    .live-pill.is-busy .dot { animation: pulse-dot 0.8s ease-in-out infinite; }
+    @keyframes pulse-dot { 50% { opacity: 0.25; } }
+    @media (prefers-reduced-motion: reduce) {
+      .toast, .live-pill.is-busy .dot { animation: none; }
     }
   </style>
 </head>
@@ -1166,15 +1352,15 @@
       <div class="brand">
         <svg class="brand-icon" viewBox="0 0 64 64" fill="none" aria-hidden="true">
           <defs>
-            <linearGradient id="qg" x1="6" y1="6" x2="58" y2="58" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#0f766e" />
-              <stop offset="100%" stop-color="#2dd4bf" />
+            <linearGradient id="qg" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#0d9488"/>
+              <stop offset="1" stop-color="#134e4a"/>
             </linearGradient>
           </defs>
-          <rect x="4" y="4" width="56" height="56" rx="14" fill="url(#qg)" />
-          <rect x="14" y="14" width="36" height="36" rx="10" stroke="#f8fafc" stroke-width="5.5" />
-          <path d="M24 32L30 38L44 23" stroke="#d1fae5" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
-          <path d="M37 37L49 49" stroke="#f8fafc" stroke-width="5.5" stroke-linecap="round" />
+          <rect width="64" height="64" rx="14" fill="url(#qg)"/>
+          <circle cx="30" cy="30" r="15.5" fill="none" stroke="#f8fafc" stroke-width="5.4"/>
+          <path d="M41.5 41.5 L50.5 50.5" fill="none" stroke="#f8fafc" stroke-width="5.4" stroke-linecap="round"/>
+          <path d="M23.4 30.6 L28.3 35.5 L37 25.4" fill="none" stroke="#5eead4" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
         <span class="brand-title">QAlprit</span>
         <span class="brand-slash">/</span>
@@ -1182,27 +1368,53 @@
       </div>
 
       <div class="topbar-right">
-        <label class="ctx-chip" title="Active test environment">
+        <label class="ctx-chip hide-on-record" id="topEnvChip" title="Active test environment">
           <span class="muted">Env:</span>
           <select id="topEnvSelect" aria-label="Active environment"></select>
         </label>
-        <button type="button" class="ctx-chip" id="topDevicePill" title="Open Setup & Devices">
+        <button type="button" class="ctx-chip hide-on-record" id="topDevicePill" popovertarget="devicePopoverMenu" title="Boot, switch, or shut down virtual device">
           <span class="dot" id="topDeviceDot"></span>
           <span id="topDeviceLabel">No device booted</span>
+          <span class="muted" style="font-size:10px;">&#9662;</span>
         </button>
-        <button type="button" class="ctx-chip" id="topAppPill" title="Active app binary (click to switch or upload)">
+        <button type="button" class="ctx-chip hide-on-record" id="topAppPill" title="Active app binary (click to switch or upload)">
           <span id="topAppLabel">No app selected</span>
         </button>
         <button type="button" class="ctx-chip" id="btnTopMore" popovertarget="topMoreMenu" aria-label="Workspace actions">&hellip;</button>
       </div>
     </header>
 
+    <div id="devicePopoverMenu" class="menu-popover menu-popover-wide" popover>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+        <span class="panel-kicker">Device &amp; Emulator</span>
+        <span class="badge b-skip" id="topDevStatusBadge">Offline</span>
+      </div>
+      <div id="topDevBootedBox" hidden style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px;border-radius:7px;background:var(--surface);border:1px solid var(--border);">
+        <span id="topDevBootedText" style="font-size:12px;font-weight:600;color:var(--text);">Booted</span>
+        <button type="button" class="btn btn-sm btn-danger" id="btnTopShutdownDevice">Shutdown</button>
+      </div>
+      <div>
+        <label for="topQuickPlat">Switch / Boot Target</label>
+        <div style="display:flex;gap:6px;">
+          <select id="topQuickPlat" style="width:94px;" aria-label="Quick target platform">
+            <option value="android">Android</option>
+            <option value="ios">iOS</option>
+          </select>
+          <select id="topQuickDevice" style="flex:1;min-width:0;" aria-label="Quick target device"></select>
+        </div>
+      </div>
+      <div class="btn-row" style="justify-content:space-between;">
+        <button type="button" class="btn btn-sm btn-ghost" id="btnTopGoDeviceSetup">1-time Setup &amp; Doctor &rarr;</button>
+        <button type="button" class="btn btn-sm btn-primary" id="btnTopBootDevice">Boot</button>
+      </div>
+    </div>
+
     <div id="topMoreMenu" class="menu-popover" popover>
       <button type="button" id="btnReloadWorkspace">&#x21bb; Reload workspace</button>
       <button type="button" id="btnOpenWorkspaceFolder">&#x1F4C2; Open workspace folder</button>
       <button type="button" id="btnQuickValidate">&#x2713; Validate workspace</button>
       <div class="menu-sep"></div>
-      <button type="button" id="btnOpenFlowsModal">Workflows library</button>
+      <button type="button" id="btnMoreDeviceSetup">1-time Setup &amp; Doctor</button>
     </div>
 
     <!-- LEFT SIDEBAR -->
@@ -1210,18 +1422,12 @@
       <nav aria-label="QA Workflow Steps">
         <div class="nav-group">
           <div class="nav-group-label">Workbench</div>
-          <button type="button" class="nav-item" data-nav="setup" aria-current="step">
+          <button type="button" class="nav-item" id="btnOpenFlowsModal" data-nav="workflows" aria-current="step">
             <span class="nav-item-left">
-              <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="12" height="8" rx="1.5"/><path d="M5.5 13.5h5M8 11v2.5"/></svg>
-              <span>Setup &amp; Devices</span>
+              <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="4" cy="4" r="1.8"/><circle cx="12" cy="12" r="1.8"/><path d="M5.8 4H10a2 2 0 0 1 2 2v4.2M4 5.8v4.2a2 2 0 0 0 2 2h4.2"/></svg>
+              <span>Workflows</span>
             </span>
-            <span class="nav-badge" id="badgeApps" hidden>0 apps</span>
-          </button>
-          <button type="button" class="nav-item" data-nav="record">
-            <span class="nav-item-left">
-              <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="5.5"/><circle cx="8" cy="8" r="2" fill="currentColor" stroke="none"/></svg>
-              <span>Record</span>
-            </span>
+            <span class="nav-badge" id="badgeFlows">0</span>
           </button>
           <button type="button" class="nav-item" data-nav="journeys">
             <span class="nav-item-left">
@@ -1229,6 +1435,12 @@
               <span>Journeys</span>
             </span>
             <span class="nav-badge" id="badgeSpecs">0</span>
+          </button>
+          <button type="button" class="nav-item" data-nav="record">
+            <span class="nav-item-left">
+              <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="5.5"/><circle cx="8" cy="8" r="2" fill="currentColor" stroke="none"/></svg>
+              <span>Record</span>
+            </span>
           </button>
           <button type="button" class="nav-item" data-nav="runs">
             <span class="nav-item-left">
@@ -1241,13 +1453,6 @@
 
         <div class="nav-group">
           <div class="nav-group-label">Library</div>
-          <button type="button" class="nav-item" data-nav="workflows">
-            <span class="nav-item-left">
-              <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="4" cy="4" r="1.8"/><circle cx="12" cy="12" r="1.8"/><path d="M5.8 4H10a2 2 0 0 1 2 2v4.2M4 5.8v4.2a2 2 0 0 0 2 2h4.2"/></svg>
-              <span>Workflows</span>
-            </span>
-            <span class="nav-badge" id="badgeFlows">0</span>
-          </button>
           <button type="button" class="nav-item" data-nav="screens">
             <span class="nav-item-left">
               <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="2" width="8" height="12" rx="1.8"/><line x1="7" y1="11.5" x2="9" y2="11.5"/></svg>
@@ -1262,10 +1467,12 @@
         <button type="button" class="nav-item" data-nav="settings">
           <span class="nav-item-left">
             <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2.2"/><path d="M8 2v1.5M8 12.5V14M2 8h1.5M12.5 8H14M3.8 3.8l1.1 1.1M11.1 11.1l1.1 1.1M12.2 3.8l-1.1 1.1M4.9 11.1l-1.1 1.1"/></svg>
-            <span>Settings</span>
+            <span>Settings &amp; Setup</span>
           </span>
+          <span class="nav-badge" id="badgeApps" hidden>0 apps</span>
         </button>
       </div>
+      <div class="split-handle is-sidebar-edge" data-split="sidebar" role="separator" aria-orientation="vertical" tabindex="0" title="Drag to resize sidebar (double-click to reset)"></div>
     </aside>
 
     <!-- MAIN CONTENT -->
@@ -1273,27 +1480,42 @@
       <div id="corruptBanner" class="status-banner status-warn" hidden role="status" aria-live="polite" style="margin-bottom:12px;"></div>
 
       <!-- ============================================================== -->
-      <!-- VIEW: RECORD (Mock 1)                                          -->
+      <!-- VIEW: RECORD (Mock 1 + Direct Device/App Launcher)             -->
       <!-- ============================================================== -->
       <section class="view-pane" id="view-record" hidden aria-label="Record App Flow">
         <form class="rec-toolbar" id="recStartForm" onsubmit="return false;">
-          <div class="rec-toolbar-left" style="align-items:center;">
-            <div style="width:190px;">
-              <label for="recScreenName">Screen tag</label>
-              <input id="recScreenName" type="text" value="login" placeholder="android-login-logout" />
+          <div class="rec-toolbar-left">
+            <div class="rec-field-sm">
+              <label for="recPlatform">Platform</label>
+              <select id="recPlatform" aria-label="Record platform">
+                <option value="android">Android</option>
+                <option value="ios">iOS</option>
+              </select>
             </div>
-            <details style="margin-top:16px;">
-              <summary class="btn btn-sm" style="list-style:none;cursor:pointer;">Session target</summary>
-              <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;position:absolute;z-index:20;background:var(--surface-2);border:1px solid var(--border-strong);padding:8px;border-radius:8px;box-shadow:0 12px 28px rgba(0,0,0,0.45);">
-                <select id="recPlatform" style="width:94px;" aria-label="Record platform">
-                  <option value="android">Android</option>
-                  <option value="ios">iOS</option>
-                </select>
-                <select id="recDeviceSelect" style="width:170px;" aria-label="Record device"></select>
-                <select id="recEnvSelect" style="width:88px;" aria-label="Record environment"></select>
-                <select id="recAppSelect" style="width:170px;" aria-label="Record app binary"></select>
+            <div class="rec-field-dev">
+              <label for="recDeviceSelect">Target Device / Emulator</label>
+              <div class="dev-combo">
+                <select id="recDeviceSelect" aria-label="Record device"></select>
+                <button type="button" class="btn btn-sm btn-danger" id="btnRecShutdownDevice" hidden title="Shut down booted virtual device">Shutdown</button>
               </div>
-            </details>
+            </div>
+            <div class="rec-field-md">
+              <label for="recAppSelect">App Binary</label>
+              <div class="dev-combo">
+                <select id="recAppSelect" aria-label="Record app binary"></select>
+                <input id="recQuickAppFile" type="file" accept=".apk,.ipa,.zip" hidden />
+                <button type="button" class="btn btn-sm" id="btnRecQuickUpload" title="Upload .apk / .ipa / .zip">+</button>
+              </div>
+            </div>
+            <div class="rec-field-sm" style="width:88px;">
+              <label for="recEnvSelect">Env</label>
+              <select id="recEnvSelect" aria-label="Record environment"></select>
+            </div>
+            <div class="rec-field-md" style="max-width:190px;">
+              <label for="recFlowNameInput">Flow name</label>
+              <input id="recFlowNameInput" type="text" value="auth/recorded_flow" placeholder="auth/iphone-login-logout" />
+              <input id="recScreenName" type="hidden" value="recorded_flow" />
+            </div>
           </div>
 
           <div class="rec-toolbar-right">
@@ -1301,17 +1523,12 @@
               <input id="recRedactChk" type="checkbox" switch checked />
               <span>Redact secrets</span>
             </label>
-            <form id="flowUploadStep2Form" style="display:inline-flex;margin:0;">
-              <input id="flowUploadStep2Input" type="file" accept=".md,.markdown" hidden />
-              <button type="button" class="btn" id="btnImportWorkflowRec">Import workflow</button>
-            </form>
-            <button type="button" class="btn" id="btnRecSync" hidden>Sync screen</button>
+            <button type="button" class="btn" id="btnRecSync" hidden title="Re-read the device screen now">Refresh screen</button>
             <button type="button" class="btn btn-primary" id="btnRecStart">&#9679; Start recording</button>
             <button type="button" class="btn btn-danger" id="btnRecStop" hidden>&#9632; Stop recording</button>
           </div>
         </form>
 
-        <div id="flowUploadStep2Status" class="status-banner" hidden aria-live="polite"></div>
         <div id="recStatusBanner" class="status-banner" hidden aria-live="polite"></div>
         <div class="progress-box" id="recProgressBox" hidden>
           <div class="progress-head">
@@ -1326,10 +1543,9 @@
           <div class="panel mirror-panel">
             <div class="panel-head">
               <div class="seg" role="group" aria-label="Click recording mode">
-                <button type="button" class="is-active" data-rec-mode="tap">Tap</button>
+                <button type="button" class="is-active" data-rec-mode="tap" title="Click a control to tap it. Text fields open the type bar.">Tap</button>
                 <button type="button" data-rec-mode="type">Type</button>
-                <button type="button" data-rec-mode="assert_text">Assert text</button>
-                <button type="button" data-rec-mode="wait">Wait</button>
+                <button type="button" data-rec-mode="assert_text" title="Click a label to check its text">Assert</button>
               </div>
               <span class="live-pill" id="recLivePill"><span class="dot" id="recLiveDot"></span> <span id="recMirrorMeta">Idle</span></span>
             </div>
@@ -1338,7 +1554,7 @@
               <div class="rec-phone-frame" id="recPhoneFrame">
                 <div class="rec-phone-placeholder" id="recPhoneEmpty">
                   <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="6" y="2" width="12" height="20" rx="2.5"/><circle cx="12" cy="18" r="1"/></svg>
-                  <span style="font-size:12px;">Click <strong>Start recording</strong> to mirror your device and record steps.</span>
+                  <span style="font-size:12px;">Pick a device and app above, then click <strong>Start recording</strong>. Every tap and typed value becomes a step.</span>
                 </div>
                 <img id="recPhoneImg" alt="Live emulator screen preview" hidden />
                 <div class="rec-overlays" id="recOverlays"></div>
@@ -1356,7 +1572,8 @@
                   <input id="recTypeInput" type="text" placeholder="Value or ${username} / ${QA_PASS}" style="flex:1;min-width:140px;" />
                   <label class="chk-inline"><input type="checkbox" id="recTypeSecret" /> Secret</label>
                   <button type="button" class="btn btn-primary btn-sm" id="btnRecSendType">Send &amp; Type</button>
-                  <button type="button" class="btn btn-sm" id="btnRecTapSelected">Tap</button>
+                  <button type="button" class="btn btn-sm" id="btnRecTapSelected" title="Tap this field without typing">Tap only</button>
+                  <button type="button" class="btn btn-sm btn-ghost" id="btnRecTypeCancel" aria-label="Close type bar">&times;</button>
                 </div>
               </div>
 
@@ -1369,56 +1586,62 @@
                 <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
                   <input id="recAssertTextInput" type="text" placeholder="Expected text or ${expected}" style="flex:1;min-width:140px;" />
                   <button type="button" class="btn btn-primary btn-sm" id="btnRecVerifyText">Assert Text</button>
-                  <button type="button" class="btn btn-sm" id="btnRecVerifyVisible">Visible</button>
+                  <button type="button" class="btn btn-sm" id="btnRecVerifyVisible" title="Only check that this element is on screen">Is visible</button>
+                  <button type="button" class="btn btn-sm btn-ghost" id="btnRecAssertCancel" aria-label="Close assert bar">&times;</button>
                 </div>
               </div>
 
-              <div class="btn-row" style="justify-content:space-between;">
-                <div class="btn-row">
-                  <button type="button" class="btn btn-sm" id="btnRecSwipeUp">Swipe &uarr;</button>
-                  <button type="button" class="btn btn-sm" id="btnRecSwipeDown">Swipe &darr;</button>
-                  <button type="button" class="btn btn-sm" id="btnRecBack">Back</button>
-                  <button type="button" class="btn btn-sm" id="btnRecWait">Wait 2s</button>
-                </div>
-                <label class="switch-inline" for="recRedactMirrorChk" style="font-size:11.5px;">
-                  <input type="checkbox" id="recRedactMirrorChk" switch checked /> Redact mask
-                </label>
+              <div class="btn-row" id="recGestureRow">
+                <button type="button" class="btn btn-sm" id="btnRecSwipeUp">Swipe &uarr;</button>
+                <button type="button" class="btn btn-sm" id="btnRecSwipeDown">Swipe &darr;</button>
+                <button type="button" class="btn btn-sm" id="btnRecBack">Back</button>
+                <button type="button" class="btn btn-sm" id="btnRecHideKeyboard" title="Lower the on-screen keyboard and record a hide_keyboard step">Hide keyboard</button>
+                <button type="button" class="btn btn-sm" id="btnRecWait" title="Record a 2 second pause">Wait 2s</button>
               </div>
             </div>
           </div>
+
+          <div class="split-handle" data-split="record" role="separator" aria-orientation="vertical" tabindex="0" title="Drag to resize recorder panels (double-click to reset)"></div>
 
           <!-- Right: Steps + Inspector -->
           <div class="rec-right-col">
             <div class="panel" style="min-height:0;">
               <div class="panel-head">
                 <span class="panel-kicker">Steps <span class="count-pill" id="recStepCount">0</span></span>
-                <button type="button" class="btn btn-sm" id="btnRecUndo">Undo</button>
+                <button type="button" class="btn btn-sm" id="btnRecUndo" disabled title="Remove the last recorded step">Undo last</button>
               </div>
               <div class="rec-steps-scroll" id="recStepsList">
-                <div class="muted" style="padding:18px 14px;">Click an element on the mirrored device to record steps.</div>
+                <div class="muted" style="padding:18px 14px;">No steps yet. Click a control on the device screen to record one.</div>
               </div>
 
               <!-- Optional inline step editor when clicking a recorded step -->
               <div id="recStepEditBar" class="mirror-footer" hidden>
                 <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-                  <span class="muted mono" id="recStepEditLabel" style="font-size:11.5px;"></span>
+                  <span class="muted mono" id="recStepEditLabel" style="font-size:11.5px;margin-right:auto;"></span>
                   <input id="recStepEditVal" type="text" placeholder="Value or ${variable}" style="flex:1;min-width:140px;" />
-                  <label class="chk-inline"><input type="checkbox" id="recStepEditSecret" /> Secret</label>
+                  <label class="chk-inline" id="recStepEditSecretWrap"><input type="checkbox" id="recStepEditSecret" /> Secret</label>
                   <button type="button" class="btn btn-sm btn-primary" id="btnRecStepEditApply">Update</button>
+                  <button type="button" class="btn btn-sm" id="btnRecStepMoveUp" title="Move step up">&#8593;</button>
+                  <button type="button" class="btn btn-sm" id="btnRecStepMoveDown" title="Move step down">&#8595;</button>
+                  <button type="button" class="btn btn-sm" id="btnRecStepDup" title="Duplicate step">Duplicate</button>
                   <button type="button" class="btn btn-sm btn-danger" id="btnRecStepEditDel">Remove</button>
                 </div>
               </div>
 
               <div class="rec-save-bar">
-                <input id="recSaveFlowName" type="text" value="auth/recorded_flow" placeholder="auth/login-logout-android" style="flex:1;min-width:180px;" />
-                <label class="chk-inline" title="Also save a runnable Test Journey in specs/">
-                  <input type="checkbox" id="recCreateTestChk" /> + Journey
+                <input id="recSaveFlowName" type="hidden" value="auth/recorded_flow" />
+                <span class="muted" style="flex:1;min-width:150px;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Saves to <code id="recSaveFlowLabel">flows/auth/recorded_flow.md</code></span>
+                <label class="chk-inline" title="Typed values become ${variables}. The values you typed are kept as the first dataset row, so you can add rows or import a CSV and rerun.">
+                  <input type="checkbox" id="recParamChk" checked /> Typed values as variables
+                </label>
+                <label class="chk-inline" title="Also save a runnable test journey in specs/ that calls this workflow">
+                  <input type="checkbox" id="recCreateTestChk" /> Also create a journey
                 </label>
                 <input id="recSaveSuite" type="text" value="smoke" placeholder="smoke" style="width:80px;" hidden />
                 <input id="recSaveTestId" type="text" value="SMK-001" placeholder="SMK-001" style="width:92px;" hidden />
                 <input id="recSaveTestTitle" type="text" value="Repeat recorded workflow" placeholder="Test title" style="width:160px;" hidden />
-                <button type="button" class="btn btn-primary" id="btnRecSaveAll">Save workflow</button>
-                <button type="button" class="btn btn-sm" id="btnRecGoRun" hidden>Run &rarr;</button>
+                <button type="button" class="btn btn-primary" id="btnRecSaveAll" disabled>Save workflow</button>
+                <button type="button" class="btn btn-sm" id="btnRecGoRun" hidden>Open workflow &rarr;</button>
               </div>
             </div>
 
@@ -1464,7 +1687,7 @@
       <!-- ============================================================== -->
       <!-- VIEW: WORKFLOWS & JOURNEYS (Mock 2 Shared Pattern)             -->
       <!-- ============================================================== -->
-      <section class="view-pane" id="view-workflows" hidden aria-label="Workflows">
+      <section class="view-pane" id="view-workflows" aria-label="Workflows">
         <div class="split-library">
           <div class="library-rail">
             <div class="library-rail-head">
@@ -1473,11 +1696,15 @@
                 <input id="flowRailUploadInput" type="file" accept=".md,.markdown" hidden />
                 <button type="button" class="btn btn-sm" data-reload-workspace="flows" title="Reload workflows">&#x21bb;</button>
                 <button type="button" class="btn btn-sm" id="btnFlowRailUpload" title="Import .md workflow">&#x2191;</button>
-                <button type="button" class="btn btn-sm btn-primary" id="btnNewFlowRail" title="New workflow">+</button>
+                <button type="button" class="btn btn-sm" id="btnNewFlowRail" title="New blank workflow">+</button>
               </div>
+            </div>
+            <div style="padding:8px 8px 4px;border-bottom:1px solid var(--border);">
+              <button type="button" class="btn btn-primary btn-record-cta" id="btnRailRecordNew" data-flow-record-new title="Open live Recorder to capture a new workflow"><span class="rec-btn-dot"></span> Record New</button>
             </div>
             <div class="library-rail-list" id="workflowsRailList"></div>
           </div>
+          <div class="split-handle" data-split="workflows" role="separator" aria-orientation="vertical" tabindex="0" title="Drag to resize workflow list (double-click to reset)"></div>
           <div class="detail-main" id="workflowDetailHost"></div>
         </div>
       </section>
@@ -1495,6 +1722,7 @@
             </div>
             <div class="library-rail-list" id="journeysRailList"></div>
           </div>
+          <div class="split-handle" data-split="journeys" role="separator" aria-orientation="vertical" tabindex="0" title="Drag to resize journeys list (double-click to reset)"></div>
           <div class="detail-main" id="journeyDetailHost"></div>
         </div>
       </section>
@@ -1550,158 +1778,10 @@
             </div>
           </div>
 
+          <div class="split-handle" data-split="runs" role="separator" aria-orientation="vertical" tabindex="0" title="Drag to resize runs inspector (double-click to reset)"></div>
+
           <div class="panel run-inspector" id="runInspectorPanel">
             <div class="muted" style="padding:20px 6px;text-align:center;">Select a run or dataset row to inspect steps, failure reason, and screenshots.</div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ============================================================== -->
-      <!-- VIEW: SETUP & DEVICES                                          -->
-      <!-- ============================================================== -->
-      <section class="view-pane" id="view-setup" aria-label="Setup and Devices">
-        <div class="runs-header">
-          <div>
-            <h2>Setup &amp; Devices</h2>
-            <p class="muted" style="margin:2px 0 0;" id="step1OsIntro">Prepare a virtual emulator or device, choose 1 active app binary, and verify your environment.</p>
-          </div>
-          <div class="btn-row">
-            <span class="badge b-skip" id="osCapabilityBadge">Detecting OS...</span>
-            <button type="button" class="btn" id="btnRunPreflight">Run Checks</button>
-            <button type="button" class="btn" id="btnRefreshDevices">Scan Devices</button>
-            <button type="button" class="btn" id="btnRunDoctor">Doctor</button>
-            <button type="button" class="btn btn-danger" id="btnStopPreflight" hidden>Stop</button>
-          </div>
-        </div>
-
-        <div class="progress-box" id="preflightProgressBox" hidden>
-          <div class="progress-head">
-            <strong id="preflightProgressText">Running diagnostics...</strong>
-            <span class="muted" id="preflightProgressElapsed">0.0s</span>
-          </div>
-          <div class="progress-track"><div class="progress-fill is-indeterminate" id="preflightProgressFill"></div></div>
-        </div>
-
-        <div class="grid-2">
-          <!-- Emulator & Devices -->
-          <div class="panel">
-            <div class="panel-head">
-              <span class="panel-kicker">Virtual Emulator &amp; Devices</span>
-              <span class="badge b-skip" id="emuStatusBadge">Checking...</span>
-            </div>
-            <div class="panel-body" style="display:flex;flex-direction:column;gap:12px;">
-              <p class="muted" id="emuStatusDesc" style="margin:0;">Checks whether QAlprit_Pixel (Android 34) is installed or booted.</p>
-              <div class="btn-row">
-                <button type="button" class="btn btn-primary" id="btnEmuSetup" hidden>Setup Android Emulator (~1.8 GB)</button>
-                <button type="button" class="btn btn-primary" id="btnEmuBoot" hidden>Boot Android Emulator</button>
-                <button type="button" class="btn btn-danger" id="btnEmuStop" hidden>Stop Emulator</button>
-              </div>
-              <div id="iosSimRow" class="btn-row" hidden>
-                <select id="iosSimSelect" style="flex:1;min-width:180px;" aria-label="iOS Simulator"></select>
-                <button type="button" class="btn btn-primary" id="btnIosBoot">Boot iOS Simulator</button>
-              </div>
-              <div class="progress-box" id="emuProgressBox" hidden>
-                <div class="progress-head">
-                  <strong id="emuProgressPhase">Preparing...</strong>
-                  <span class="muted" id="emuProgressMeta">0%</span>
-                </div>
-                <div class="progress-track"><div class="progress-fill" id="emuProgressFill"></div></div>
-              </div>
-              <div id="emuStatusBanner" class="status-banner" hidden aria-live="polite"></div>
-              <pre id="emuLiveLog" class="console" hidden></pre>
-
-              <div class="table-wrap" style="max-height:190px;">
-                <table>
-                  <thead><tr><th>Platform</th><th>Name</th><th>Identifier</th><th>State</th></tr></thead>
-                  <tbody id="devicesTable"><tr><td colspan="4" class="muted">Click Scan Devices to probe adb / simctl.</td></tr></tbody>
-                </table>
-              </div>
-              <div id="deviceAuthBanner" class="status-banner status-warn" hidden aria-live="polite"></div>
-
-              <div class="table-wrap" style="max-height:190px;">
-                <table>
-                  <thead><tr><th>Toolchain</th><th>Status</th><th>Details</th></tr></thead>
-                  <tbody id="doctorTable"><tr><td colspan="3" class="muted">Click Doctor to verify Node, Appium, Java, and SDK.</td></tr></tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          <!-- Active App & Environment -->
-          <div style="display:flex;flex-direction:column;gap:14px;">
-            <div class="panel">
-              <div class="panel-head">
-                <span class="panel-kicker">Active App Under Test (<code>apps/</code>)</span>
-              </div>
-              <div class="panel-body" style="display:flex;flex-direction:column;gap:10px;">
-                <div>
-                  <label for="activeAppSelect">Session App</label>
-                  <select id="activeAppSelect"></select>
-                  <div class="muted" id="activeAppSummary" style="font-size:11.5px;margin-top:4px;">Upload or select an .apk / .ipa / .zip binary.</div>
-                </div>
-                <form id="uploadAppForm" method="POST" style="display:flex;flex-direction:column;gap:8px;">
-                  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                    <input id="appFileInput" name="appFile" type="file" accept=".apk,.ipa,.zip" style="flex:1;" required />
-                    <button type="submit" class="btn btn-primary" id="btnUploadApp">Upload &amp; Activate</button>
-                    <button type="button" class="btn btn-danger" id="btnCancelUpload" hidden>Cancel</button>
-                  </div>
-                  <div class="progress-box" id="uploadProgressBox" hidden>
-                    <div class="progress-head">
-                      <strong id="uploadProgressText">Uploading...</strong>
-                      <span class="muted" id="uploadProgressPct">0%</span>
-                    </div>
-                    <div class="progress-track"><div class="progress-fill" id="uploadProgressFill"></div></div>
-                  </div>
-                  <div id="uploadStatus" class="status-banner" hidden aria-live="polite"></div>
-                </form>
-                <div class="table-wrap" style="max-height:160px;">
-                  <table>
-                    <thead><tr><th>Binary</th><th>Package / Bundle</th><th>Size</th><th>Action</th></tr></thead>
-                    <tbody id="appsTable"><tr><td colspan="4" class="muted">No app binaries uploaded yet.</td></tr></tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-
-            <div class="panel">
-              <div class="panel-head">
-                <span class="panel-kicker">Environment &amp; Package Config</span>
-              </div>
-              <form id="envSaveForm" method="POST" class="panel-body" style="display:flex;flex-direction:column;gap:10px;">
-                <div class="form-grid">
-                  <div>
-                    <label for="envPresetSelect">Saved Profile</label>
-                    <select id="envPresetSelect"></select>
-                  </div>
-                  <div>
-                    <label for="envNameInput">Profile Name</label>
-                    <input id="envNameInput" type="text" value="qa" required />
-                  </div>
-                  <div>
-                    <label for="envTimeoutInput">Timeout (sec)</label>
-                    <input id="envTimeoutInput" type="number" min="1" step="0.5" value="12" required />
-                  </div>
-                </div>
-                <div class="form-grid">
-                  <div>
-                    <label for="envAndroidPkg">Android Package ID</label>
-                    <input id="envAndroidPkg" type="text" placeholder="com.example.myapp" />
-                  </div>
-                  <div id="envIosBundleField">
-                    <label for="envIosBundle">iOS Bundle ID</label>
-                    <input id="envIosBundle" type="text" placeholder="com.example.MyApp" />
-                  </div>
-                </div>
-                <div class="btn-row" style="justify-content:space-between;">
-                  <label class="switch-inline" for="envRedactChk">
-                    <input id="envRedactChk" type="checkbox" switch checked />
-                    <span>Redact sensitive fields in screenshots</span>
-                  </label>
-                  <button type="submit" class="btn btn-primary" id="btnSaveEnv">Save environment</button>
-                </div>
-                <div id="envStatus" class="status-banner" hidden aria-live="polite"></div>
-              </form>
-            </div>
           </div>
         </div>
       </section>
@@ -1784,70 +1864,229 @@
       </section>
 
       <!-- ============================================================== -->
-      <!-- VIEW: SETTINGS (Storage & Cleanup)                             -->
+      <!-- VIEW: SETTINGS & 1-TIME SETUP                                  -->
       <!-- ============================================================== -->
       <section class="view-pane" id="view-settings" hidden aria-label="Settings">
         <div class="runs-header">
           <div>
-            <h2>Settings &amp; Storage</h2>
-            <p class="muted" style="margin:2px 0 0;">Configure OS storage directories, inspect discovered system software, or clean up legacy tool data.</p>
+            <h2>Settings &amp; 1-Time Setup</h2>
+            <p class="muted" style="margin:2px 0 0;">Configure environment profiles, app binaries, virtual emulators, toolchain checks, and storage.</p>
+          </div>
+          <div class="btn-row">
+            <span class="badge b-skip" id="osCapabilityBadge">Detecting OS...</span>
           </div>
         </div>
 
-        <div class="panel" id="storagePreflightCard">
-          <div class="panel-head">
-            <span class="panel-kicker">OS Storage Folders &amp; System Software</span>
-          </div>
-          <div class="panel-body" style="display:flex;flex-direction:column;gap:14px;">
-            <form id="storagePrefsForm" method="POST" style="display:flex;flex-direction:column;gap:10px;">
+        <div class="tablist" role="tablist" aria-label="Settings sections">
+          <button type="button" role="tab" aria-selected="true" data-settings-tab="env">Environments &amp; Apps</button>
+          <button type="button" role="tab" aria-selected="false" data-settings-tab="devices">Devices &amp; Toolchain</button>
+          <button type="button" role="tab" aria-selected="false" data-settings-tab="storage">Storage &amp; Cleanup</button>
+        </div>
+
+        <!-- TAB 1: ENVIRONMENTS & APPS -->
+        <div class="grid-2" id="settings-pane-env">
+          <div class="panel" id="envConfigCard">
+            <div class="panel-head">
+              <span class="panel-kicker">Environment &amp; Package Config</span>
+            </div>
+            <form id="envSaveForm" method="POST" class="panel-body" style="display:flex;flex-direction:column;gap:10px;">
               <div class="form-grid">
                 <div>
-                  <label for="prefWorkspaceDirInput">Workspace Folder (specs, flows, datasets, apps, results)</label>
-                  <div style="display:flex;gap:6px;">
-                    <input id="prefWorkspaceDirInput" type="text" placeholder="~/Documents/QAlpritWorkspace" />
-                    <button type="button" class="btn btn-sm" data-reveal-path="">Open</button>
-                  </div>
+                  <label for="envPresetSelect">Saved Profile</label>
+                  <select id="envPresetSelect"></select>
                 </div>
                 <div>
-                  <label for="prefDataDirInput">SDK &amp; Virtual Emulator Data Folder</label>
-                  <div style="display:flex;gap:6px;">
-                    <input id="prefDataDirInput" type="text" placeholder="%LOCALAPPDATA%\QAlprit" />
-                    <button type="button" class="btn btn-sm" data-reveal-path="@data_dir">Open</button>
-                  </div>
+                  <label for="envNameInput">Profile Name</label>
+                  <input id="envNameInput" type="text" value="qa" required />
+                </div>
+                <div>
+                  <label for="envTimeoutInput">Timeout (sec)</label>
+                  <input id="envTimeoutInput" type="number" min="1" step="0.5" value="12" required />
+                </div>
+              </div>
+              <div class="form-grid">
+                <div>
+                  <label for="envAndroidPkg">Android Package ID</label>
+                  <input id="envAndroidPkg" type="text" placeholder="com.example.myapp" />
+                </div>
+                <div id="envIosBundleField">
+                  <label for="envIosBundle">iOS Bundle ID</label>
+                  <input id="envIosBundle" type="text" placeholder="com.example.MyApp" />
                 </div>
               </div>
               <div class="btn-row" style="justify-content:space-between;">
-                <label class="chk-inline"><input type="checkbox" id="prefReuseSystemSdk" /> Reuse existing system Android SDK if installed</label>
-                <button type="submit" class="btn btn-primary" id="btnSaveStoragePrefs">Save &amp; Apply Storage Folders</button>
+                <label class="switch-inline" for="envRedactChk">
+                  <input id="envRedactChk" type="checkbox" switch checked />
+                  <span>Redact sensitive fields in screenshots</span>
+                </label>
+                <button type="submit" class="btn btn-primary" id="btnSaveEnv">Save environment</button>
               </div>
-              <div id="prefStatusBanner" class="status-banner" hidden aria-live="polite"></div>
+              <div id="envStatus" class="status-banner" hidden aria-live="polite"></div>
             </form>
+          </div>
 
-            <div class="table-wrap" style="max-height:220px;">
-              <table>
-                <thead><tr><th>Software / Tool</th><th>Detected Source</th><th>Location / Version</th></tr></thead>
-                <tbody id="preflightSoftwareBody"><tr><td colspan="3" class="muted">Scanning system tools...</td></tr></tbody>
-              </table>
+          <div class="panel">
+            <div class="panel-head">
+              <span class="panel-kicker">App Binaries Under Test (<code>apps/</code>)</span>
+            </div>
+            <div class="panel-body" style="display:flex;flex-direction:column;gap:10px;">
+              <div>
+                <label for="activeAppSelect">Session App</label>
+                <select id="activeAppSelect"></select>
+                <div class="muted" id="activeAppSummary" style="font-size:11.5px;margin-top:4px;">Upload or select an .apk / .ipa / .zip binary.</div>
+              </div>
+              <form id="uploadAppForm" method="POST" style="display:flex;flex-direction:column;gap:8px;">
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                  <input id="appFileInput" name="appFile" type="file" accept=".apk,.ipa,.zip" style="flex:1;" required />
+                  <button type="submit" class="btn btn-primary" id="btnUploadApp">Upload &amp; Activate</button>
+                  <button type="button" class="btn btn-danger" id="btnCancelUpload" hidden>Cancel</button>
+                </div>
+                <div class="progress-box" id="uploadProgressBox" hidden>
+                  <div class="progress-head">
+                    <strong id="uploadProgressText">Uploading...</strong>
+                    <span class="muted" id="uploadProgressPct">0%</span>
+                  </div>
+                  <div class="progress-track"><div class="progress-fill" id="uploadProgressFill"></div></div>
+                </div>
+                <div id="uploadStatus" class="status-banner" hidden aria-live="polite"></div>
+              </form>
+              <div class="table-wrap" style="max-height:220px;">
+                <table>
+                  <thead><tr><th>Binary</th><th>Package / Bundle</th><th>Size</th><th>Action</th></tr></thead>
+                  <tbody id="appsTable"><tr><td colspan="4" class="muted">No app binaries uploaded yet.</td></tr></tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>
 
-        <div class="panel">
-          <div class="panel-head">
-            <span class="panel-kicker">Clean Up Previous Leftovers &amp; Tool Data</span>
-            <button type="button" class="btn btn-sm" id="btnRefreshCleanup">&#x21bb; Rescan Sizes</button>
+        <!-- TAB 2: DEVICES, EMULATORS & TOOLCHAIN (1-Time Setup Sub-Section) -->
+        <div id="view-setup" class="grid-2" hidden aria-label="1-Time Devices and Toolchain Setup">
+          <div class="panel">
+            <div class="panel-head">
+              <span class="panel-kicker">Virtual Emulators &amp; Devices</span>
+              <div class="btn-row">
+                <span class="badge b-skip" id="emuStatusBadge">Checking...</span>
+                <button type="button" class="btn btn-sm" id="btnRefreshDevices">Scan Devices</button>
+              </div>
+            </div>
+            <div class="panel-body" style="display:flex;flex-direction:column;gap:12px;">
+              <p class="muted" id="emuStatusDesc" style="margin:0;font-size:12px;">Install the default Android Virtual Device (~1.8 GB) or boot, switch, and shut down Android &amp; iOS targets.</p>
+              <div class="btn-row" style="flex-wrap:wrap;gap:8px;">
+                <button type="button" class="btn btn-primary" id="btnEmuSetup" hidden>Setup Android Emulator (~1.8 GB)</button>
+                <button type="button" class="btn btn-primary" id="btnEmuBoot" hidden>Boot Android Emulator</button>
+                <button type="button" class="btn btn-danger" id="btnEmuStop" hidden>Shutdown Android</button>
+              </div>
+              <div id="iosSimRow" class="btn-row" hidden style="padding-top:2px;">
+                <select id="iosSimSelect" style="flex:1;min-width:190px;" aria-label="iOS Simulator"></select>
+                <button type="button" class="btn btn-primary" id="btnIosBoot">Boot iOS Simulator</button>
+                <button type="button" class="btn btn-danger" id="btnIosShutdown" hidden>Shutdown iOS</button>
+              </div>
+              <div class="progress-box" id="emuProgressBox" hidden>
+                <div class="progress-head">
+                  <strong id="emuProgressPhase">Preparing...</strong>
+                  <span class="muted" id="emuProgressMeta">0%</span>
+                </div>
+                <div class="progress-track"><div class="progress-fill" id="emuProgressFill"></div></div>
+              </div>
+              <div id="emuStatusBanner" class="status-banner" hidden aria-live="polite"></div>
+              <pre id="emuLiveLog" class="console" hidden></pre>
+
+              <div class="table-wrap" style="max-height:300px;">
+                <table>
+                  <thead><tr><th>Platform</th><th>Name</th><th>Identifier</th><th>State</th><th>Action</th></tr></thead>
+                  <tbody id="devicesTable"><tr><td colspan="5" class="muted">Click Scan Devices to probe adb / simctl.</td></tr></tbody>
+                </table>
+              </div>
+              <div id="deviceAuthBanner" class="status-banner status-warn" hidden aria-live="polite"></div>
+            </div>
           </div>
-          <div class="panel-body" style="display:flex;flex-direction:column;gap:10px;">
-            <div class="table-wrap" style="max-height:240px;">
-              <table>
-                <thead><tr><th style="width:42px;">Clean</th><th>Folder / Item</th><th>Safety Impact</th><th>Size</th></tr></thead>
-                <tbody id="cleanupTargetsBody"><tr><td colspan="4" class="muted">Scanning QAlprit data folders...</td></tr></tbody>
-              </table>
+
+          <div class="panel">
+            <div class="panel-head">
+              <span class="panel-kicker">Toolchain Doctor</span>
+              <div class="btn-row">
+                <span class="badge b-skip" id="doctorSummaryBadge">Checking...</span>
+                <button type="button" class="btn btn-sm" id="btnRunPreflight">Run All Checks</button>
+                <button type="button" class="btn btn-sm" id="btnRunDoctor">Doctor</button>
+                <button type="button" class="btn btn-sm btn-danger" id="btnStopPreflight" hidden>Stop</button>
+              </div>
             </div>
-            <div class="btn-row">
-              <button type="button" class="btn btn-danger" id="btnCleanupSelected">Delete Checked Cleanup Items</button>
+            <div class="panel-body" style="display:flex;flex-direction:column;gap:10px;">
+              <div class="progress-box" id="preflightProgressBox" hidden>
+                <div class="progress-head">
+                  <strong id="preflightProgressText">Running diagnostics...</strong>
+                  <span class="muted" id="preflightProgressElapsed">0.0s</span>
+                </div>
+                <div class="progress-track"><div class="progress-fill is-indeterminate" id="preflightProgressFill"></div></div>
+              </div>
+              <div class="table-wrap" style="max-height:420px;">
+                <table>
+                  <thead><tr><th>Toolchain</th><th>Status</th><th>Details</th></tr></thead>
+                  <tbody id="doctorTable"><tr><td colspan="3" class="muted">Click Doctor to verify Node, Appium, Java, and SDK.</td></tr></tbody>
+                </table>
+              </div>
             </div>
-            <div id="cleanupStatusBanner" class="status-banner" hidden aria-live="polite"></div>
+          </div>
+        </div>
+
+        <!-- TAB 3: STORAGE & CLEANUP -->
+        <div id="settings-pane-storage" hidden style="display:flex;flex-direction:column;gap:14px;">
+          <div class="panel" id="storagePreflightCard">
+            <div class="panel-head">
+              <span class="panel-kicker">OS Storage Folders &amp; System Software</span>
+            </div>
+            <div class="panel-body" style="display:flex;flex-direction:column;gap:14px;">
+              <form id="storagePrefsForm" method="POST" style="display:flex;flex-direction:column;gap:10px;">
+                <div class="form-grid">
+                  <div>
+                    <label for="prefWorkspaceDirInput">Workspace Folder (specs, flows, datasets, apps, results)</label>
+                    <div style="display:flex;gap:6px;">
+                      <input id="prefWorkspaceDirInput" type="text" placeholder="~/Documents/QAlpritWorkspace" />
+                      <button type="button" class="btn btn-sm" data-reveal-path="">Open</button>
+                    </div>
+                  </div>
+                  <div>
+                    <label for="prefDataDirInput">SDK &amp; Virtual Emulator Data Folder</label>
+                    <div style="display:flex;gap:6px;">
+                      <input id="prefDataDirInput" type="text" placeholder="%LOCALAPPDATA%\QAlprit" />
+                      <button type="button" class="btn btn-sm" data-reveal-path="@data_dir">Open</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="btn-row" style="justify-content:space-between;">
+                  <label class="chk-inline"><input type="checkbox" id="prefReuseSystemSdk" /> Reuse existing system Android SDK if installed</label>
+                  <button type="submit" class="btn btn-primary" id="btnSaveStoragePrefs">Save &amp; Apply Storage Folders</button>
+                </div>
+                <div id="prefStatusBanner" class="status-banner" hidden aria-live="polite"></div>
+              </form>
+
+              <div class="table-wrap" style="max-height:220px;">
+                <table>
+                  <thead><tr><th>Software / Tool</th><th>Detected Source</th><th>Location / Version</th></tr></thead>
+                  <tbody id="preflightSoftwareBody"><tr><td colspan="3" class="muted">Scanning system tools...</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <span class="panel-kicker">Clean Up Previous Leftovers &amp; Tool Data</span>
+              <button type="button" class="btn btn-sm" id="btnRefreshCleanup">&#x21bb; Rescan Sizes</button>
+            </div>
+            <div class="panel-body" style="display:flex;flex-direction:column;gap:10px;">
+              <div class="table-wrap" style="max-height:240px;">
+                <table>
+                  <thead><tr><th style="width:42px;">Clean</th><th>Folder / Item</th><th>Safety Impact</th><th>Size</th></tr></thead>
+                  <tbody id="cleanupTargetsBody"><tr><td colspan="4" class="muted">Scanning QAlprit data folders...</td></tr></tbody>
+                </table>
+              </div>
+              <div class="btn-row">
+                <button type="button" class="btn btn-danger" id="btnCleanupSelected">Delete Checked Cleanup Items</button>
+              </div>
+              <div id="cleanupStatusBanner" class="status-banner" hidden aria-live="polite"></div>
+            </div>
           </div>
         </div>
       </section>
@@ -1861,7 +2100,7 @@
         <span class="sb-item" id="sbToolchainText">Toolchain checking...</span>
       </div>
       <div class="sb-group">
-        <span id="verPill">v0.1.30</span>
+        <span id="verPill">v0.1.31</span>
         <span>&middot; all data stays on this machine &middot;</span>
         <span>Managed by <a href="https://vattitude.ca" target="_blank" rel="noopener">vattitude.ca</a></span>
       </div>
@@ -1982,6 +2221,22 @@
   <datalist id="screenTargetOptions"></datalist>
   <datalist id="flowNameOptions"></datalist>
 
+  <div class="toast-host" id="toastHost" role="status" aria-live="polite"></div>
+
+  <dialog id="uiAskDialog" aria-labelledby="uiAskTitle">
+    <form method="dialog" id="uiAskForm">
+      <div class="dlg-head"><h3 id="uiAskTitle">Confirm</h3></div>
+      <div class="dlg-body">
+        <p id="uiAskMsg"></p>
+        <input id="uiAskInput" type="text" hidden autocomplete="off" />
+      </div>
+      <div class="dlg-foot">
+        <button type="button" class="btn" id="uiAskCancel">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="uiAskOk">OK</button>
+      </div>
+    </form>
+  </dialog>
+
   <script>
     (function () {
       const SAMPLE_LOGIN_XML = `<hierarchy rotation="0">
@@ -1994,13 +2249,18 @@
 
       const STATE = {
         overview: null,
-        activeNav: "setup",
+        devicesData: { android: [], ios: [] },
+        activeNav: "workflows",
+        settingsTab: "env",
         activeApp: "",
         hostOs: "",
         stepVocab: ["launch", "reset_app", "background", "tap", "tap_if_visible", "type", "clear", "swipe", "scroll_until_visible", "wait", "wait_for_visible", "wait_for_enabled", "wait_for_text", "wait_for_keyboard", "assert_visible", "assert_not_visible", "assert_text", "assert_enabled", "assert_disabled", "back", "hide_keyboard", "biometric", "run_flow", "screenshot", "visual_compare"],
         emuStatus: null,
         emuPollTimer: null,
         recState: null,
+        recBusy: false,
+        recDirty: false,
+        recNoticeRev: null,
         recPollTimer: null,
         recLastRev: -1,
         recSelectedIdx: null,
@@ -2016,8 +2276,8 @@
         lastOverviewReloadMs: 0,
         selectedFlowName: "",
         selectedSpecId: "",
-        flowTab: "variables",
-        specTab: "variables",
+        flowTab: "steps",
+        specTab: "steps",
         flowPlatform: "android",
         specPlatform: "android",
         flowPreviewRowIdx: 0,
@@ -2064,11 +2324,88 @@
         el.textContent = msg;
       }
 
+      function toast(msg, kind, ms) {
+        const host = $("toastHost");
+        const text = String(msg || "").trim();
+        if (!host || !text) return;
+        const last = host.lastElementChild;
+        if (last && last.dataset.msg === text) return;
+        const el = document.createElement("div");
+        el.className = "toast" + (kind ? " is-" + kind : "");
+        el.dataset.msg = text;
+        const body = document.createElement("div");
+        body.className = "toast-msg";
+        body.textContent = text;
+        const close = document.createElement("button");
+        close.type = "button";
+        close.className = "toast-close";
+        close.setAttribute("aria-label", "Dismiss");
+        close.textContent = "\u00d7";
+        close.addEventListener("click", () => el.remove());
+        el.append(body, close);
+        host.appendChild(el);
+        while (host.children.length > 4) host.firstElementChild.remove();
+        const ttl = ms || (kind === "error" ? 9000 : 4500);
+        setTimeout(() => el.remove(), ttl);
+      }
+      const toastError = (err, prefix) => toast((prefix ? prefix + ": " : "") + ((err && err.message) || String(err || "Something went wrong")), "error");
+
+      // In-app replacement for confirm()/prompt(). Resolves true/false, or the entered text/null when `input` is set.
+      function uiAsk(opts) {
+        const o = opts || {};
+        const dlg = $("uiAskDialog");
+        const input = $("uiAskInput");
+        const wantsInput = o.input !== undefined;
+        $("uiAskTitle").textContent = o.title || "Confirm";
+        $("uiAskMsg").textContent = o.message || "";
+        $("uiAskOk").textContent = o.okLabel || "OK";
+        $("uiAskOk").className = "btn " + (o.danger ? "btn-danger" : "btn-primary");
+        $("uiAskCancel").hidden = Boolean(o.noCancel);
+        input.hidden = !wantsInput;
+        input.value = wantsInput ? String(o.input || "") : "";
+        input.placeholder = o.placeholder || "";
+        return new Promise((resolve) => {
+          let done = false;
+          const finish = (val) => {
+            if (done) return;
+            done = true;
+            $("uiAskForm").removeEventListener("submit", onSubmit);
+            $("uiAskCancel").removeEventListener("click", onCancel);
+            dlg.removeEventListener("close", onClose);
+            if (dlg.open) dlg.close();
+            resolve(val);
+          };
+          const onSubmit = (e) => { e.preventDefault(); finish(wantsInput ? input.value : true); };
+          const onCancel = () => finish(wantsInput ? null : false);
+          const onClose = () => finish(wantsInput ? null : false);
+          $("uiAskForm").addEventListener("submit", onSubmit);
+          $("uiAskCancel").addEventListener("click", onCancel);
+          dlg.addEventListener("close", onClose);
+          dlg.showModal();
+          if (wantsInput) { input.focus(); input.select(); } else { $("uiAskOk").focus(); }
+        });
+      }
+      const uiConfirm = (message, o) => uiAsk(Object.assign({ message }, o || {}));
+      const uiPrompt = (message, value, o) => uiAsk(Object.assign({ message, input: value || "", title: "Name" }, o || {}));
+
+      // Any handler that forgets a try/catch still tells the user what went wrong.
+      window.addEventListener("unhandledrejection", (ev) => {
+        const err = ev.reason;
+        if (err && err.name === "AbortError") return;
+        toastError(err);
+      });
+
       async function apiJson(url, payload, signal) {
         const opts = payload === undefined
           ? { cache: "no-store", signal }
           : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload), signal };
-        const res = await fetch(url, opts);
+        let res;
+        try {
+          res = await fetch(url, opts);
+        } catch (err) {
+          if (err && err.name === "AbortError") throw err;
+          throw new Error("QAlprit is not responding. Check that the app is still running, then try again.");
+        }
         const text = await res.text();
         let data = {};
         try { data = text ? JSON.parse(text) : {}; } catch (_) { data = { error: text }; }
@@ -2106,31 +2443,88 @@
         b.addEventListener("click", () => { const d = $(b.dataset.closeDialog); if (d) d.close(); });
       });
 
-      // Navigation
-      function navigateTo(view) {
-        STATE.activeNav = view;
+      // Navigation & Settings Sub-Tabs
+      function switchSettingsTab(tab) {
+        STATE.settingsTab = tab || "env";
+        document.querySelectorAll("[data-settings-tab]").forEach((b) => {
+          b.setAttribute("aria-selected", b.dataset.settingsTab === STATE.settingsTab ? "true" : "false");
+        });
+        if ($("settings-pane-env")) $("settings-pane-env").hidden = STATE.settingsTab !== "env";
+        if ($("view-setup")) $("view-setup").hidden = STATE.settingsTab !== "devices";
+        if ($("settings-pane-storage")) $("settings-pane-storage").hidden = STATE.settingsTab !== "storage";
+        if (STATE.settingsTab === "storage") {
+          loadSystemPreflight();
+          loadCleanupTargets();
+        } else if (STATE.settingsTab === "devices") {
+          pollEmulatorStatus();
+        }
+      }
+      document.querySelectorAll("[data-settings-tab]").forEach((b) => {
+        b.addEventListener("click", () => switchSettingsTab(b.dataset.settingsTab));
+      });
+
+      function navigateTo(view, subTab) {
+        const target = view === "setup" ? "settings" : view;
+        const resolvedSub = view === "setup" ? "devices" : subTab;
+        STATE.activeNav = target;
         document.querySelectorAll(".nav-item[data-nav]").forEach((btn) => {
-          const match = btn.dataset.nav === view;
+          const match = btn.dataset.nav === target;
           btn.classList.toggle("is-active", match);
           if (match) btn.setAttribute("aria-current", "step");
           else btn.removeAttribute("aria-current");
         });
-        document.querySelectorAll(".view-pane").forEach((sec) => {
-          sec.hidden = sec.id !== ("view-" + view);
+        document.querySelectorAll("main > .view-pane").forEach((sec) => {
+          sec.hidden = sec.id !== ("view-" + target);
         });
-        if (view === "settings") {
-          loadSystemPreflight();
-          loadCleanupTargets();
+        document.querySelectorAll(".hide-on-record").forEach((el) => {
+          el.hidden = target === "record";
+        });
+        if (target === "record" && $("devicePopoverMenu") && $("devicePopoverMenu").hidePopover) {
+          try { $("devicePopoverMenu").hidePopover(); } catch (_) {}
+        }
+        if (target === "settings") {
+          switchSettingsTab(resolvedSub || STATE.settingsTab || "env");
         }
       }
       document.querySelectorAll(".nav-item[data-nav]").forEach((btn) => {
         btn.addEventListener("click", () => navigateTo(btn.dataset.nav));
       });
-      $("topDevicePill").addEventListener("click", () => navigateTo("setup"));
-      $("topAppPill").addEventListener("click", () => navigateTo("setup"));
-      $("btnOpenFlowsModal").addEventListener("click", () => {
-        if ($("topMoreMenu") && $("topMoreMenu").hidePopover) try { $("topMoreMenu").hidePopover(); } catch (_) {}
-        navigateTo("workflows");
+      $("topAppPill").addEventListener("click", () => navigateTo("settings", "env"));
+      if ($("btnTopGoDeviceSetup")) {
+        $("btnTopGoDeviceSetup").addEventListener("click", () => {
+          if ($("devicePopoverMenu") && $("devicePopoverMenu").hidePopover) try { $("devicePopoverMenu").hidePopover(); } catch (_) {}
+          navigateTo("settings", "devices");
+        });
+      }
+      if ($("btnMoreDeviceSetup")) {
+        $("btnMoreDeviceSetup").addEventListener("click", () => {
+          if ($("topMoreMenu") && $("topMoreMenu").hidePopover) try { $("topMoreMenu").hidePopover(); } catch (_) {}
+          navigateTo("settings", "devices");
+        });
+      }
+
+      function anchorPopover(menuEl, triggerEl) {
+        if (!menuEl || !triggerEl) return;
+        const r = triggerEl.getBoundingClientRect();
+        menuEl.style.top = `${Math.round(r.bottom + 6)}px`;
+        menuEl.style.right = `${Math.max(10, Math.round(window.innerWidth - r.right))}px`;
+        menuEl.style.left = "auto";
+        menuEl.style.bottom = "auto";
+      }
+      [
+        { menu: "topMoreMenu", trigger: "btnTopMore" },
+        { menu: "devicePopoverMenu", trigger: "topDevicePill" }
+      ].forEach(({ menu, trigger }) => {
+        const m = $(menu);
+        const t = $(trigger);
+        if (!m || !t) return;
+        t.addEventListener("click", () => anchorPopover(m, t));
+        m.addEventListener("beforetoggle", (e) => {
+          if (e.newState === "open") anchorPopover(m, t);
+        });
+        window.addEventListener("resize", () => {
+          if (m.matches(":popover-open")) anchorPopover(m, t);
+        });
       });
 
       // Host OS & Device Sync
@@ -2141,39 +2535,129 @@
           badge.textContent = isMac ? "macOS: Android + iOS" : (hostOs ? hostOs + ": Android" : "Detecting OS...");
           badge.className = "badge " + (isMac ? "b-ok" : "b-skip");
         }
-        if ($("iosSimRow")) $("iosSimRow").hidden = !isMac || !$("iosSimSelect") || !$("iosSimSelect").options.length;
+        if ($("iosSimRow")) $("iosSimRow").hidden = !isMac;
+        if ($("btnIosBoot") && $("iosSimSelect")) {
+          $("btnIosBoot").disabled = !isMac || !$("iosSimSelect").options.length || !$("iosSimSelect").value;
+        }
         if ($("envIosBundleField")) $("envIosBundleField").hidden = !isMac;
-        ["recPlatform", "inspectPlatform", "runPlatformSelect"].forEach((id) => {
+        ["recPlatform", "inspectPlatform", "runPlatformSelect", "topQuickPlat"].forEach((id) => {
           const sel = $(id);
           if (!sel) return;
           const iosOpt = Array.from(sel.options).find((o) => o.value === "ios");
-          if (iosOpt) { iosOpt.disabled = !isMac; iosOpt.textContent = isMac ? "ios" : "ios (macOS only)"; }
+          if (iosOpt) { iosOpt.disabled = !isMac; iosOpt.textContent = isMac ? "iOS" : "iOS (macOS)"; }
           if (!isMac && sel.value === "ios") sel.value = "android";
         });
       }
 
-      function syncDeviceSelects() {
-        const profiles = (STATE.overview && STATE.overview.device_profiles) || {};
+      function getDeviceOptionsForPlatform(plat) {
         const isMac = STATE.hostOs === "Darwin";
+        if (plat === "ios" && !isMac) return [];
+        const profiles = (STATE.overview && STATE.overview.device_profiles) || {};
+        const devs = STATE.devicesData || { android: [], ios: [] };
+        const opts = [];
+        const seen = new Set();
+        const addOpt = (value, label) => {
+          if (!value || seen.has(value)) return;
+          seen.add(value);
+          opts.push({ value, label });
+        };
+
+        if (plat === "ios") {
+          const bootedIos = (devs.ios || []).filter((x) => String(x.state || "").toLowerCase() === "booted");
+          bootedIos.forEach((x) => addOpt(`live:ios:${x.identifier}`, `${x.name} [Booted]`));
+          (devs.ios || [])
+            .filter((x) => String(x.state || "").toLowerCase() !== "booted")
+            .slice(0, 40)
+            .forEach((x) => addOpt(`sim:ios:${x.identifier}`, `${x.name} [Shutdown]`));
+          Object.entries(profiles)
+            .filter(([k, cfg]) => cfg.platform === "ios" && (k !== "ios_simulator" || opts.length === 0))
+            .forEach(([k, cfg]) => addOpt(k, `${cfg.device_name} (${k})`));
+          if (!opts.length) {
+            addOpt("ios_simulator", "iPhone Simulator (ios_simulator)");
+          }
+        } else {
+          const liveAnd = (devs.android || []).filter((x) => !String(x.identifier || "").startsWith("avd:"));
+          liveAnd.forEach((x) => addOpt(`live:android:${x.identifier}`, `${x.name} (${x.identifier}) [Booted]`));
+          (devs.android || [])
+            .filter((x) => String(x.identifier || "").startsWith("avd:"))
+            .forEach((x) => addOpt(`avd:${x.name}`, `${x.name} [Offline AVD]`));
+          Object.entries(profiles)
+            .filter(([k, cfg]) => cfg.platform === "android" && (k !== "android_emulator" || opts.length === 0))
+            .forEach(([k, cfg]) => addOpt(k, `${cfg.device_name} (${k})`));
+          if (!opts.length) {
+            addOpt("android_emulator", "Android Emulator (android_emulator)");
+          }
+        }
+        return opts;
+      }
+
+      function updateRecDeviceButtons() {
+        const plat = $("recPlatform") ? $("recPlatform").value : "android";
+        const devVal = $("recDeviceSelect") ? $("recDeviceSelect").value : "";
+        const emu = STATE.emuStatus || {};
+        const bootedAnd = (emu.running_android_emulators || []).length > 0 || (STATE.devicesData.android || []).some((d) => d.state === "device");
+        const bootedIos = (emu.ios_simulators || []).some((s) => String(s.state || "").toLowerCase() === "booted")
+          || (STATE.devicesData.ios || []).some((d) => String(d.state || "").toLowerCase() === "booted");
+        const isTargetBooted = devVal.startsWith("live:")
+          || (devVal === "ios_simulator" && bootedIos)
+          || (devVal === "android_emulator" && bootedAnd);
+        const anyPlatBooted = plat === "ios" ? bootedIos : bootedAnd;
+        if ($("btnRecBootDevice")) {
+          $("btnRecBootDevice").hidden = devVal.startsWith("live:") || devVal === "android_device" || devVal === "ios_device";
+          $("btnRecBootDevice").textContent = (anyPlatBooted && !isTargetBooted) ? "Switch & Boot" : "Boot";
+        }
+        if ($("btnRecShutdownDevice")) {
+          $("btnRecShutdownDevice").hidden = !anyPlatBooted;
+        }
+      }
+
+      function syncDeviceSelects(opts) {
+        const o = opts || {};
         const pairs = [
           { platId: "recPlatform", devId: "recDeviceSelect" },
           { platId: "inspectPlatform", devId: "inspectDeviceSelect" },
-          { platId: "runPlatformSelect", devId: "runDeviceSelect" }
+          { platId: "runPlatformSelect", devId: "runDeviceSelect" },
+          { platId: "topQuickPlat", devId: "topQuickDevice" }
         ];
         pairs.forEach(({ platId, devId }) => {
           const pSel = $(platId);
           const dSel = $(devId);
           if (!pSel || !dSel) return;
           const plat = pSel.value || "android";
-          const opts = Object.entries(profiles)
-            .filter(([, cfg]) => cfg.platform === plat && (isMac || cfg.platform !== "ios"))
-            .map(([k, cfg]) => ({ value: k, label: `${cfg.device_name} (${k})` }));
-          populateSelect(devId, opts);
+          const list = getDeviceOptionsForPlatform(plat);
+          const prev = dSel.value;
+          populateSelect(devId, list);
+          const sameUdidSwapped = prev.startsWith("sim:ios:")
+            ? `live:ios:${prev.slice("sim:ios:".length)}`
+            : (prev.startsWith("live:ios:") ? `sim:ios:${prev.slice("live:ios:".length)}` : "");
+          if (o.forcePreferBooted) {
+            const liveOpt = list.find((it) => it.value.startsWith("live:"));
+            if (liveOpt) dSel.value = liveOpt.value;
+          } else if (prev && list.some((it) => it.value === prev)) {
+            dSel.value = prev;
+          } else if (sameUdidSwapped && list.some((it) => it.value === sameUdidSwapped)) {
+            dSel.value = sameUdidSwapped;
+          } else if (o.preferBooted) {
+            const liveOpt = list.find((it) => it.value.startsWith("live:"));
+            if (liveOpt) dSel.value = liveOpt.value;
+          } else if (list.length) {
+            dSel.value = list[0].value;
+          }
         });
+        updateRecDeviceButtons();
       }
-      ["recPlatform", "inspectPlatform", "runPlatformSelect"].forEach((id) => {
-        if ($(id)) $(id).addEventListener("change", () => { syncDeviceSelects(); refreshRunSpecDropdown(); });
+      ["recPlatform", "inspectPlatform", "runPlatformSelect", "topQuickPlat"].forEach((id) => {
+        if ($(id)) $(id).addEventListener("change", () => {
+          const val = $(id).value;
+          if (id === "recPlatform" || id === "runPlatformSelect" || id === "topQuickPlat") {
+            switchTargetPlatformAndApp(val);
+          } else {
+            syncDeviceSelects({ preferBooted: true });
+          }
+          if (id === "runPlatformSelect") refreshRunSpecDropdown();
+        });
       });
+      if ($("recDeviceSelect")) $("recDeviceSelect").addEventListener("change", updateRecDeviceButtons);
 
       function updateTopbarSummary() {
         const ov = STATE.overview || {};
@@ -2190,23 +2674,35 @@
         const runningIos = (emu.ios_simulators || []).filter((s) => String(s.state || "").toLowerCase() === "booted");
         const dot = $("topDeviceDot");
         const lbl = $("topDeviceLabel");
+        const popBadge = $("topDevStatusBadge");
+        const popBox = $("topDevBootedBox");
+        const popText = $("topDevBootedText");
         if (runningAnd.length) {
           dot.className = "dot is-ok";
-          lbl.textContent = `Pixel emulator · Android 34`;
-          $("sbEmuText").textContent = "Emulator booted";
+          lbl.textContent = `${runningAnd[0]} · Android`;
+          $("sbEmuText").textContent = "Android booted";
+          if (popBadge) { popBadge.className = "badge b-ok"; popBadge.textContent = "Booted"; }
+          if (popBox && popText) { popBox.hidden = false; popText.textContent = `${runningAnd[0]} (Android)`; }
         } else if (runningIos.length) {
           dot.className = "dot is-ok";
           lbl.textContent = `${runningIos[0].name || "iOS Simulator"} · iOS`;
           $("sbEmuText").textContent = "Simulator booted";
+          if (popBadge) { popBadge.className = "badge b-ok"; popBadge.textContent = "Booted"; }
+          if (popBox && popText) { popBox.hidden = false; popText.textContent = `${runningIos[0].name} (iOS)`; }
         } else if ((emu.avds || []).length) {
           dot.className = "dot is-warn";
           lbl.textContent = `${emu.avds[0]} · Offline`;
-          $("sbEmuText").textContent = "Emulator offline";
+          $("sbEmuText").textContent = "Device offline";
+          if (popBadge) { popBadge.className = "badge b-warn"; popBadge.textContent = "Offline"; }
+          if (popBox) popBox.hidden = true;
         } else {
           dot.className = "dot";
           lbl.textContent = "No device booted";
-          $("sbEmuText").textContent = "No emulator booted";
+          $("sbEmuText").textContent = "No device booted";
+          if (popBadge) { popBadge.className = "badge b-skip"; popBadge.textContent = "Offline"; }
+          if (popBox) popBox.hidden = true;
         }
+        updateRecDeviceButtons();
       }
 
       // ================================================================
@@ -2238,10 +2734,40 @@
         secretLabel.appendChild(secretChk);
         secretLabel.appendChild(document.createTextNode("Secret"));
 
+        const moveUpBtn = document.createElement("button");
+        moveUpBtn.type = "button";
+        moveUpBtn.className = "btn btn-sm";
+        moveUpBtn.textContent = "↑";
+        moveUpBtn.title = "Move step up";
+        moveUpBtn.addEventListener("click", () => {
+          if (row.previousElementSibling) row.parentNode.insertBefore(row, row.previousElementSibling);
+        });
+
+        const moveDownBtn = document.createElement("button");
+        moveDownBtn.type = "button";
+        moveDownBtn.className = "btn btn-sm";
+        moveDownBtn.textContent = "↓";
+        moveDownBtn.title = "Move step down";
+        moveDownBtn.addEventListener("click", () => {
+          if (row.nextElementSibling) row.parentNode.insertBefore(row.nextElementSibling, row);
+        });
+
+        const dupBtn = document.createElement("button");
+        dupBtn.type = "button";
+        dupBtn.className = "btn btn-sm";
+        dupBtn.textContent = "⧉";
+        dupBtn.title = "Duplicate step";
+        dupBtn.addEventListener("click", () => {
+          const cloneData = readStepRows({ querySelectorAll: () => [row] })[0] || { tap: "" };
+          const clonedRow = createStepRowElement(cloneData);
+          if (row.parentNode) row.parentNode.insertBefore(clonedRow, row.nextSibling);
+        });
+
         const delBtn = document.createElement("button");
         delBtn.type = "button";
         delBtn.className = "btn btn-sm btn-danger";
         delBtn.textContent = "×";
+        delBtn.title = "Remove step";
         delBtn.addEventListener("click", () => row.remove());
 
         function applyFieldModes() {
@@ -2302,7 +2828,7 @@
         secretChk.checked = initSecret;
         applyFieldModes();
 
-        row.append(typeSel, targetIn, valueIn, secretLabel, delBtn);
+        row.append(typeSel, targetIn, valueIn, secretLabel, moveUpBtn, moveDownBtn, dupBtn, delBtn);
         return row;
       }
 
@@ -2366,13 +2892,6 @@
       // ================================================================
       // SHARED WORKFLOW / JOURNEY DETAIL + CSV DATASET VIEW (Mock 2)
       // ================================================================
-      function getDeviceOptionsForPlatform(plat) {
-        const profiles = (STATE.overview && STATE.overview.device_profiles) || {};
-        return Object.entries(profiles)
-          .filter(([, cfg]) => cfg.platform === plat)
-          .map(([k, cfg]) => ({ value: k, label: `${cfg.device_name} (${k})` }));
-      }
-
       function formatStepInlinePreview(step, rowData, variables) {
         if (!step) return '<span class="muted">No steps defined yet.</span>';
         const p = step.params || {};
@@ -2429,8 +2948,15 @@
         }
 
         if (!item) {
-          host.innerHTML = `<div class="panel"><div class="panel-body"><p class="muted" style="margin:0;">Create a ${isFlow ? "workflow" : "test journey"} with <strong>+</strong> or import a <code>.md</code> file to begin.</p></div></div>`;
+          host.innerHTML = `<div class="panel"><div class="panel-body" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;"><p class="muted" style="margin:0;">Create a ${isFlow ? "workflow" : "test journey"} with <strong>+</strong> or import a <code>.md</code> file to begin.</p>${isFlow ? `<button type="button" class="btn btn-primary btn-record-lg" data-flow-record-new><span class="rec-btn-dot"></span> Record New</button>` : ""}</div></div>`;
           return;
+        }
+
+        // A workflow recorded on one platform opens on that platform. The user can still switch after.
+        if (isFlow && STATE.flowPlatformFor !== item.name) {
+          STATE.flowPlatformFor = item.name;
+          const own = (item.platforms || []).filter((p) => p !== "ios" || STATE.hostOs === "Darwin");
+          if (own.length && !own.includes(STATE.flowPlatform)) STATE.flowPlatform = own[0];
         }
 
         const bundle = item.datasets || { variables: [], secret_columns: [], rows: [] };
@@ -2460,7 +2986,7 @@
               </div>
             </div>
             <div class="btn-row">
-              <button type="button" class="btn" data-ds-tab-jump="steps">Edit steps</button>
+              ${isFlow ? `<button type="button" class="btn btn-primary btn-record-lg" id="btnWorkflowRecordNew" data-flow-record-new><span class="rec-btn-dot"></span> Record New</button>` : `<button type="button" class="btn" data-ds-tab-jump="steps">Edit steps</button>`}
               <button type="button" class="btn btn-sm" data-ds-dup>Duplicate</button>
               <button type="button" class="btn btn-sm btn-danger" data-ds-del>Delete</button>
             </div>
@@ -2523,6 +3049,8 @@
                 <span class="step-preview-code">${formatStepInlinePreview((item.steps || [])[0], previewRow, variables)}</span>
               </div>
             </div>
+
+            <div class="split-handle" data-split="dataset-right" role="separator" aria-orientation="vertical" tabindex="0" title="Drag to resize run configuration panel (double-click to reset)"></div>
 
             <div class="panel run-config-card">
               <span class="panel-kicker">Run Configuration</span>
@@ -2739,7 +3267,7 @@
               });
               await loadOverview({ skipAutoSync: true, preserveFormInputs: true });
             } catch (err) {
-              alert("CSV Import failed: " + err.message);
+              toastError(err, "CSV import failed");
             } finally {
               csvInput.value = "";
             }
@@ -2801,9 +3329,13 @@
             banner.className = "status-banner";
             banner.textContent = isDry ? "Validating execution plan..." : "Launching batch run...";
             try {
+              const rawDev = devSel ? devSel.value : "";
+              const resolvedDev = isDry
+                ? (rawDev.startsWith("sim:ios:") ? "ios_simulator" : (rawDev.startsWith("avd:") ? "android_emulator" : (rawDev || (plat === "ios" ? "ios_simulator" : "android_emulator"))))
+                : await resolveSelectedDeviceForAction(plat, rawDev);
               const res = await apiJson("/api/runs/start", {
                 platform: plat,
-                device_profile: devSel ? devSel.value : (plat === "ios" ? "ios_simulator" : "android_emulator"),
+                device_profile: resolvedDev,
                 env_name: envName,
                 suite: isFlow ? "" : item.suite,
                 spec_id: isFlow ? "" : item.id,
@@ -2958,7 +3490,7 @@
         });
         host.querySelector("[data-ds-del]").addEventListener("click", async () => {
           const label = isFlow ? item.name : item.id;
-          if (!window.confirm(`Delete '${label}' from disk?`)) return;
+          if (!(await uiConfirm(`Delete '${label}' from disk? This cannot be undone.`, { title: "Delete", okLabel: "Delete", danger: true }))) return;
           if (isFlow) {
             await apiJson("/api/flows/delete", { name: item.name });
             STATE.selectedFlowName = "";
@@ -3011,7 +3543,7 @@
 
       // Rail +New / Import buttons
       $("btnNewFlowRail").addEventListener("click", async () => {
-        const name = window.prompt("New workflow name (e.g. auth/login):", "auth/new_flow");
+        const name = await uiPrompt("Workflow name, for example auth/login", "auth/new_flow", { title: "New workflow", okLabel: "Create" });
         if (!name || !name.trim()) return;
         await apiJson("/api/flows/save", { name: name.trim(), params: [], steps: [{ wait: 1 }], notes: "" });
         STATE.selectedFlowName = name.trim();
@@ -3031,7 +3563,7 @@
       $("btnNewSpec").addEventListener("click", async () => {
         const specs = (STATE.overview && STATE.overview.specs) || [];
         const nextId = computeNextJourneyIdLocal("smoke", specs);
-        const title = window.prompt("New smoke journey title:", "Verify user login flow");
+        const title = await uiPrompt("Journey title", "Verify user login flow", { title: "New journey", okLabel: "Create" });
         if (!title || !title.trim()) return;
         await apiJson("/api/specs/save", {
           id: nextId,
@@ -3278,7 +3810,7 @@
               });
               startRunPolling();
             } catch (err) {
-              alert("Re-run failed: " + err.message);
+              toastError(err, "Re-run failed");
             }
           });
         }
@@ -3316,7 +3848,6 @@
       function syncRedactForEnv(envName) {
         const val = isEnvRedacted(envName);
         if ($("recRedactChk")) $("recRedactChk").checked = val;
-        if ($("recRedactMirrorChk")) $("recRedactMirrorChk").checked = val;
         if ($("runRedactChk")) $("runRedactChk").checked = val;
         if ($("runRedactEnvHint")) $("runRedactEnvHint").textContent = val ? `enabled in '${envName}'` : `off in '${envName}'`;
       }
@@ -3328,6 +3859,10 @@
         if (cfg.android_package) $("envAndroidPkg").value = cfg.android_package;
         if (cfg.ios_bundle_id) $("envIosBundle").value = cfg.ios_bundle_id;
         $("envRedactChk").checked = isEnvRedacted(envName);
+        if ($("setupEnvSummary")) {
+          const pkgBits = [cfg.android_package, STATE.hostOs === "Darwin" ? cfg.ios_bundle_id : ""].filter(Boolean).join(" / ");
+          $("setupEnvSummary").textContent = `Profile: ${envName}${pkgBits ? " · " + pkgBits : ""} · Timeout ${cfg.default_timeout || 12}s`;
+        }
         ["topEnvSelect", "envPresetSelect", "recEnvSelect", "inspectEnvSelect", "runEnvSelect"].forEach((id) => {
           const s = $(id);
           if (s && Array.from(s.options).some((o) => o.value === envName)) s.value = envName;
@@ -3354,12 +3889,15 @@
         const isAndroid = app.kind === "apk";
         const pkg = app.detected_package || "";
         $("activeAppSummary").textContent = `${app.name} (${app.kind}, ${fmtBytes(app.size_bytes)}${pkg ? ", " + pkg : ""})`;
-        if (STATE.hostOs === "Darwin") {
+        if ((STATE.hostOs === "Darwin" || isAndroid) && !options.preserveFormInputs) {
           const targetPlat = isAndroid ? "android" : "ios";
-          $("recPlatform").value = targetPlat;
-          $("inspectPlatform").value = targetPlat;
-          $("runPlatformSelect").value = targetPlat;
-          syncDeviceSelects();
+          if (targetPlat !== "ios" || STATE.hostOs === "Darwin") {
+            $("recPlatform").value = targetPlat;
+            $("inspectPlatform").value = targetPlat;
+            $("runPlatformSelect").value = targetPlat;
+            if ($("topQuickPlat")) $("topQuickPlat").value = targetPlat;
+            syncDeviceSelects({ preferBooted: false });
+          }
         }
         if (pkg && !options.preserveFormInputs) {
           if (isAndroid) $("envAndroidPkg").value = pkg;
@@ -3389,7 +3927,7 @@
         applyHostOsUi(STATE.hostOs);
         if (Array.isArray(data.step_vocabulary) && data.step_vocabulary.length) STATE.stepVocab = data.step_vocabulary;
 
-        $("verPill").textContent = "v" + (data.version || "0.1.30");
+        $("verPill").textContent = "v" + (data.version || "0.1.31");
         $("badgeApps").textContent = (data.apps || []).length + " apps";
         $("badgeScreens").textContent = String((data.screens || []).length);
         $("badgeFlows").textContent = String((data.flows || []).length);
@@ -3555,6 +4093,113 @@
       });
       $("btnCancelUpload").addEventListener("click", () => { if (STATE.uploadXhr) STATE.uploadXhr.abort(); });
 
+      function renderIosSimDropdown(iosList) {
+        const sel = $("iosSimSelect");
+        const isMac = STATE.hostOs === "Darwin";
+        if (!sel) return;
+        const sims = iosList || [];
+        if (sims.length) {
+          populateSelect("iosSimSelect", sims.slice(0, 25).map((s) => ({
+            value: s.identifier,
+            label: `${s.name} [${s.state || "Shutdown"}]`
+          })));
+        } else {
+          populateSelect("iosSimSelect", [], isMac ? "No iOS Simulators installed (check Xcode)" : "macOS required");
+        }
+        if ($("iosSimRow")) $("iosSimRow").hidden = !isMac;
+        if ($("btnIosBoot")) $("btnIosBoot").disabled = !isMac || !sims.length;
+      }
+
+      function switchTargetPlatformAndApp(plat) {
+        if (plat === "ios" && STATE.hostOs !== "Darwin") return;
+        ["recPlatform", "inspectPlatform", "runPlatformSelect", "topQuickPlat"].forEach((id) => {
+          if ($(id)) $(id).value = plat;
+        });
+        STATE.flowPlatform = plat;
+        STATE.specPlatform = plat;
+        const apps = (STATE.overview && STATE.overview.apps) || [];
+        const currentApp = apps.find((a) => a.rel_path === STATE.activeApp);
+        const currentMatches = currentApp && ((plat === "android" && currentApp.kind === "apk") || (plat === "ios" && currentApp.kind !== "apk"));
+        if (!currentMatches) {
+          const matchingApp = apps.find((a) => (plat === "android" ? a.kind === "apk" : a.kind !== "apk"));
+          if (matchingApp) selectSessionApp(matchingApp.rel_path, { autoSave: false, preserveFormInputs: true });
+        }
+        syncDeviceSelects({ preferBooted: false });
+      }
+
+      async function resolveSelectedDeviceForAction(plat, rawVal) {
+        const val = String(rawVal || "").trim();
+        if (val.startsWith("sim:ios:")) {
+          return `live:ios:${val.slice("sim:ios:".length)}`;
+        }
+        if (val.startsWith("avd:")) {
+          return val;
+        }
+        if (val) return val;
+        return plat === "ios" ? "ios_simulator" : "android_emulator";
+      }
+
+      async function bootAndroidTarget(avdName, switchFirst) {
+        const msgBanner = STATE.activeNav === "record" ? "recStatusBanner" : "emuStatusBanner";
+        try {
+          if (switchFirst) await apiJson("/api/emulator/shutdown", { target: "android" });
+          const res = await apiJson("/api/emulator/boot", avdName ? { target: "android", avd_name: avdName } : { target: "android" });
+          switchTargetPlatformAndApp("android");
+          if (res.already_running) {
+            showBanner(msgBanner, `Android Emulator ready (${res.serial}).`, "ok");
+            pollEmulatorStatus();
+            runPreflightChecks({ devices: true, doctor: false });
+          } else {
+            showBanner(msgBanner, `Booting Android Emulator${avdName ? " (" + avdName + ")" : ""}...`, "info");
+            startEmulatorPolling();
+          }
+        } catch (err) {
+          showBanner(msgBanner, err.message, "error");
+        }
+      }
+
+      async function bootIosTarget(udid, switchFirst) {
+        const msgBanner = STATE.activeNav === "record" ? "recStatusBanner" : "emuStatusBanner";
+        try {
+          if (switchFirst) await apiJson("/api/emulator/shutdown", { target: "ios" });
+          const chosen = udid || ($("iosSimSelect") ? $("iosSimSelect").value : "");
+          const res = await apiJson("/api/emulator/boot", { target: "ios", udid: chosen });
+          showBanner(msgBanner, `iOS Simulator booted: ${res.name || "Simulator"}`, "ok");
+          await pollEmulatorStatus();
+          await runPreflightChecks({ devices: true, doctor: false });
+          switchTargetPlatformAndApp("ios");
+          if (res.identifier && $("recDeviceSelect")) {
+            const liveKey = `live:ios:${res.identifier}`;
+            if (Array.from($("recDeviceSelect").options).some((o) => o.value === liveKey)) {
+              $("recDeviceSelect").value = liveKey;
+            }
+          }
+          updateRecDeviceButtons();
+        } catch (err) {
+          showBanner(msgBanner, err.message, "error");
+        }
+      }
+
+      async function shutdownDeviceTarget(target, identifier, opts) {
+        const o = opts || {};
+        const msgBanner = STATE.activeNav === "record" ? "recStatusBanner" : "emuStatusBanner";
+        try {
+          if (STATE.recState && (STATE.recState.active || STATE.recState.starting)) {
+            await apiJson("/api/recorder/stop", {});
+          }
+          const res = await apiJson("/api/emulator/shutdown", { target: target || "all", identifier: identifier || "" });
+          applyRecorderState(Object.assign({}, STATE.recState || {}, { active: false, starting: false, status: "idle", has_screenshot: false, elements: [] }));
+          if (!o.quiet) {
+            const count = (res.killed_android || []).length + (res.shutdown_ios || []).length;
+            showBanner(msgBanner, count ? `Shut down ${count} virtual device(s).` : "No running virtual devices to shut down.", "ok");
+          }
+          await pollEmulatorStatus();
+          await runPreflightChecks({ devices: true, doctor: false });
+        } catch (err) {
+          if (!o.quiet) showBanner(msgBanner, err.message, "error");
+        }
+      }
+
       async function runPreflightChecks(opts) {
         const o = Object.assign({ devices: true, doctor: true }, opts || {});
         if (STATE.preflightAbort) STATE.preflightAbort.abort();
@@ -3565,16 +4210,39 @@
         try {
           if (o.devices) {
             const d = await apiJson("/api/devices", undefined, ctrl.signal);
+            STATE.devicesData = { android: d.android || [], ios: d.ios || [] };
+            if ((d.ios || []).length) renderIosSimDropdown(d.ios);
+            syncDeviceSelects();
             const rows = [];
-            (d.android || []).forEach((x) => rows.push(`<tr><td>Android</td><td>${esc(x.name)}</td><td><code>${esc(x.identifier)}</code></td><td><span class="badge ${x.state === "device" ? "b-ok" : "b-warn"}">${esc(x.state)}</span></td></tr>`));
-            (d.ios || []).slice(0, 12).forEach((x) => rows.push(`<tr><td>iOS</td><td>${esc(x.name)}</td><td><code>${esc(x.identifier)}</code></td><td><span class="badge ${x.state === "Booted" ? "b-ok" : "b-skip"}">${esc(x.state)}</span></td></tr>`));
-            $("devicesTable").innerHTML = rows.length ? rows.join("") : '<tr><td colspan="4" class="muted">No devices or simulators detected.</td></tr>';
+            (d.android || []).forEach((x) => {
+              const isAvd = String(x.state || "").toLowerCase().includes("avd");
+              const isEmuRunning = !isAvd && String(x.identifier || "").startsWith("emulator-") && x.state === "device";
+              const act = isAvd
+                ? `<button type="button" class="btn btn-sm btn-primary" data-boot-avd="${esc(x.name)}">Boot</button>`
+                : (isEmuRunning
+                  ? `<button type="button" class="btn btn-sm btn-danger" data-shutdown-android="${esc(x.identifier)}">Shutdown</button>`
+                  : (x.state === "device" ? '<span class="badge b-ok">Ready</span>' : '<span class="muted">-</span>'));
+              rows.push(`<tr><td>Android</td><td>${esc(x.name)}</td><td><code>${esc(x.identifier)}</code></td><td><span class="badge ${x.state === "device" ? "b-ok" : "b-warn"}">${esc(x.state)}</span></td><td>${act}</td></tr>`);
+            });
+            (d.ios || []).slice(0, 14).forEach((x) => {
+              const booted = String(x.state || "").toLowerCase() === "booted";
+              const act = booted
+                ? `<button type="button" class="btn btn-sm btn-danger" data-shutdown-ios="${esc(x.identifier)}">Shutdown</button>`
+                : `<button type="button" class="btn btn-sm btn-primary" data-boot-ios="${esc(x.identifier)}">Boot</button>`;
+              rows.push(`<tr><td>iOS</td><td>${esc(x.name)}</td><td><code>${esc(x.identifier)}</code></td><td><span class="badge ${booted ? "b-ok" : "b-skip"}">${esc(x.state)}</span></td><td>${act}</td></tr>`);
+            });
+            $("devicesTable").innerHTML = rows.length ? rows.join("") : '<tr><td colspan="5" class="muted">No devices or simulators detected.</td></tr>';
           }
           if (o.doctor) {
             const doc = await apiJson("/api/doctor", undefined, ctrl.signal);
             const checks = doc.checks || [];
             const fails = checks.filter((c) => c.status === "fail").length;
+            const warns = checks.filter((c) => c.status === "warn").length;
             $("sbToolchainText").textContent = fails ? `${fails} toolchain issue(s)` : "Toolchain OK";
+            if ($("doctorSummaryBadge")) {
+              $("doctorSummaryBadge").className = "badge " + (fails ? "b-fail" : (warns ? "b-warn" : "b-ok"));
+              $("doctorSummaryBadge").textContent = fails ? `${fails} issue(s)` : `${checks.length}/${checks.length} OK`;
+            }
             $("doctorTable").innerHTML = checks.map((c) => {
               const cls = c.status === "ok" ? "b-ok" : (c.status === "warn" ? "b-warn" : (c.status === "fail" ? "b-fail" : "b-skip"));
               return `<tr><td><strong>${esc(c.name)}</strong></td><td><span class="badge ${cls}">${esc(c.status)}</span></td><td>${esc(c.detail)}</td></tr>`;
@@ -3588,6 +4256,16 @@
           STATE.preflightAbort = null;
         }
       }
+      $("devicesTable").addEventListener("click", (e) => {
+        const avdBtn = e.target.closest("[data-boot-avd]");
+        if (avdBtn) { bootAndroidTarget(avdBtn.dataset.bootAvd); return; }
+        const iosBtn = e.target.closest("[data-boot-ios]");
+        if (iosBtn) { bootIosTarget(iosBtn.dataset.bootIos); return; }
+        const shutAndBtn = e.target.closest("[data-shutdown-android]");
+        if (shutAndBtn) { shutdownDeviceTarget("android", shutAndBtn.dataset.shutdownAndroid); return; }
+        const shutIosBtn = e.target.closest("[data-shutdown-ios]");
+        if (shutIosBtn) { shutdownDeviceTarget("ios", shutIosBtn.dataset.shutdownIos); }
+      });
       $("btnRunPreflight").addEventListener("click", () => runPreflightChecks({ devices: true, doctor: true }));
       $("btnRefreshDevices").addEventListener("click", () => runPreflightChecks({ devices: true, doctor: false }));
       $("btnRunDoctor").addEventListener("click", () => runPreflightChecks({ devices: false, doctor: true }));
@@ -3596,17 +4274,22 @@
       async function pollEmulatorStatus() {
         try {
           const st = await apiJson("/api/emulator/status");
-          STATE.emuStatus = st;
+          const env = st.env_status || st;
+          const isBusy = Boolean(st.running ?? st.busy);
+          STATE.emuStatus = Object.assign({}, st, env, { busy: isBusy });
           const badge = $("emuStatusBadge");
-          const running = st.running_android_emulators || [];
-          const iosSims = st.ios_simulators || [];
-          if ($("iosSimSelect") && st.ios_supported && iosSims.length) {
-            populateSelect("iosSimSelect", iosSims.slice(0, 25).map((s) => ({ value: s.identifier, label: `${s.name} [${s.state}]` })));
-            if ($("iosSimRow")) $("iosSimRow").hidden = false;
-          } else if ($("iosSimRow")) {
-            $("iosSimRow").hidden = true;
-          }
-          if (st.busy) {
+          const running = env.running_android_emulators || [];
+          const avds = env.avds || [];
+          const iosSims = env.ios_simulators || [];
+          const bootedIos = iosSims.filter((s) => String(s.state || "").toLowerCase() === "booted");
+          const iosSupported = Boolean(env.ios_supported || STATE.hostOs === "Darwin");
+          if (iosSims.length) STATE.devicesData.ios = iosSims;
+          if (iosSupported) renderIosSimDropdown(iosSims);
+          else if ($("iosSimRow")) $("iosSimRow").hidden = true;
+          if ($("btnIosShutdown")) $("btnIosShutdown").hidden = !bootedIos.length;
+
+          if (st.error) showBanner("emuStatusBanner", st.error, "error");
+          if (isBusy) {
             badge.className = "badge b-warn";
             badge.textContent = st.phase || "Working...";
             $("emuProgressBox").hidden = false;
@@ -3616,12 +4299,13 @@
             $("btnEmuSetup").hidden = true; $("btnEmuBoot").hidden = true; $("btnEmuStop").hidden = false;
           } else {
             $("emuProgressBox").hidden = true;
-            $("btnEmuStop").hidden = true;
+            $("btnEmuStop").hidden = !running.length;
             if (running.length) {
               badge.className = "badge b-ok"; badge.textContent = `Booted (${running[0]})`;
               $("btnEmuSetup").hidden = true; $("btnEmuBoot").hidden = true;
-            } else if ((st.avds || []).length) {
-              badge.className = "badge b-warn"; badge.textContent = "Installed (Offline)";
+            } else if (avds.length) {
+              badge.className = "badge b-warn"; badge.textContent = `Installed (${avds[0]})`;
+              $("btnEmuBoot").textContent = `Boot Android (${avds[0]})`;
               $("btnEmuSetup").hidden = true; $("btnEmuBoot").hidden = false;
             } else {
               badge.className = "badge b-skip"; badge.textContent = "Not Installed";
@@ -3629,6 +4313,7 @@
             }
             if (STATE.emuPollTimer) { clearInterval(STATE.emuPollTimer); STATE.emuPollTimer = null; }
           }
+          syncDeviceSelects();
           updateTopbarSummary();
         } catch (_) {}
       }
@@ -3638,23 +4323,37 @@
         pollEmulatorStatus();
       }
       $("btnEmuSetup").addEventListener("click", async () => {
-        if (!window.confirm("Download & create Android 34 Virtual Emulator (QAlprit_Pixel, ~1.8 GB)?")) return;
+        if (!(await uiConfirm("Download and create the Android 34 emulator (QAlprit_Pixel)? The download is about 1.8 GB.", { title: "Set up Android emulator", okLabel: "Download" }))) return;
         await apiJson("/api/emulator/setup", {});
         startEmulatorPolling();
       });
-      $("btnEmuBoot").addEventListener("click", async () => {
-        const res = await apiJson("/api/emulator/boot", { target: "android" });
-        if (!res.already_running) startEmulatorPolling();
-        else pollEmulatorStatus();
-      });
-      $("btnEmuStop").addEventListener("click", async () => { await apiJson("/api/emulator/stop", {}); pollEmulatorStatus(); });
-      $("btnIosBoot").addEventListener("click", async () => {
-        try {
-          const res = await apiJson("/api/emulator/boot", { target: "ios", udid: $("iosSimSelect").value });
-          showBanner("emuStatusBanner", `iOS Simulator booted: ${res.name}`, "ok");
-          pollEmulatorStatus();
-        } catch (err) { showBanner("emuStatusBanner", err.message, "error"); }
-      });
+      $("btnEmuBoot").addEventListener("click", () => bootAndroidTarget(""));
+      $("btnEmuStop").addEventListener("click", () => shutdownDeviceTarget("android", ""));
+      $("btnIosBoot").addEventListener("click", () => bootIosTarget($("iosSimSelect").value));
+      if ($("btnIosShutdown")) $("btnIosShutdown").addEventListener("click", () => shutdownDeviceTarget("ios", ""));
+
+      if ($("btnTopBootDevice")) {
+        $("btnTopBootDevice").addEventListener("click", async () => {
+          const plat = $("topQuickPlat").value;
+          const val = $("topQuickDevice").value;
+          if ($("devicePopoverMenu") && $("devicePopoverMenu").hidePopover) try { $("devicePopoverMenu").hidePopover(); } catch (_) {}
+          if (plat === "ios") {
+            const udid = val.startsWith("sim:ios:") ? val.slice(8) : (val.startsWith("live:ios:") ? val.slice(9) : "");
+            const booted = ((STATE.devicesData && STATE.devicesData.ios) || []).some((s) => String(s.state || "").toLowerCase() === "booted");
+            await bootIosTarget(udid, booted && !val.startsWith("live:"));
+          } else {
+            const avd = val.startsWith("avd:") ? val.slice(4) : "";
+            const booted = ((STATE.emuStatus && STATE.emuStatus.running_android_emulators) || []).length > 0;
+            await bootAndroidTarget(avd, booted && !val.startsWith("live:"));
+          }
+        });
+      }
+      if ($("btnTopShutdownDevice")) {
+        $("btnTopShutdownDevice").addEventListener("click", async () => {
+          if ($("devicePopoverMenu") && $("devicePopoverMenu").hidePopover) try { $("devicePopoverMenu").hidePopover(); } catch (_) {}
+          await shutdownDeviceTarget("all", "");
+        });
+      }
 
       // ================================================================
       // RECORD VIEW (Mock 1)
@@ -3728,23 +4427,28 @@
       function renderRecorderSteps(steps) {
         const list = steps || [];
         $("recStepCount").textContent = String(list.length);
+        $("btnRecSaveAll").disabled = !list.length;
+        $("btnRecUndo").disabled = !list.length;
         if (!list.length) {
-          $("recStepsList").innerHTML = '<div class="muted" style="padding:18px 14px;">Click an element on the mirrored device to record steps.</div>';
+          $("recStepsList").innerHTML = '<div class="muted" style="padding:18px 14px;">No steps yet. Click a control on the device screen to record one.</div>';
+          syncRecStepEditBar(null);
           return;
         }
         $("recStepsList").innerHTML = list.map((s, idx) => {
           const actCls = s.action === "tap" ? " is-tap" : (String(s.action).startsWith("assert") ? " is-assert" : "");
           const actLabel = s.action === "assert_text" ? "assert" : s.action;
           const valParts = [];
-          if (s.value) valParts.push(s.value);
+          // Secret values stay out of the list so a shared screen or screenshot does not leak them.
+          if (s.value) valParts.push(s.secret && !/^\$\{[^}]+\}$/.test(String(s.value)) ? "\u2022\u2022\u2022\u2022\u2022\u2022" : s.value);
           if (s.secret) valParts.push("secret");
-          return `<div class="rec-step-row${STATE.recSelectedStepIdx === idx ? " is-selected" : ""}" data-rec-step-idx="${idx}">
+          return `<div class="rec-step-row${STATE.recSelectedStepIdx === idx ? " is-selected" : ""}" data-rec-step-idx="${idx}" draggable="true" title="Click to edit/reorder, or drag to rearrange">
             <span class="rec-step-num">${idx + 1}</span>
             <span class="rec-step-act${actCls}">${esc(actLabel)}</span>
             <span class="rec-step-target">${esc(s.target || s.label || "")}</span>
             <span class="rec-step-val">${esc(valParts.join(" · "))}</span>
           </div>`;
         }).join("");
+        syncRecStepEditBar(STATE.recSelectedStepIdx);
       }
 
       function openTypePromptForElement(idx) {
@@ -3756,6 +4460,7 @@
         $("recTypeTargetLabel").textContent = el.display_label || el.key;
         $("recTypeTargetKey").textContent = `${$("recScreenName").value.trim() || "login"}.${el.key}`;
         $("recTypeSecret").checked = Boolean(el.suggested_sensitive);
+        $("recTypeInput").type = el.suggested_sensitive ? "password" : "text";
         $("recTypeInput").value = "";
         $("recTypeInput").focus();
         updateInspectorForElement(el);
@@ -3789,15 +4494,42 @@
 
         const pill = $("recLivePill");
         const dot = $("recLiveDot");
+        const failed = !active && !starting && st.status === "failed";
+        const stepCount = (st.steps || []).length;
         pill.classList.toggle("is-live", active);
-        dot.className = "dot" + (active ? " is-ok" : (st.status === "failed" ? " is-fail" : ""));
-        $("recMirrorMeta").textContent = active ? `Live · ${st.screen_width}×${st.screen_height}` : (starting ? "Starting..." : "Idle");
-        if (st.error) showBanner("recStatusBanner", st.error, "error");
+        pill.classList.toggle("is-busy", active && STATE.recBusy);
+        $("recPhoneFrame").classList.toggle("is-busy", active && STATE.recBusy);
+        dot.className = "dot" + (active ? " is-ok" : (failed ? " is-fail" : ""));
+        $("recMirrorMeta").textContent = active
+          ? (STATE.recBusy ? "Working..." : `Live · ${st.screen_width}×${st.screen_height}`)
+          : (starting ? "Starting..." : (failed ? "Session lost" : "Idle"));
+        if (st.error) {
+          showBanner("recStatusBanner", st.error + (failed && stepCount ? ` Your ${stepCount} recorded step(s) are kept. Save them, or start a new recording.` : ""), "error");
+        }
+        if (st.notice_rev !== undefined && st.notice_rev !== STATE.recNoticeRev) {
+          if (STATE.recNoticeRev !== null && st.notice) toast(st.notice, "warn", 7000);
+          STATE.recNoticeRev = st.notice_rev;
+        }
+        ["recPlatform", "recDeviceSelect", "recAppSelect", "recEnvSelect", "recFlowNameInput", "btnRecQuickUpload"].forEach((id) => {
+          if ($(id)) $(id).disabled = active || starting;
+        });
+        $("recGestureRow").querySelectorAll("button").forEach((b) => { b.disabled = !active; });
 
         if (active || starting) {
           const rOn = st.redact_sensitive !== undefined ? Boolean(st.redact_sensitive) : true;
           $("recRedactChk").checked = rOn;
-          $("recRedactMirrorChk").checked = rOn;
+          // A reloaded page shows the running session's platform, env and flow, not the defaults.
+          if (st.platform && $("recPlatform").value !== st.platform) {
+            $("recPlatform").value = st.platform;
+            $("recPlatform").dispatchEvent(new Event("change", { bubbles: true }));
+          }
+          if (st.env_name && $("recEnvSelect").value !== st.env_name
+              && Array.from($("recEnvSelect").options).some((o) => o.value === st.env_name)) {
+            $("recEnvSelect").value = st.env_name;
+          }
+          if (st.flow_name && $("recFlowNameInput").value !== st.flow_name && document.activeElement !== $("recFlowNameInput")) {
+            syncFlowNameFields(st.flow_name);
+          }
         }
         if (active) {
           $("recPhoneEmpty").hidden = Boolean(st.has_screenshot);
@@ -3805,10 +4537,24 @@
           if (st.has_screenshot && st.rev !== STATE.recLastRev) {
             STATE.recLastRev = st.rev;
             $("recPhoneImg").src = "/api/recorder/screenshot?rev=" + encodeURIComponent(st.rev);
+          } else if (!st.has_screenshot) {
+            $("recPhoneImg").removeAttribute("src");
+            $("recOverlays").innerHTML = "";
           }
           renderRecorderElements(st.elements || [], $("recElFilter").value);
-          renderRecorderSteps(st.steps || []);
+        } else if (!starting) {
+          $("recPhoneImg").hidden = true;
+          $("recPhoneImg").removeAttribute("src");
+          $("recOverlays").innerHTML = "";
+          $("recPhoneEmpty").hidden = false;
+          $("recTypeBar").hidden = true;
+          $("recAssertBar").hidden = true;
+          STATE.recSelectedIdx = null;
+          STATE.recLastRev = -1;
+          renderRecorderElements([], "");
         }
+        // Steps outlive the session, so a stopped or dropped recording can still be saved.
+        renderRecorderSteps(st.steps || []);
       }
 
       async function pollRecorderStatus() {
@@ -3822,58 +4568,174 @@
         if (STATE.recPollTimer) clearInterval(STATE.recPollTimer);
         STATE.recPollTimer = setInterval(pollRecorderStatus, 1100);
       }
-      async function runRecorderAction(payload) {
+      function setRecBusy(on) {
+        STATE.recBusy = Boolean(on);
+        if (STATE.recState) applyRecorderState(STATE.recState);
+      }
+      // One device action at a time: a second click while the first is running would hit a stale screen.
+      async function recorderCall(url, payload) {
+        if (STATE.recBusy) return null;
+        setRecBusy(true);
         try {
-          const st = await apiJson("/api/recorder/action", Object.assign({ screen_name: $("recScreenName").value.trim() || "login" }, payload));
+          const st = await apiJson(url, payload || {});
+          STATE.recBusy = false;
+          if (st && st.selected_index !== undefined && st.selected_index !== null) STATE.recSelectedStepIdx = st.selected_index;
           applyRecorderState(st);
           showBanner("recStatusBanner", "", "");
-        } catch (err) { showBanner("recStatusBanner", err.message, "error"); }
+          return st;
+        } catch (err) {
+          STATE.recBusy = false;
+          showBanner("recStatusBanner", err.message, "error");
+          pollRecorderStatus();
+          return null;
+        }
+      }
+      function runRecorderAction(payload) {
+        const body = Object.assign({ screen_name: $("recScreenName").value.trim() || "login" }, payload);
+        if (body.element_index !== undefined) {
+          // Send the locator too, so the server can spot that the screen changed under the click.
+          const el = ((STATE.recState && STATE.recState.elements) || [])[body.element_index];
+          if (el) {
+            body.locator_strategy = el.recommended_strategy || "";
+            body.locator_value = el.recommended_value || "";
+          }
+        }
+        STATE.recDirty = true;
+        return recorderCall("/api/recorder/action", body);
+      }
+
+      function flowToScreenPrefix(flowName) {
+        const clean = String(flowName || "").trim().split("/").pop() || "recorded_flow";
+        const slug = clean.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+        return slug || "recorded_flow";
+      }
+      function syncFlowNameFields(rawVal, sourceId) {
+        const val = String(rawVal || "").trim() || "recorded_flow";
+        if (sourceId !== "recFlowNameInput" && $("recFlowNameInput")) $("recFlowNameInput").value = val;
+        if ($("recSaveFlowName")) $("recSaveFlowName").value = val;
+        if ($("recSaveFlowLabel")) $("recSaveFlowLabel").textContent = `flows/${val}.md`;
+        if ($("recScreenName")) $("recScreenName").value = flowToScreenPrefix(val);
+      }
+      if ($("recFlowNameInput")) {
+        $("recFlowNameInput").addEventListener("input", () => syncFlowNameFields($("recFlowNameInput").value, "recFlowNameInput"));
+      }
+      if ($("recScreenName")) {
+        $("recScreenName").value = flowToScreenPrefix(($("recFlowNameInput") && $("recFlowNameInput").value) || "recorded_flow");
+      }
+
+      if ($("btnRecShutdownDevice")) {
+        $("btnRecShutdownDevice").addEventListener("click", () => shutdownDeviceTarget($("recPlatform").value, ""));
+      }
+      if ($("btnRecQuickUpload") && $("recQuickAppFile")) {
+        $("btnRecQuickUpload").addEventListener("click", () => $("recQuickAppFile").click());
+        $("recQuickAppFile").addEventListener("change", async () => {
+          const file = $("recQuickAppFile").files[0];
+          if (!file) return;
+          try {
+            showBanner("recStatusBanner", `Uploading ${file.name}...`, "info");
+            const resp = await fetch("/api/apps/upload?filename=" + encodeURIComponent(file.name), {
+              method: "POST",
+              headers: { "Content-Type": "application/octet-stream" },
+              body: file
+            });
+            const res = await resp.json();
+            if (!resp.ok) throw new Error(res.error || "Upload failed");
+            STATE.activeApp = res.rel_path;
+            await loadOverview({ skipAutoSync: true });
+            await selectSessionApp(res.rel_path, { autoSave: true });
+            showBanner("recStatusBanner", `Activated ${res.name}.`, "ok");
+          } catch (err) {
+            showBanner("recStatusBanner", err.message, "error");
+          } finally {
+            $("recQuickAppFile").value = "";
+          }
+        });
       }
 
       $("btnRecStart").addEventListener("click", async () => {
+        const kept = ((STATE.recState && STATE.recState.steps) || []).length;
+        if (kept && STATE.recDirty) {
+          const go = await uiConfirm(`Starting a new recording discards ${kept} unsaved step(s).`, { title: "Discard unsaved steps?", okLabel: "Discard and start", danger: true });
+          if (!go) return;
+        }
+        if (!$("recAppSelect").value) { showBanner("recStatusBanner", "Choose an app binary first. Use + to upload an .apk, .ipa or .zip.", "error"); return; }
+        STATE.recDirty = false;
+        STATE.recBusy = false;
+        STATE.recNoticeRev = 0;
+        STATE.recSelectedStepIdx = null;
+        $("btnRecGoRun").hidden = true;
+        $("btnRecStart").disabled = true;
         STATE.recLastRev = -1;
         STATE.recSelectedIdx = null;
         $("recTypeBar").hidden = true;
         $("recAssertBar").hidden = true;
+        const flowName = ($("recFlowNameInput") ? $("recFlowNameInput").value.trim() : "") || $("recSaveFlowName").value.trim() || "recorded_flow";
+        syncFlowNameFields(flowName);
+        showBanner("recStatusBanner", "", "");
+        $("recProgressBox").hidden = false;
+        $("recProgressText").textContent = "Booting device & starting Appium session...";
         try {
+          const plat = $("recPlatform").value;
+          const rawDev = $("recDeviceSelect").value;
+          if (rawDev.startsWith("sim:ios:") || rawDev.startsWith("avd:")) {
+            const emu = STATE.emuStatus || {};
+            const otherBooted = plat === "ios"
+              ? ((emu.ios_simulators || []).some((s) => String(s.state || "").toLowerCase() === "booted") || (STATE.devicesData.ios || []).some((d) => String(d.state || "").toLowerCase() === "booted"))
+              : ((emu.running_android_emulators || []).length > 0 || (STATE.devicesData.android || []).some((d) => !String(d.identifier || "").startsWith("avd:") && d.state === "device"));
+            if (otherBooted) {
+              $("recProgressText").textContent = "Switching virtual device to selected target...";
+              await apiJson("/api/emulator/shutdown", { target: plat });
+            }
+          }
+          const resolvedDev = await resolveSelectedDeviceForAction(plat, rawDev);
           await apiJson("/api/recorder/start", {
-            platform: $("recPlatform").value,
-            device_profile: $("recDeviceSelect").value,
+            platform: plat,
+            device_profile: resolvedDev,
             env_name: $("recEnvSelect").value,
             app_path: $("recAppSelect").value,
-            screen_name: $("recScreenName").value.trim() || "login",
-            flow_name: $("recSaveFlowName").value.trim() || "recorded_flow",
+            screen_name: $("recScreenName").value.trim() || flowToScreenPrefix(flowName),
+            flow_name: flowName,
             redact_sensitive: $("recRedactChk").checked
           });
           startRecorderPolling();
           await pollRecorderStatus();
-        } catch (err) { showBanner("recStatusBanner", err.message, "error"); }
+          runPreflightChecks({ devices: true, doctor: false });
+          pollEmulatorStatus();
+        } catch (err) {
+          $("recProgressBox").hidden = true;
+          $("btnRecStart").disabled = false;
+          showBanner("recStatusBanner", err.message, "error");
+        }
       });
       $("btnRecStop").addEventListener("click", async () => {
-        await apiJson("/api/recorder/stop", {});
-        pollRecorderStatus();
-      });
-      $("btnRecSync").addEventListener("click", async () => {
-        const st = await apiJson("/api/recorder/sync", { screen_name: $("recScreenName").value.trim() || "login" });
-        applyRecorderState(st);
-      });
-      async function toggleLiveRedaction(enabled) {
-        $("recRedactChk").checked = enabled;
-        $("recRedactMirrorChk").checked = enabled;
-        if (STATE.recState && STATE.recState.active) {
-          applyRecorderState(await apiJson("/api/recorder/redaction", { enabled }));
+        const stopPlat = (STATE.recState && STATE.recState.platform) || $("recPlatform").value || "all";
+        $("btnRecStop").disabled = true;
+        showBanner("recStatusBanner", "Stopping the recording and shutting down the virtual device...", "info");
+        try {
+          await apiJson("/api/recorder/stop", {});
+          await shutdownDeviceTarget(stopPlat, "", { quiet: false });
+          const kept = ((STATE.recState && STATE.recState.steps) || []).length;
+          showBanner("recStatusBanner", kept && STATE.recDirty ? `Recording stopped. ${kept} step(s) are still here. Click Save workflow to keep them.` : "Recording stopped.", "info");
+        } catch (err) {
+          showBanner("recStatusBanner", err.message, "error");
+        } finally {
+          $("btnRecStop").disabled = false;
+          STATE.recBusy = false;
+          pollRecorderStatus();
         }
+      });
+      if ($("recEnvSelect")) {
+        $("recEnvSelect").addEventListener("change", () => loadEnvIntoForm($("recEnvSelect").value));
       }
-      $("recRedactChk").addEventListener("change", () => toggleLiveRedaction($("recRedactChk").checked));
-      $("recRedactMirrorChk").addEventListener("change", () => toggleLiveRedaction($("recRedactMirrorChk").checked));
+      $("btnRecSync").addEventListener("click", () => recorderCall("/api/recorder/sync", { screen_name: $("recScreenName").value.trim() || "login" }));
+      $("recRedactChk").addEventListener("change", () => {
+        if (STATE.recState && STATE.recState.active) recorderCall("/api/recorder/redaction", { enabled: $("recRedactChk").checked });
+      });
 
       document.querySelectorAll("[data-rec-mode]").forEach((b) => {
         b.addEventListener("click", () => {
           STATE.recMode = b.dataset.recMode;
           document.querySelectorAll("[data-rec-mode]").forEach((x) => x.classList.toggle("is-active", x === b));
-          if (STATE.recMode === "wait" && STATE.recState && STATE.recState.active) {
-            runRecorderAction({ action: "wait", value: "2" });
-          }
         });
       });
       document.querySelectorAll("[data-rec-insp-tab]").forEach((b) => {
@@ -3908,7 +4770,7 @@
       });
       $("recPhoneImg").addEventListener("click", (e) => {
         const st = STATE.recState;
-        if (!st || !st.active) return;
+        if (!st || !st.active || STATE.recBusy) return;
         const rect = e.target.getBoundingClientRect();
         if (!rect.width || !rect.height) return;
         const x = ((e.clientX - rect.left) / rect.width) * (st.screen_width || 1080);
@@ -3947,37 +4809,119 @@
       $("btnRecSwipeUp").addEventListener("click", () => runRecorderAction({ action: "swipe", direction: "up" }));
       $("btnRecSwipeDown").addEventListener("click", () => runRecorderAction({ action: "swipe", direction: "down" }));
       $("btnRecBack").addEventListener("click", () => runRecorderAction({ action: "back" }));
+      if ($("btnRecHideKeyboard")) $("btnRecHideKeyboard").addEventListener("click", () => runRecorderAction({ action: "hide_keyboard" }));
+      $("recTypeSecret").addEventListener("change", () => { $("recTypeInput").type = $("recTypeSecret").checked ? "password" : "text"; });
+      $("recStepEditSecret").addEventListener("change", () => { $("recStepEditVal").type = $("recStepEditSecret").checked ? "password" : "text"; });
+      $("btnRecTypeCancel").addEventListener("click", () => { $("recTypeBar").hidden = true; });
+      $("btnRecAssertCancel").addEventListener("click", () => { $("recAssertBar").hidden = true; });
+      $("recTypeInput").addEventListener("keydown", (e) => {
+        if (e.key === "Enter") { e.preventDefault(); $("btnRecSendType").click(); }
+        else if (e.key === "Escape") { $("recTypeBar").hidden = true; }
+      });
+      $("recAssertTextInput").addEventListener("keydown", (e) => {
+        if (e.key === "Enter") { e.preventDefault(); $("btnRecVerifyText").click(); }
+        else if (e.key === "Escape") { $("recAssertBar").hidden = true; }
+      });
       $("btnRecWait").addEventListener("click", () => runRecorderAction({ action: "wait", value: "2" }));
-      $("btnRecUndo").addEventListener("click", async () => { applyRecorderState(await apiJson("/api/recorder/undo", {})); });
+      const recStepEdit = (payload) => { STATE.recDirty = true; return recorderCall("/api/recorder/update", payload); };
+      $("btnRecUndo").addEventListener("click", () => recorderCall("/api/recorder/undo", {}));
+
+      function syncRecStepEditBar(idx) {
+        const steps = (STATE.recState && STATE.recState.steps) || [];
+        const st = (idx !== null && idx !== undefined && idx >= 0 && idx < steps.length) ? steps[idx] : null;
+        if (!st) {
+          STATE.recSelectedStepIdx = null;
+          $("recStepEditBar").hidden = true;
+          return;
+        }
+        STATE.recSelectedStepIdx = idx;
+        $("recStepEditBar").hidden = false;
+        $("recStepEditLabel").textContent = `#${idx + 1} ${st.action}${st.target ? " " + st.target : ""}`;
+        const act = String(st.action || "").toLowerCase();
+        const needsValue = ["type", "assert_text", "wait", "swipe"].includes(act);
+        const isType = act === "type";
+        $("recStepEditVal").hidden = !needsValue;
+        $("btnRecStepEditApply").hidden = !needsValue;
+        if ($("recStepEditSecretWrap")) $("recStepEditSecretWrap").hidden = !isType;
+        if (needsValue) {
+          $("recStepEditVal").value = st.value || "";
+          $("recStepEditVal").placeholder = act === "assert_text" ? "Expected text or ${var}" : (act === "wait" ? "Seconds (e.g. 2)" : (act === "swipe" ? "up / down / left / right" : "Value or ${variable}"));
+        } else {
+          $("recStepEditVal").value = "";
+        }
+        $("recStepEditSecret").checked = Boolean(st.secret);
+        $("recStepEditVal").type = (isType && st.secret) ? "password" : "text";
+        if ($("btnRecStepMoveUp")) $("btnRecStepMoveUp").disabled = idx <= 0;
+        if ($("btnRecStepMoveDown")) $("btnRecStepMoveDown").disabled = idx >= steps.length - 1;
+      }
 
       $("recStepsList").addEventListener("click", (e) => {
         const row = e.target.closest("[data-rec-step-idx]");
         if (!row) return;
         const idx = Number(row.dataset.recStepIdx);
-        const st = ((STATE.recState && STATE.recState.steps) || [])[idx];
-        if (!st) return;
         STATE.recSelectedStepIdx = idx;
-        $("recStepEditBar").hidden = false;
-        $("recStepEditLabel").textContent = `#${idx + 1} ${st.action} ${st.target || ""}`;
-        $("recStepEditVal").value = st.value || "";
-        $("recStepEditSecret").checked = Boolean(st.secret);
-        renderRecorderSteps(STATE.recState.steps);
+        renderRecorderSteps((STATE.recState && STATE.recState.steps) || []);
+      });
+      let recDragIdx = null;
+      $("recStepsList").addEventListener("dragstart", (e) => {
+        const row = e.target.closest("[data-rec-step-idx]");
+        if (!row) return;
+        recDragIdx = Number(row.dataset.recStepIdx);
+        if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+      });
+      $("recStepsList").addEventListener("dragover", (e) => {
+        if (recDragIdx !== null) e.preventDefault();
+      });
+      $("recStepsList").addEventListener("drop", async (e) => {
+        const row = e.target.closest("[data-rec-step-idx]");
+        if (!row || recDragIdx === null) return;
+        e.preventDefault();
+        const toIdx = Number(row.dataset.recStepIdx);
+        const fromIdx = recDragIdx;
+        recDragIdx = null;
+        if (fromIdx === toIdx) return;
+        STATE.recSelectedStepIdx = toIdx;
+        await recStepEdit({ index: fromIdx, move_to: toIdx });
       });
       $("btnRecStepEditApply").addEventListener("click", async () => {
         if (STATE.recSelectedStepIdx === null) return;
-        const res = await apiJson("/api/recorder/update", {
+        await recStepEdit({
           index: STATE.recSelectedStepIdx,
           value: $("recStepEditVal").value,
           secret: $("recStepEditSecret").checked
         });
-        applyRecorderState(res);
       });
+      if ($("btnRecStepMoveUp")) {
+        $("btnRecStepMoveUp").addEventListener("click", async () => {
+          if (STATE.recSelectedStepIdx === null || STATE.recSelectedStepIdx <= 0) return;
+          const from = STATE.recSelectedStepIdx;
+          STATE.recSelectedStepIdx = from - 1;
+          await recStepEdit({ index: from, move_to: from - 1 });
+        });
+      }
+      if ($("btnRecStepMoveDown")) {
+        $("btnRecStepMoveDown").addEventListener("click", async () => {
+          const steps = (STATE.recState && STATE.recState.steps) || [];
+          if (STATE.recSelectedStepIdx === null || STATE.recSelectedStepIdx >= steps.length - 1) return;
+          const from = STATE.recSelectedStepIdx;
+          STATE.recSelectedStepIdx = from + 1;
+          await recStepEdit({ index: from, move_to: from + 1 });
+        });
+      }
+      if ($("btnRecStepDup")) {
+        $("btnRecStepDup").addEventListener("click", async () => {
+          if (STATE.recSelectedStepIdx === null) return;
+          const from = STATE.recSelectedStepIdx;
+          STATE.recSelectedStepIdx = from + 1;
+          await recStepEdit({ index: from, duplicate: true });
+        });
+      }
       $("btnRecStepEditDel").addEventListener("click", async () => {
         if (STATE.recSelectedStepIdx === null) return;
-        const res = await apiJson("/api/recorder/update", { index: STATE.recSelectedStepIdx, delete: true });
+        const from = STATE.recSelectedStepIdx;
         STATE.recSelectedStepIdx = null;
         $("recStepEditBar").hidden = true;
-        applyRecorderState(res);
+        await recStepEdit({ index: from, delete: true });
       });
 
       $("recCreateTestChk").addEventListener("change", () => {
@@ -3987,6 +4931,8 @@
         $("recSaveTestTitle").hidden = !on;
       });
       $("btnRecSaveAll").addEventListener("click", async () => {
+        if (STATE.recBusy) return;
+        $("btnRecSaveAll").disabled = true;
         try {
           const res = await apiJson("/api/recorder/save", {
             flow_name: $("recSaveFlowName").value.trim() || "recorded_flow",
@@ -3994,28 +4940,28 @@
             test_id: $("recSaveTestId").value.trim(),
             test_title: $("recSaveTestTitle").value.trim() || "Repeat recorded workflow",
             create_test: $("recCreateTestChk").checked,
+            parameterize: $("recParamChk").checked,
             stop_after: true
           });
-          showBanner("recStatusBanner", `Saved workflow '${res.flow_name}'.`, "ok");
+          const savedFlowName = (res.flow && res.flow.name) || res.flow_name || ($("recSaveFlowName").value.trim() || "recorded_flow");
+          const journey = res.spec && (res.spec.id || res.spec.name);
+          STATE.recDirty = false;
+          const vars = res.variables || [];
+          showBanner("recStatusBanner", `Saved workflow '${savedFlowName}'${journey ? ` and journey ${journey}` : ""}. `
+            + (vars.length ? `Variables: ${vars.join(", ")}. Open it to add dataset rows or import a CSV, then run.` : "Open it to run it."), "ok");
+          if (vars.length) STATE.flowTab = "variables";
+          toast(`Saved workflow '${savedFlowName}'.`, "ok");
           $("btnRecGoRun").hidden = false;
-          STATE.selectedFlowName = res.flow_name;
+          STATE.selectedFlowName = savedFlowName;
           await loadOverview({ skipAutoSync: true, preserveFormInputs: true });
-        } catch (err) { showBanner("recStatusBanner", err.message, "error"); }
+          pollRecorderStatus();
+        } catch (err) {
+          showBanner("recStatusBanner", err.message, "error");
+        } finally {
+          $("btnRecSaveAll").disabled = !((STATE.recState && STATE.recState.steps) || []).length;
+        }
       });
       $("btnRecGoRun").addEventListener("click", () => navigateTo("workflows"));
-
-      $("btnImportWorkflowRec").addEventListener("click", () => $("flowUploadStep2Input").click());
-      $("flowUploadStep2Input").addEventListener("change", async () => {
-        const f = $("flowUploadStep2Input").files[0];
-        if (!f) return;
-        try {
-          const res = await apiJson("/api/flows/upload", { filename: f.name, content_text: await f.text() });
-          showBanner("flowUploadStep2Status", `Imported workflow '${res.name}'.`, "ok");
-          STATE.selectedFlowName = res.name;
-          await loadOverview({ skipAutoSync: true, preserveFormInputs: true });
-        } catch (err) { showBanner("flowUploadStep2Status", err.message, "error"); }
-        finally { $("flowUploadStep2Input").value = ""; }
-      });
 
       // ================================================================
       // NEW RUN MODAL & POLLING
@@ -4082,9 +5028,14 @@
       async function launchRunFromModal(dryRun) {
         $("openFinishedReportLink").hidden = true;
         try {
+          const plat = $("runPlatformSelect").value;
+          const rawDev = $("runDeviceSelect").value;
+          const resolvedDev = dryRun
+            ? (rawDev.startsWith("sim:ios:") ? "ios_simulator" : (rawDev.startsWith("avd:") ? "android_emulator" : (rawDev || (plat === "ios" ? "ios_simulator" : "android_emulator"))))
+            : await resolveSelectedDeviceForAction(plat, rawDev);
           const res = await apiJson("/api/runs/start", {
-            platform: $("runPlatformSelect").value,
-            device_profile: $("runDeviceSelect").value,
+            platform: plat,
+            device_profile: resolvedDev,
             env_name: $("runEnvSelect").value,
             suite: $("runSuiteSelect").value,
             spec_id: $("runSpecFilter").value,
@@ -4107,7 +5058,7 @@
           } else {
             startRunPolling();
           }
-        } catch (err) { alert(err.message); }
+        } catch (err) { toastError(err, "Run did not start"); }
       }
       $("btnDryRun").addEventListener("click", () => launchRunFromModal(true));
       $("runForm").addEventListener("submit", (e) => { e.preventDefault(); launchRunFromModal(false); });
@@ -4152,9 +5103,11 @@
         e.preventDefault();
         $("captureProgressBox").hidden = false;
         try {
+          const plat = $("inspectPlatform").value;
+          const resolvedDev = await resolveSelectedDeviceForAction(plat, $("inspectDeviceSelect").value);
           const res = await apiJson("/api/inspect/live", {
-            platform: $("inspectPlatform").value,
-            device_profile: $("inspectDeviceSelect").value,
+            platform: plat,
+            device_profile: resolvedDev,
             env_name: $("inspectEnvSelect").value,
             app_path: $("inspectAppSelect").value,
             screen_name: $("inspectScreenName").value.trim() || "screen"
@@ -4189,24 +5142,30 @@
       async function loadSystemPreflight() {
         try {
           const pf = await apiJson("/api/system/preflight");
-          $("prefWorkspaceDirInput").value = pf.workspace_dir || "";
-          $("prefDataDirInput").value = pf.data_dir || "";
-          $("prefReuseSystemSdk").checked = Boolean(pf.prefer_existing_system_sdk);
+          const paths = pf.paths || pf;
+          $("prefWorkspaceDirInput").value = paths.workspace_dir || "";
+          $("prefDataDirInput").value = paths.data_dir || "";
+          $("prefReuseSystemSdk").checked = Boolean(paths.prefer_existing_system_sdk);
           $("preflightSoftwareBody").innerHTML = (pf.software || []).map((sw) => {
             const cls = sw.found ? "b-ok" : "b-skip";
-            return `<tr><td><strong>${esc(sw.label)}</strong></td><td><span class="badge ${cls}">${esc(sw.source || (sw.found ? "Found" : "Missing"))}</span></td><td class="mono">${esc(sw.detail || "-")}</td></tr>`;
+            const swLabel = sw.label || sw.name || "Unknown tool";
+            const swDetail = sw.detail || [sw.version, sw.path].filter(Boolean).join(" · ") || "-";
+            return `<tr><td><strong>${esc(swLabel)}</strong></td><td><span class="badge ${cls}">${esc(sw.source || (sw.found ? "Found" : "Missing"))}</span></td><td class="mono">${esc(swDetail)}</td></tr>`;
           }).join("");
         } catch (_) {}
       }
       async function loadCleanupTargets() {
         try {
           const plan = await apiJson("/api/system/cleanup");
-          $("cleanupTargetsBody").innerHTML = (plan.items || []).map((it) => `<tr>
-            <td><input type="checkbox" class="cleanup-chk" value="${esc(it.id)}" ${it.safe_for_new_install && it.exists ? "checked" : ""} ${!it.exists ? "disabled" : ""} /></td>
-            <td><strong>${esc(it.label)}</strong><div class="muted mono" style="font-size:11px;">${esc(it.path)}</div></td>
-            <td><span class="badge ${it.safe_for_new_install ? "b-ok" : "b-warn"}">${it.safe_for_new_install ? "Safe leftover" : "Active data"}</span></td>
-            <td>${it.exists ? esc(it.size_human || fmtBytes(it.size_bytes)) : '<span class="muted">-</span>'}</td>
-          </tr>`).join("");
+          $("cleanupTargetsBody").innerHTML = (plan.items || []).map((it) => {
+            const itemPath = it.path || ((it.existing_paths && it.existing_paths.length ? it.existing_paths : it.paths) || []).join(", ");
+            return `<tr>
+              <td><input type="checkbox" class="cleanup-chk" value="${esc(it.id)}" ${it.safe_for_new_install && it.exists ? "checked" : ""} ${!it.exists ? "disabled" : ""} /></td>
+              <td><strong>${esc(it.label)}</strong><div class="muted mono" style="font-size:11px;">${esc(itemPath)}</div></td>
+              <td><span class="badge ${it.safe_for_new_install ? "b-ok" : "b-warn"}">${it.safe_for_new_install ? "Safe leftover" : "Active data"}</span></td>
+              <td>${it.exists ? esc(it.size_human || fmtBytes(it.size_bytes)) : '<span class="muted">-</span>'}</td>
+            </tr>`;
+          }).join("");
         } catch (_) {}
       }
       $("storagePrefsForm").addEventListener("submit", async (e) => {
@@ -4225,9 +5184,10 @@
       $("btnCleanupSelected").addEventListener("click", async () => {
         const ids = Array.from(document.querySelectorAll(".cleanup-chk:checked")).map((c) => c.value);
         if (!ids.length) return;
-        if (!window.confirm(`Delete ${ids.length} checked cleanup item(s) permanently?`)) return;
+        if (!(await uiConfirm(`Delete ${ids.length} checked cleanup item(s)? This cannot be undone.`, { title: "Clean up", okLabel: "Delete", danger: true }))) return;
         const res = await apiJson("/api/system/cleanup", { target_ids: ids });
-        showBanner("cleanupStatusBanner", `Cleaned ${res.deleted.length} item(s), freed ${fmtBytes(res.freed_bytes)}.`, "ok");
+        const removed = res.removed_ids || res.deleted || [];
+        showBanner("cleanupStatusBanner", `Cleaned ${removed.length} item(s), freed ${fmtBytes(res.freed_bytes || 0)}.`, "ok");
         loadCleanupTargets();
         loadOverview({ skipAutoSync: true });
       });
@@ -4240,7 +5200,8 @@
       $("btnReloadWorkspace").addEventListener("click", () => loadOverview({ skipAutoSync: true, preserveFormInputs: true }));
       $("btnQuickValidate").addEventListener("click", async () => {
         const res = await apiJson("/api/validate", { env_name: $("topEnvSelect").value || "qa" });
-        alert(res.ok ? `Validation PASSED (${res.specs_count} journeys, ${res.flows_count} flows).` : `Validation FAILED:\n${res.errors.map((e) => e.location + ": " + e.message).join("\n")}`);
+        if (res.ok) toast(`Validation passed: ${res.specs_count} journeys, ${res.flows_count} flows.`, "ok");
+        else uiAsk({ title: "Validation failed", message: res.errors.map((e) => e.location + ": " + e.message).join("\n"), noCancel: true });
       });
       document.querySelectorAll("[data-reload-workspace]").forEach((b) => {
         b.addEventListener("click", () => loadOverview({ skipAutoSync: true, preserveFormInputs: true }));
@@ -4251,6 +5212,102 @@
         }
       }
       window.addEventListener("focus", scheduleSilentWorkspaceReload);
+
+      function startNewRecordingFromWorkflows() {
+        navigateTo("record");
+        const flowInp = $("recFlowNameInput");
+        if (flowInp) {
+          flowInp.focus();
+          if (typeof flowInp.select === "function") flowInp.select();
+        }
+      }
+      document.addEventListener("click", (e) => {
+        if (e.target && e.target.closest("[data-flow-record-new]")) {
+          startNewRecordingFromWorkflows();
+        }
+      });
+
+      const SPLIT_SPECS = {
+        sidebar: { varName: "--sidebar-w", def: 218, min: 172, max: 320, dir: 1, storageKey: "qalprit.split.sidebar", minOther: 420 },
+        workflows: { varName: "--rail-w", def: 272, min: 200, max: 480, dir: 1, storageKey: "qalprit.split.workflows", targetSel: "#view-workflows", minOther: 340 },
+        journeys: { varName: "--rail-w", def: 272, min: 200, max: 480, dir: 1, storageKey: "qalprit.split.journeys", targetSel: "#view-journeys", minOther: 340 },
+        record: { varName: "--rec-left-w", def: 420, min: 290, max: 680, dir: 1, storageKey: "qalprit.split.record", targetSel: "#view-record", minOther: 320 },
+        runs: { varName: "--runs-insp-w", def: 380, min: 280, max: 620, dir: -1, storageKey: "qalprit.split.runs", targetSel: "#view-runs", minOther: 340 },
+        "dataset-right": { varName: "--ds-right-w", def: 300, min: 240, max: 460, dir: -1, storageKey: "qalprit.split.dsRight", minOther: 300 }
+      };
+      function applySplitWidth(key, px) {
+        const spec = SPLIT_SPECS[key];
+        if (!spec) return;
+        const clamped = Math.round(Math.min(spec.max, Math.max(spec.min, Number(px) || spec.def)));
+        const host = spec.targetSel ? document.querySelector(spec.targetSel) : document.documentElement;
+        if (host) host.style.setProperty(spec.varName, clamped + "px");
+        try { localStorage.setItem(spec.storageKey, String(clamped)); } catch (_) {}
+        return clamped;
+      }
+      function initSplitResizers() {
+        Object.keys(SPLIT_SPECS).forEach((key) => {
+          const spec = SPLIT_SPECS[key];
+          try {
+            const saved = Number(localStorage.getItem(spec.storageKey));
+            if (saved >= spec.min && saved <= spec.max) applySplitWidth(key, saved);
+          } catch (_) {}
+        });
+        let drag = null;
+        document.addEventListener("pointerdown", (e) => {
+          const handle = e.target && e.target.closest(".split-handle[data-split]");
+          if (!handle) return;
+          const key = handle.dataset.split;
+          const spec = SPLIT_SPECS[key];
+          if (!spec) return;
+          const parent = handle.parentElement;
+          const prevEl = handle.previousElementSibling;
+          const nextEl = handle.nextElementSibling;
+          const startWidth = key === "sidebar"
+            ? parent.getBoundingClientRect().width
+            : (spec.dir > 0 ? prevEl.getBoundingClientRect().width : (nextEl ? nextEl.getBoundingClientRect().width : spec.def));
+          const containerWidth = key === "sidebar" ? window.innerWidth : parent.getBoundingClientRect().width;
+          drag = { key, spec, handle, startX: e.clientX, startWidth, containerWidth };
+          handle.classList.add("is-dragging");
+          document.body.classList.add("is-resizing");
+          if (handle.setPointerCapture) {
+            try { handle.setPointerCapture(e.pointerId); } catch (_) {}
+          }
+          e.preventDefault();
+        });
+        window.addEventListener("pointermove", (e) => {
+          if (!drag) return;
+          const delta = (e.clientX - drag.startX) * drag.spec.dir;
+          const maxSafe = Math.max(drag.spec.min, Math.min(drag.spec.max, drag.containerWidth - drag.spec.minOther));
+          const next = Math.min(maxSafe, Math.max(drag.spec.min, drag.startWidth + delta));
+          applySplitWidth(drag.key, next);
+        });
+        const finishDrag = () => {
+          if (!drag) return;
+          drag.handle.classList.remove("is-dragging");
+          document.body.classList.remove("is-resizing");
+          drag = null;
+        };
+        window.addEventListener("pointerup", finishDrag);
+        window.addEventListener("pointercancel", finishDrag);
+        document.addEventListener("dblclick", (e) => {
+          const handle = e.target && e.target.closest(".split-handle[data-split]");
+          if (!handle) return;
+          const spec = SPLIT_SPECS[handle.dataset.split];
+          if (spec) applySplitWidth(handle.dataset.split, spec.def);
+        });
+        document.addEventListener("keydown", (e) => {
+          const handle = e.target && e.target.closest && e.target.closest(".split-handle[data-split]");
+          if (!handle || (e.key !== "ArrowLeft" && e.key !== "ArrowRight")) return;
+          const spec = SPLIT_SPECS[handle.dataset.split];
+          if (!spec) return;
+          const host = spec.targetSel ? document.querySelector(spec.targetSel) : document.documentElement;
+          const cur = Number.parseFloat(getComputedStyle(host).getPropertyValue(spec.varName)) || spec.def;
+          const step = (e.key === "ArrowRight" ? 16 : -16) * spec.dir;
+          applySplitWidth(handle.dataset.split, cur + step);
+          e.preventDefault();
+        });
+      }
+      initSplitResizers();
 
       // Boot
       loadOverview().then(() => {

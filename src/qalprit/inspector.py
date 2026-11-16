@@ -10,9 +10,11 @@ from typing import Any
 from qalprit.env_loader import SecretMasker
 from qalprit.evidence import detect_webviews
 
+# Short tokens (pin, otp, cvv, cvc, ssn) must stand alone as a word or a camelCase /
+# snake_case segment, otherwise "Go Shopping" or "Spinner" count as secrets.
 _SENSITIVE_FIELD_RE = re.compile(
-    r"(password|passcode|pin|cvv|cvc|ssn|secret|token|otp|security.?code)",
-    re.IGNORECASE,
+    r"((?i:password|passcode|passwd|secret|token|security.?code)"
+    r"|(?:(?<![A-Za-z])(?:pin|otp|cvv|cvc|ssn)|(?:Pin|Otp|Cvv|Cvc|Ssn)|(?<![A-Za-z])(?:PIN|OTP|CVV|CVC|SSN))(?![a-z]))"
 )
 _ANDROID_BOUNDS_RE = re.compile(r"\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]")
 _CRYPTIC_ID_RE = re.compile(
@@ -161,6 +163,9 @@ class InspectedElement:
     def suggested_sensitive(self) -> bool:
         if self.password or "SecureTextField" in self.tag:
             return True
+        if not self.editable:
+            # Buttons and labels such as "Forgot password?" are not secrets. Only inputs are.
+            return False
         combined = f"{self.accessibility_id} {self.resource_id} {self.text} {self.hint} {self.context_label}"
         return bool(_SENSITIVE_FIELD_RE.search(combined))
 
@@ -183,6 +188,16 @@ def _first_descendant_text(node: ET.Element, depth: int = 0) -> str:
     return ""
 
 
+def _is_inside_ios_keyboard(node: ET.Element, parent_map: dict[ET.Element, ET.Element]) -> bool:
+    """Return True if node is the iOS software keyboard container or one of its keys."""
+    cur: ET.Element | None = node
+    while cur is not None:
+        if cur.tag.lower() in {"xcuielementtypekeyboard", "xcuielementtypekey"}:
+            return True
+        cur = parent_map.get(cur)
+    return False
+
+
 def parse_page_source_elements(xml_text: str) -> tuple[list[InspectedElement], bool, list[str]]:
     """Extract actionable/labeled elements and detect WebViews from Appium XML page source."""
     webview_detected, webview_details = detect_webviews(xml_text)
@@ -198,6 +213,8 @@ def parse_page_source_elements(xml_text: str) -> tuple[list[InspectedElement], b
         idx = tag_counts[node.tag]
         tag_low = node.tag.lower()
         if tag_low in {"hierarchy", "appiumaut", "xcuielementtypeapplication", "xcuielementtypewindow"}:
+            continue
+        if _is_inside_ios_keyboard(node, parent_map):
             continue
         attrs = node.attrib
         acc_id = (
@@ -232,7 +249,12 @@ def parse_page_source_elements(xml_text: str) -> tuple[list[InspectedElement], b
             k in tag_low
             for k in ("button", "link", "cell", "switch", "tab", "segmentedcontrol", "stepper", "menuitem")
         )
-        clickable = (str(attrs.get("clickable", "")).lower() == "true") or is_ios_interactive_tag
+        is_ios_accessible_cta = (
+            tag_low == "xcuielementtypeother"
+            and str(attrs.get("accessible", "")).lower() == "true"
+            and bool(re.search(r"\b(?:button|btn|tab|menu|link)\b|[_-](?:btn|tab|menu|link)$", acc_id.lower()))
+        )
+        clickable = (str(attrs.get("clickable", "")).lower() == "true") or is_ios_interactive_tag or is_ios_accessible_cta
         checkable = str(attrs.get("checkable", "")).lower() == "true"
         enabled = str(attrs.get("enabled", "true")).lower() != "false"
         visible = str(attrs.get("visible", attrs.get("displayed", "true"))).lower() != "false"
@@ -357,7 +379,9 @@ def extract_interactive_elements(
                 {
                     "strategy": "text",
                     "value": safe_txt,
-                    "score": 60 - (15 if cnt > 1 else 0),
+                    # The text of an input is whatever was typed last, so it is the worst
+                    # locator for it. Rank it below xpath for editable fields.
+                    "score": 10 if el.editable else 60 - (15 if cnt > 1 else 0),
                     "match_count": cnt,
                     "ambiguous": cnt > 1,
                 }
