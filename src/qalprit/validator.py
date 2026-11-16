@@ -390,6 +390,7 @@ def validate_project(
     platform: str | None = None,
     app_path: Path | None = None,
     spec_id: str | None = None,
+    flow_name: str | None = None,
 ) -> ValidationResult:
     """Validate project configs, screens, flows, specs, locators, and env vars."""
     result = ValidationResult()
@@ -442,7 +443,7 @@ def validate_project(
             )
         elif platform:
             suffix = app_path.suffix.lower()
-            valid_exts = {"android": {".apk", ".aab"}, "ios": {".app", ".ipa"}}.get(platform, set())
+            valid_exts = {"android": {".apk", ".aab"}, "ios": {".app", ".ipa", ".zip"}}.get(platform, set())
             if valid_exts and suffix not in valid_exts:
                 result.issues.append(
                     ValidationIssue(
@@ -458,51 +459,82 @@ def validate_project(
     for err in flow_parse_errors:
         result.issues.append(ValidationIssue("error", flows_dir, "parse", err))
 
-    all_specs, spec_parse_errors = load_specs(specs_dir)
-    for err in spec_parse_errors:
-        result.issues.append(ValidationIssue("error", specs_dir, "parse", err))
-
-    seen_ids: dict[str, Path] = {}
-    for spec in all_specs:
-        if spec.id in seen_ids:
+    if flow_name:
+        if flow_name not in flows:
+            avail = ", ".join(sorted(flows)) or "none"
             result.issues.append(
                 ValidationIssue(
                     "error",
-                    spec.source_path,
-                    "id",
-                    f"Duplicate spec id '{spec.id}' (already defined in {seen_ids[spec.id]})",
+                    flows_dir,
+                    "flow",
+                    f"Workflow '{flow_name}' not found in flows/. Available: {avail}",
                 )
             )
-        else:
-            seen_ids[spec.id] = spec.source_path
-
-    # Filter specs if suite/tags/platform/spec_id requested
-    selected_specs: list[TestSpec] = []
-    for spec in all_specs:
-        if spec_id and spec.id != spec_id:
-            continue
-        if suite and spec.suite != suite:
-            continue
-        if platform and platform not in spec.platforms:
-            continue
-        if tags and not any(t in spec.tags for t in tags):
-            continue
-        selected_specs.append(spec)
-    result.specs = selected_specs
-
-    if suite is None and tags is None and spec_id is None:
-        flows_to_validate = list(flows.values())
-    else:
-        referenced_flow_names = {
-            step.params.get("flow")
-            for spec in selected_specs
-            for phase_steps in (spec.setup, spec.steps, spec.teardown)
-            for step in phase_steps
-            if step.type == "run_flow" and step.params.get("flow")
-        }
-        flows_to_validate = [
-            flows[name] for name in sorted(referenced_flow_names) if name in flows
+            return result
+        flow_obj = flows[flow_name]
+        slug = re.sub(r"[^A-Za-z0-9]+", "_", flow_name).strip("_").upper()[:24] or "WORKFLOW"
+        spec_plats: list[Literal["android", "ios"]] = (
+            [platform] if platform in ("android", "ios") else ["android", "ios"]  # type: ignore[list-item]
+        )
+        selected_specs = [
+            TestSpec(
+                id=f"FLOW-{slug}",
+                title=f"Workflow: {flow_name}",
+                platforms=spec_plats,
+                reset="clear_data",
+                suite="workflow",
+                source_path=flow_obj.source_path,
+                steps=[StepItem(type="run_flow", params={"flow": flow_name})],
+            )
         ]
+        result.specs = selected_specs
+        flows_to_validate = [flow_obj]
+    else:
+        all_specs, spec_parse_errors = load_specs(specs_dir)
+        for err in spec_parse_errors:
+            result.issues.append(ValidationIssue("error", specs_dir, "parse", err))
+
+        seen_ids: dict[str, Path] = {}
+        for spec in all_specs:
+            if spec.id in seen_ids:
+                result.issues.append(
+                    ValidationIssue(
+                        "error",
+                        spec.source_path,
+                        "id",
+                        f"Duplicate spec id '{spec.id}' (already defined in {seen_ids[spec.id]})",
+                    )
+                )
+            else:
+                seen_ids[spec.id] = spec.source_path
+
+        # Filter specs if suite/tags/platform/spec_id requested
+        selected_specs = []
+        for spec in all_specs:
+            if spec_id and spec.id != spec_id:
+                continue
+            if suite and spec.suite != suite:
+                continue
+            if platform and platform not in spec.platforms:
+                continue
+            if tags and not any(t in spec.tags for t in tags):
+                continue
+            selected_specs.append(spec)
+        result.specs = selected_specs
+
+        if suite is None and tags is None and spec_id is None:
+            flows_to_validate = list(flows.values())
+        else:
+            referenced_flow_names = {
+                step.params.get("flow")
+                for spec in selected_specs
+                for phase_steps in (spec.setup, spec.steps, spec.teardown)
+                for step in phase_steps
+                if step.type == "run_flow" and step.params.get("flow")
+            }
+            flows_to_validate = [
+                flows[name] for name in sorted(referenced_flow_names) if name in flows
+            ]
 
     flow_platforms = [platform] if platform else ["android", "ios"]
     for flow in flows_to_validate:

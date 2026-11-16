@@ -150,3 +150,31 @@ steps:
 
     res_all = validate_project(tmp_path, env_name="qa")
     assert not res_all.ok
+
+
+def test_validate_project_accepts_ios_zip_and_single_flow_mode(tmp_path: Path) -> None:
+    _write_minimal_project(tmp_path)
+    (tmp_path / "flows" / "auth" / "quick.md").write_text(
+        "---\nname: auth/quick\nsteps:\n  - tap: login.login_button\n---\n",
+        encoding="utf-8",
+    )
+    zip_app = tmp_path / "apps" / "MyDemo.zip"
+    zip_app.parent.mkdir(parents=True, exist_ok=True)
+    zip_app.write_bytes(b"PK\x03\x04")
+
+    res = validate_project(
+        tmp_path,
+        env_name="qa",
+        platform="ios",
+        app_path=zip_app,
+        flow_name="auth/quick",
+    )
+    assert res.ok, [i.format() for i in res.errors]
+    assert not res.warnings, [i.format() for i in res.warnings]
+    assert len(res.specs) == 1
+    assert res.specs[0].id == "FLOW-AUTH_QUICK"
+    assert res.specs[0].platforms == ["ios"]
+
+    res_missing = validate_project(tmp_path, env_name="qa", platform="ios", flow_name="auth/nope")
+    assert not res_missing.ok
+    assert any("Workflow 'auth/nope' not found" in e.message for e in res_missing.errors)

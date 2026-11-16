@@ -1708,3 +1708,70 @@ def test_recorder_and_environments_redaction_toggle_api(tmp_path: Path, monkeypa
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_run_job_manager_supports_direct_flow_and_helpful_mismatch_error(tmp_path: Path) -> None:
+    ws = ensure_workspace(tmp_path / "ws")
+    save_environment_entry(
+        ws,
+        env_name="qa",
+        android_package="com.demo.app",
+        ios_bundle_id="com.demo.app",
+        default_timeout=10.0,
+    )
+    save_screen_locators(
+        ws,
+        screen_name="login",
+        platform="android",
+        entries=[{"key": "login_btn", "strategy": "accessibility_id", "value": "btn_login"}],
+    )
+    save_screen_locators(
+        ws,
+        screen_name="login",
+        platform="ios",
+        entries=[{"key": "login_btn", "strategy": "accessibility_id", "value": "btn_login"}],
+    )
+    save_flow_spec(ws, name="auth/tap_login", params=[], steps=[{"tap": "login.login_btn"}])
+    save_test_journey(
+        ws,
+        {
+            "id": "SMK-001",
+            "title": "Android only",
+            "suite": "smoke",
+            "platforms": ["android"],
+            "steps": [{"run_flow": "auth/tap_login"}],
+        },
+    )
+
+    mgr = RunJobManager()
+    with pytest.raises(ValueError) as exc_info:
+        mgr.start(
+            ws,
+            ws / "results",
+            {
+                "platform": "ios",
+                "device_profile": "ios_simulator",
+                "env_name": "qa",
+                "suite": "smoke",
+                "dry_run": True,
+            },
+        )
+    err_msg = str(exc_info.value)
+    assert "SMK-001 [android]" in err_msg
+    assert "Enable 'ios'" in err_msg
+
+    dry = mgr.start(
+        ws,
+        ws / "results",
+        {
+            "platform": "ios",
+            "device_profile": "ios_simulator",
+            "env_name": "qa",
+            "suite": "smoke",
+            "flow_name": "auth/tap_login",
+            "dry_run": True,
+        },
+    )
+    assert dry["dry_run"] is True
+    assert dry["flow_name"] == "auth/tap_login"
+    assert dry["specs"][0]["id"] == "FLOW-AUTH_TAP_LOGIN"

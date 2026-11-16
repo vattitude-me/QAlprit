@@ -1609,6 +1609,12 @@
               </select>
             </div>
             <div class="field">
+              <label for="runFlowFilter">Workflow (Optional)</label>
+              <select id="runFlowFilter">
+                <option value="">Use Suite / Test Journey</option>
+              </select>
+            </div>
+            <div class="field">
               <label for="runAppSelect">App Binary</label>
               <select id="runAppSelect"></select>
             </div>
@@ -1617,6 +1623,7 @@
               <input id="runRetriesInput" type="number" min="0" max="5" value="0" />
             </div>
           </div>
+          <p class="card-help" id="runMatchHint" style="margin:6px 0 8px;"></p>
           <label class="switch-row" for="runRedactChk">
             <input id="runRedactChk" type="checkbox" switch checked />
             <span>Redact Sensitive Screenshots (Black Marker) &mdash; <span class="muted" id="runRedactEnvHint" style="font-weight:400;">auto-set by environment</span></span>
@@ -2313,8 +2320,8 @@
         if ($("runRedactChk")) $("runRedactChk").checked = val;
         if ($("runRedactEnvHint")) {
           $("runRedactEnvHint").textContent = val
-            ? `enabled by default for '${envName || "prod"}'`
-            : `off by default for '${envName || "dev"}'`;
+            ? `enabled in '${envName || "prod"}' config (editable in Step 1C)`
+            : `off in '${envName || "dev"}' config (editable in Step 1C)`;
         }
       }
 
@@ -2369,6 +2376,13 @@
           if ($("recPlatform")) $("recPlatform").value = targetPlat;
           $("inspectPlatform").value = targetPlat;
           $("runPlatformSelect").value = targetPlat;
+        }
+        if (
+          $("specPlatIos") &&
+          (!$("specEditingSourcePath") || !$("specEditingSourcePath").value.trim()) &&
+          !STATE.specPlatUserTouched
+        ) {
+          $("specPlatIos").checked = (STATE.hostOs === "Darwin") || !isAndroid;
         }
         if (pkg && !options.preserveFormInputs) {
           if (isAndroid) $("envAndroidPkg").value = pkg;
@@ -2506,6 +2520,15 @@
         const flows = data.flows || [];
         $("flowNameOptions").innerHTML = flows.map((f) => `<option value="${esc(f.name)}"></option>`).join("");
         populateSelect("insertFlowSelect", flows.map((f) => ({ value: f.name, label: `${f.name}${f.params.length ? " (" + f.params.join(", ") + ")" : ""}` })), "-- Select workflow --");
+        const prevRunFlow = $("runFlowFilter") ? $("runFlowFilter").value : "";
+        populateSelect(
+          "runFlowFilter",
+          flows.map((f) => ({ value: f.name, label: `${f.name} (${f.step_count} steps)` })),
+          "Use Suite / Test Journey"
+        );
+        if ($("runFlowFilter") && prevRunFlow && Array.from($("runFlowFilter").options).some((o) => o.value === prevRunFlow)) {
+          $("runFlowFilter").value = prevRunFlow;
+        }
         if ($("flowQuickChips")) {
           $("flowQuickChips").innerHTML = flows.length
             ? flows.map((f) => `<button type="button" class="flow-chip" data-quick-insert-flow="${esc(f.name)}" title="Insert ${esc(f.name)} (${f.step_count} steps)">+ ${esc(f.name)} <span class="muted">(${f.step_count})</span></button>`).join("")
@@ -2520,6 +2543,7 @@
                 <td><code>${esc(f.source_path)}</code></td>
                 <td>
                   <div class="btn-row" style="margin:0;gap:4px;">
+                    <button type="button" class="btn btn-sm btn-primary" data-run-flow="${idx}" title="Select and run this workflow in Step 4">Run &rarr;</button>
                     <button type="button" class="btn btn-sm" data-load-flow="${idx}">Edit</button>
                     <button type="button" class="btn btn-sm" data-dup-flow="${idx}">Duplicate</button>
                     <button type="button" class="btn btn-sm" data-reveal-file="${esc(f.source_path)}" title="Show in Explorer / Finder">Open</button>
@@ -2528,6 +2552,15 @@
                 </td>
               </tr>`).join("")
           : '<tr><td colspan="5" class="muted">No workflows saved yet.</td></tr>';
+
+        if (
+          $("specPlatIos") &&
+          (!$("specEditingSourcePath") || !$("specEditingSourcePath").value.trim()) &&
+          !STATE.specPlatUserTouched
+        ) {
+          const activePlat = $("runPlatformSelect") ? $("runPlatformSelect").value : "";
+          $("specPlatIos").checked = (STATE.hostOs === "Darwin") || activePlat === "ios";
+        }
 
         // Specs suites + journey selector + table + Auto-ID default
         const specs = data.specs || [];
@@ -3496,10 +3529,15 @@
           let msg = `Saved ${res.saved_targets.length} locator(s) and workflow '${res.flow.name}' (${res.flow.source_path}).`;
           if (res.spec) {
             msg += ` Created repeatable Test Journey '${res.spec.id}' (${res.spec.source_path})!`;
+            if ($("runFlowFilter")) $("runFlowFilter").value = "";
             if ($("runSuiteSelect") && Array.from($("runSuiteSelect").options).some((o) => o.value === res.spec.suite)) {
               $("runSuiteSelect").value = res.spec.suite;
             }
             refreshRunSpecDropdown(res.spec.id);
+            $("btnRecGoRun").hidden = false;
+          } else if (res.flow && $("runFlowFilter")) {
+            $("runFlowFilter").value = res.flow.name;
+            refreshRunSpecDropdown("");
             $("btnRecGoRun").hidden = false;
           }
           showBanner("recStatusBanner", msg, "ok");
@@ -3742,6 +3780,15 @@
 
       $("flowsTable").addEventListener("click", async (e) => {
         if (!STATE.overview) return;
+        const runFlowBtn = e.target.closest("[data-run-flow]");
+        if (runFlowBtn) {
+          const flow = STATE.overview.flows[Number(runFlowBtn.dataset.runFlow)];
+          if (!flow) return;
+          if ($("runFlowFilter")) $("runFlowFilter").value = flow.name;
+          refreshRunSpecDropdown("");
+          goToStep(4, true);
+          return;
+        }
         const loadBtn = e.target.closest("[data-load-flow]");
         if (loadBtn) {
           const flow = STATE.overview.flows[Number(loadBtn.dataset.loadFlow)];
@@ -3785,9 +3832,16 @@
       // ------------------------------------------------------------------
       // Step 3 Event Handlers (Test Journeys, Auto-ID, Edit/Dup/Del/Upload)
       // ------------------------------------------------------------------
+      ["specPlatAndroid", "specPlatIos"].forEach((id) => {
+        if ($(id)) {
+          $(id).addEventListener("change", () => { STATE.specPlatUserTouched = true; });
+        }
+      });
+
       function resetJourneyBuilderToNew() {
         const suite = $("specSuiteInput").value.trim() || "smoke";
         STATE.specAutoIdActive = true;
+        STATE.specPlatUserTouched = false;
         $("specEditingSourcePath").value = "";
         $("specBuilderHeading").textContent = "Test Journey Builder";
         $("specIdInput").value = computeNextJourneyIdLocal(suite, (STATE.overview && STATE.overview.specs) || []);
@@ -3796,7 +3850,8 @@
         $("specTagsInput").value = suite;
         $("specResetSelect").value = "clear_data";
         $("specPlatAndroid").checked = true;
-        $("specPlatIos").checked = STATE.hostOs === "Darwin";
+        const activePlat = $("runPlatformSelect") ? $("runPlatformSelect").value : "";
+        $("specPlatIos").checked = (STATE.hostOs === "Darwin") || activePlat === "ios";
         $("specSetupContainer").innerHTML = "";
         $("specMainContainer").innerHTML = "";
         $("specMainContainer").appendChild(createStepRowElement({ tap: "" }));
@@ -3889,6 +3944,7 @@
         if (runBtn) {
           const sp = STATE.overview.specs[Number(runBtn.dataset.runSpec)];
           if (!sp) return;
+          if ($("runFlowFilter")) $("runFlowFilter").value = "";
           if ($("runPlatformSelect") && (sp.platforms || []).length && !sp.platforms.includes($("runPlatformSelect").value)) {
             $("runPlatformSelect").value = sp.platforms[0];
           }
@@ -4087,7 +4143,9 @@
         if (!sel) return;
         const suiteFilter = $("runSuiteSelect") ? $("runSuiteSelect").value : "";
         const platFilter = $("runPlatformSelect") ? $("runPlatformSelect").value : "";
+        const flowSelected = $("runFlowFilter") ? $("runFlowFilter").value : "";
         const allSpecs = (STATE.overview && STATE.overview.specs) || [];
+        const allFlows = (STATE.overview && STATE.overview.flows) || [];
         const matched = allSpecs.filter((s) => {
           if (suiteFilter && s.suite !== suiteFilter) return false;
           if (platFilter && Array.isArray(s.platforms) && s.platforms.length && !s.platforms.includes(platFilter)) return false;
@@ -4102,10 +4160,48 @@
         if (prev && Array.from(sel.options).some((o) => o.value === prev)) {
           sel.value = prev;
         }
+        const hintEl = $("runMatchHint");
+        if (hintEl) {
+          if (flowSelected) {
+            hintEl.textContent = `Direct Workflow selected: '${flowSelected}' — will execute its steps on '${platFilter || "android"}' (bypassing Suite / Test Journey filters).`;
+          } else if (matched.length > 0) {
+            const picked = sel.value;
+            hintEl.textContent = picked
+              ? `Ready: 1 selected Test Journey (${picked}) on '${platFilter || "android"}'.`
+              : `Ready: ${matched.length} matching Test Journey(s) in '${suiteFilter || "All Suites"}' on '${platFilter || "android"}'.`;
+          } else {
+            const otherPlat = allSpecs.filter((s) => (!suiteFilter || s.suite === suiteFilter) && (!s.platforms || !s.platforms.includes(platFilter)));
+            const otherSuites = suiteFilter ? allSpecs.filter((s) => s.suite !== suiteFilter) : [];
+            if (otherPlat.length > 0) {
+              const sample = otherPlat.slice(0, 3).map((s) => `${s.id} [${(s.platforms || []).join(",")}]`).join(", ");
+              const flowTip = allFlows.length ? " or pick a Workflow above" : "";
+              hintEl.textContent = `0 journeys match '${platFilter}' in '${suiteFilter || "All Suites"}'. Found ${otherPlat.length} on other platforms (${sample}) — enable '${platFilter}' in Step 3${flowTip}.`;
+            } else if (otherSuites.length > 0) {
+              const suitesAvail = Array.from(new Set(otherSuites.map((s) => s.suite).filter(Boolean))).join(", ");
+              hintEl.textContent = `0 journeys in suite '${suiteFilter}'. Found journeys in: ${suitesAvail} — clear Suite Filter${allFlows.length ? " or pick a Workflow" : ""}.`;
+            } else if (allFlows.length > 0) {
+              hintEl.textContent = `No Test Journeys in specs/ yet — select a saved Workflow above (${allFlows.length} available) or create a Journey in Step 3.`;
+            } else {
+              hintEl.textContent = "No Test Journeys or Workflows yet — record a Workflow in Step 2 or create a Journey in Step 3.";
+            }
+          }
+        }
       }
 
       if ($("runSuiteSelect")) {
-        $("runSuiteSelect").addEventListener("change", () => refreshRunSpecDropdown(""));
+        $("runSuiteSelect").addEventListener("change", () => {
+          if ($("runFlowFilter")) $("runFlowFilter").value = "";
+          refreshRunSpecDropdown("");
+        });
+      }
+      if ($("runSpecFilter")) {
+        $("runSpecFilter").addEventListener("change", () => {
+          if ($("runFlowFilter") && $("runSpecFilter").value) $("runFlowFilter").value = "";
+          refreshRunSpecDropdown();
+        });
+      }
+      if ($("runFlowFilter")) {
+        $("runFlowFilter").addEventListener("change", () => refreshRunSpecDropdown());
       }
       if ($("runPlatformSelect")) {
         $("runPlatformSelect").addEventListener("change", () => refreshRunSpecDropdown());
@@ -4124,6 +4220,7 @@
             env_name: $("runEnvSelect").value,
             suite: $("runSuiteSelect").value,
             spec_id: $("runSpecFilter") ? $("runSpecFilter").value : "",
+            flow_name: $("runFlowFilter") ? $("runFlowFilter").value : "",
             app_path: $("runAppSelect").value,
             retries: Number($("runRetriesInput").value) || 0,
             redact_screenshots: $("runRedactChk") ? $("runRedactChk").checked : true,
