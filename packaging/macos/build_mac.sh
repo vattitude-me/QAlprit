@@ -42,15 +42,15 @@ DMG_PATH="${DIST_MAC}/${DMG_NAME}"
 
 mkdir -p "${BUILD_WORK}" "${ICON_DIR}" "${DIST_MAC}"
 
-echo "==> Ensuring QAlprit dependencies and PyInstaller are installed..."
-if ! "${PYTHON_BIN}" -c "import PIL, PyInstaller, qalprit" >/dev/null 2>&1; then
+echo "==> Ensuring QAlprit desktop dependencies and PyInstaller are installed..."
+if ! "${PYTHON_BIN}" -c "import PIL, PyInstaller, qalprit, webview, objc, WebKit" >/dev/null 2>&1; then
   if "${PYTHON_BIN}" -m pip --version >/dev/null 2>&1; then
-    "${PYTHON_BIN}" -m pip install -e . pyinstaller >/dev/null
+    "${PYTHON_BIN}" -m pip install -e ".[desktop]" pyinstaller >/dev/null
   elif command -v uv >/dev/null 2>&1; then
-    uv pip install --python "${PYTHON_BIN}" -e . pyinstaller >/dev/null
+    uv pip install --python "${PYTHON_BIN}" -e ".[desktop]" pyinstaller >/dev/null
   else
     "${PYTHON_BIN}" -m ensurepip --upgrade >/dev/null
-    "${PYTHON_BIN}" -m pip install -e . pyinstaller >/dev/null
+    "${PYTHON_BIN}" -m pip install -e ".[desktop]" pyinstaller >/dev/null
   fi
 fi
 
@@ -206,8 +206,9 @@ for folder in node appium appium_home jdk android-sdk; do
   ditto "${BUILD_WORK}/${folder}" "${RUNTIME_TARGET}/${folder}"
 done
 
-# 7. Ad-hoc sign bundled executables and QAlprit.app cleanly (no Apple Developer account required)
+# 7. Ensure user-writable permissions on JRE legal/classes files (0444 breaks xattr -dr) and ad-hoc sign
 echo "==> Ad-hoc code-signing QAlprit.app..."
+chmod -R u+w "${RUNTIME_TARGET}/jdk"
 codesign --force --sign - "${RUNTIME_TARGET}/node/bin/node" || true
 codesign --force --sign - "${RUNTIME_TARGET}/android-sdk/platform-tools/adb" || true
 codesign --force --sign - "${RUNTIME_TARGET}/android-sdk/build-tools/${BUILD_TOOLS_VER}/aapt2" || true
@@ -234,6 +235,12 @@ for req in ("Python", "Appium Python client", "Node.js", "Appium", "Appium drive
     assert by_name[req]["status"] == "ok", f"Expected {req} ok, got {by_name[req]}"
 print("All bundled runtime checks OK")
 '
+
+echo "==> Verifying bundled pywebview native window frameworks..."
+if [ ! -d "${DIST_APP}/Contents/Frameworks/webview" ] || [ ! -d "${DIST_APP}/Contents/Frameworks/objc" ]; then
+  echo "ERROR: Expected bundled webview/objc frameworks inside ${DIST_APP}/Contents/Frameworks" >&2
+  exit 1
+fi
 
 echo "==> Verifying QAlprit.app code signature seal..."
 codesign --verify --deep --strict --verbose=2 "${DIST_APP}"

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import os
+import platform
+import subprocess
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
@@ -212,6 +215,29 @@ def _resolve_android_avd(profile: DeviceProfile) -> str | None:
     return None
 
 
+def _xcode_has_legacy_simulator_app() -> bool:
+    """Return True on macOS if Xcode includes Developer/Applications/Simulator.app (pre-Xcode 27)."""
+    if platform.system() != "Darwin":
+        return True
+    dev_dir_str = os.environ.get("DEVELOPER_DIR", "").strip()
+    if not dev_dir_str:
+        try:
+            proc = subprocess.run(["xcode-select", "-p"], capture_output=True, text=True, timeout=5)
+            if proc.returncode == 0:
+                dev_dir_str = (proc.stdout or "").strip()
+        except Exception:
+            dev_dir_str = ""
+    candidates: list[Path] = []
+    if dev_dir_str:
+        candidates.append(Path(dev_dir_str))
+    default_dev = Path("/Applications/Xcode.app/Contents/Developer")
+    if default_dev.is_dir() and default_dev not in candidates:
+        candidates.append(default_dev)
+    if not candidates:
+        return True
+    return any((cand / "Applications" / "Simulator.app").exists() for cand in candidates)
+
+
 def create_appium_driver(
     appium_url: str,
     profile: DeviceProfile,
@@ -270,6 +296,14 @@ def create_appium_driver(
         if profile.target_type == "simulator":
             opts.connect_hardware_keyboard = True
             opts.force_simulator_software_keyboard_presence = False
+            has_headless_override = any(
+                k in profile.capabilities for k in ("appium:isHeadless", "isHeadless")
+            )
+            # Xcode 27+ replaced Developer/Applications/Simulator.app with DeviceHub.app;
+            # headless mode prevents appium-xcuitest-driver from shutting down booted simulators
+            # and failing when trying to `open` the removed Simulator.app bundle.
+            if not has_headless_override and not _xcode_has_legacy_simulator_app():
+                opts.set_capability("appium:isHeadless", True)
         for k, v in profile.capabilities.items():
             opts.set_capability(k, v)
 

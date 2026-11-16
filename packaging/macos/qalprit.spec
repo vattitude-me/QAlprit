@@ -28,12 +28,18 @@ if not version:
 icon_path = ROOT / "build" / "mac-icon" / "QAlprit.icns"
 icon_arg = str(icon_path) if icon_path.is_file() else None
 
+wv_datas, wv_binaries, wv_hiddenimports = collect_all("webview")
+objc_submodules = collect_submodules("objc")
 ap_datas, ap_binaries, ap_hiddenimports = collect_all("appium")
 se_datas, se_binaries, se_hiddenimports = collect_all("selenium")
 
 meta_datas = _safe_copy_metadata(
     [
         "qalprit",
+        "pywebview",
+        "pyobjc-core",
+        "pyobjc-framework-Cocoa",
+        "pyobjc-framework-WebKit",
         "Appium-Python-Client",
         "selenium",
         "urllib3",
@@ -48,10 +54,12 @@ meta_datas = _safe_copy_metadata(
     ]
 )
 
-datas = collect_data_files("qalprit") + meta_datas + ap_datas + se_datas
-binaries = ap_binaries + se_binaries
+datas = collect_data_files("qalprit") + meta_datas + wv_datas + ap_datas + se_datas
+binaries = wv_binaries + ap_binaries + se_binaries
 hiddenimports = (
     collect_submodules("qalprit")
+    + wv_hiddenimports
+    + objc_submodules
     + ap_hiddenimports
     + se_hiddenimports
     + [
@@ -67,6 +75,18 @@ hiddenimports = (
         "PIL.Image",
         "PIL.ImageDraw",
         "PIL.ImageFilter",
+        "webview",
+        "webview.platforms.cocoa",
+        "objc",
+        "Cocoa",
+        "Foundation",
+        "AppKit",
+        "WebKit",
+        "Quartz",
+        "Security",
+        "UniformTypeIdentifiers",
+        "bottle",
+        "proxy_tools",
     ]
 )
 
@@ -121,5 +141,9 @@ app = BUNDLE(
         "CFBundleVersion": version,
         "NSHighResolutionCapable": True,
         "LSBackgroundOnly": False,
+        "NSAppTransportSecurity": {
+            "NSAllowsLocalNetworking": True,
+            "NSAllowsArbitraryLoads": True,
+        },
     },
 )
