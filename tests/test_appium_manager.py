@@ -13,6 +13,15 @@ def test_build_appium_env_preserves_existing_and_populates_defaults() -> None:
     # On machines with Android SDK / JDK installed, ANDROID_HOME / JAVA_HOME are populated
     if "ANDROID_HOME" in env:
         assert Path(env["ANDROID_HOME"]).exists()
+    if "JAVA_HOME" in env:
+        assert env["JAVA_HOME"] != "/usr"
+        assert Path(env["JAVA_HOME"]).exists()
+
+
+def test_build_appium_env_never_sets_macos_usr_stub_java_home(monkeypatch) -> None:
+    monkeypatch.setattr("qalprit.appium_manager.find_java_bin", lambda: "/usr/bin/java")
+    env = build_appium_env({"PATH": "/usr/bin"})
+    assert env.get("JAVA_HOME") != "/usr"
 
 
 def test_check_appium_status_returns_false_on_unreachable_port() -> None:

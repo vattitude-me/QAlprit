@@ -195,6 +195,9 @@ def parse_page_source_elements(xml_text: str) -> tuple[list[InspectedElement], b
     for node in root.iter():
         tag_counts[node.tag] = tag_counts.get(node.tag, 0) + 1
         idx = tag_counts[node.tag]
+        tag_low = node.tag.lower()
+        if tag_low in {"hierarchy", "appiumaut", "xcuielementtypeapplication", "xcuielementtypewindow"}:
+            continue
         attrs = node.attrib
         acc_id = (
             attrs.get("content-desc")
@@ -223,12 +226,16 @@ def parse_page_source_elements(xml_text: str) -> tuple[list[InspectedElement], b
                 else ""
             )
         )
-        clickable = str(attrs.get("clickable", "")).lower() == "true"
+        is_ios_node = tag_low.startswith("xcuielementtype")
+        is_ios_interactive_tag = is_ios_node and any(
+            k in tag_low
+            for k in ("button", "link", "cell", "switch", "tab", "segmentedcontrol", "stepper", "menuitem")
+        )
+        clickable = (str(attrs.get("clickable", "")).lower() == "true") or is_ios_interactive_tag
         checkable = str(attrs.get("checkable", "")).lower() == "true"
         enabled = str(attrs.get("enabled", "true")).lower() != "false"
         visible = str(attrs.get("visible", attrs.get("displayed", "true"))).lower() != "false"
         password = str(attrs.get("password", "")).lower() == "true"
-        tag_low = node.tag.lower()
         editable = bool(
             hint
             or password

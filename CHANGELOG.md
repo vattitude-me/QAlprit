@@ -6,8 +6,25 @@ All notable backend, UI, packaging, and documentation changes to **QAlprit** are
 
 ## [Unreleased]
 
-### Web Showcase (`web/index.html` · `v0.1.25`)
-- Updated `web/index.html` hero copy, guarantees strip, Step 01 card, Workbench showcase (`#workbench`), and architecture flow summary to prominently highlight **live emulator screen capture** for building reusable `flows/` and smoke `specs/` visually while **keeping AI / LLM usage to the minimum** (zero LLM calls at capture or execution time).
+- _No unreleased changes yet._
+
+---
+
+## [v0.1.26] — 2026-11-15
+
+### Backend & Live Recorder Fixes
+- **iOS Retina `2x`/`3x` Live Mirror Coordinate Scaling (`src/qalprit/recorder.py`)**: `RecorderManager._capture_snapshot_locked()` now scales XML element `rect` bounds from logical iOS points (`driver.get_window_size()`, e.g., `402×874`) to PNG screenshot pixels (e.g., `1206×2622` on 3x Retina), fixing overlay alignment, direct image click hit-testing, and Pillow black-marker redaction on the Live Mirror while keeping `driver.swipe()` in logical window coordinates.
+- **iOS Tappable Element & Shell Filtering (`src/qalprit/inspector.py`)**: Detects native XCUITest interactive tags (`XCUIElementTypeButton`, `Link`, `Cell`, `Switch`, `Tab`, `SegmentedControl`, `Stepper`, `MenuItem`) as `clickable=True` (since iOS XML omits `clickable="true"`) and filters out full-screen container shells (`XCUIElementTypeApplication`, `XCUIElementTypeWindow`, `hierarchy`, `AppiumAUT`).
+
+### UI & Web Showcase
+- **Mirror Overlay Stacking (`src/qalprit/ui/index.html`)**: Filters hidden/oversized (>85% viewport) overlays and sorts bounding boxes largest-to-smallest with ascending `z-index` (`.rec-box:hover` at `z-index: 999`) so nested buttons sit above parent wrappers.
+- **Website Update (`web/index.html`)**: Updated hero copy, execution strip, Step 01, Workbench showcase, and architecture summary to highlight live emulator screen capture for building workflows and smoke tests with minimal AI / LLM usage, and synced release badge to `v0.1.26`.
+
+### Tests
+- Added `test_inspector_detects_ios_clickable_buttons_and_skips_app_shell` (`tests/test_inspector_and_cli.py`), `test_recorder_scales_ios_retina_rects_redacts_and_swipes_in_points` (`tests/test_workbench_and_desktop.py`), and included `tests/test_appium_manager.py` macOS `/usr/bin/java` `JAVA_HOME` guard regression tests.
+
+### Root Cause & Lesson Learned
+- iOS Appium `page_source` and `get_window_size()` report **logical points**, whereas `get_screenshot_as_png()` returns **2x/3x Retina pixels**, and XCUITest uses tag names instead of `clickable="true"`. Always normalize element rectangles against `px / win` before rendering overlays, hit-testing taps, or drawing live mirror masks, and treat iOS button/cell/tab tags as `clickable=True`.
 
 ---
 
