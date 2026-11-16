@@ -344,3 +344,44 @@ def test_inspector_includes_redacted_xml_snippet() -> None:
     assert "MySecret123" not in by_id["com.demo:id/password"]["xml_snippet"]
     assert 'password="true"' in by_id["com.demo:id/password"]["xml_snippet"]
     assert 'text="Password is required"' in by_id["com.demo:id/err"]["xml_snippet"]
+
+
+def test_ui_redesign_layout_ios_boot_and_api_contracts() -> None:
+    ui_html = (Path(__file__).resolve().parents[1] / "src" / "qalprit" / "ui" / "index.html").read_text(encoding="utf-8")
+
+    # 1. Topbar overflow menu positioned via JS/CSS (no duplicate Workflows library)
+    menu_start = ui_html.index('<div id="topMoreMenu"')
+    menu_end = ui_html.index("<!-- LEFT SIDEBAR -->")
+    top_more_block = ui_html[menu_start:menu_end]
+    assert "Workflows library" not in top_more_block
+    assert 'id="btnOpenFlowsModal" data-nav="workflows"' in ui_html
+    assert "positionTopMoreMenu" in ui_html
+
+    # 2. Environment & Package Config lives inside Settings, leaving Setup focused
+    setup_start = ui_html.index('id="view-setup"')
+    screens_start = ui_html.index('id="view-screens"')
+    settings_start = ui_html.index('id="view-settings"')
+    setup_block = ui_html[setup_start:screens_start]
+    settings_block = ui_html[settings_start:]
+    assert 'id="envSaveForm"' not in setup_block
+    assert 'id="setupEnvSummary"' in setup_block
+    assert 'id="btnGoEnvSettings"' in setup_block
+    assert 'id="envSaveForm"' in settings_block
+
+    # 3. iOS Simulator + Android AVD boot controls unwrap EmulatorJobManager env_status/running
+    assert "const env = st.env_status || st;" in ui_html
+    assert "st.running ?? st.busy" in ui_html
+    assert "data-boot-avd=" in ui_html
+    assert "data-boot-ios=" in ui_html
+
+    # 4. Settings preflight, cleanup, and recorder save keys align with backend schemas
+    assert "pf.paths || pf" in ui_html
+    assert "sw.label || sw.name" in ui_html
+    assert "it.existing_paths" in ui_html
+    assert "res.removed_ids || res.deleted" in ui_html
+    assert "res.flow && res.flow.name" in ui_html
+
+    # 5. Grid tracks constrain 1fr with minmax(0, 1fr) so Workflows/Journeys never clip horizontally
+    assert "grid-template-columns: 212px minmax(0, 1fr);" in ui_html
+    assert "grid-template-columns: minmax(0, 1fr) 292px;" in ui_html
+

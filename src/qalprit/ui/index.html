@@ -65,7 +65,7 @@
     .app-shell {
       display: grid;
       grid-template-rows: 46px 1fr 28px;
-      grid-template-columns: 218px 1fr;
+      grid-template-columns: 218px minmax(0, 1fr);
       grid-template-areas:
         "topbar topbar"
         "sidebar main"
@@ -73,6 +73,7 @@
       height: 100dvh;
       overflow: hidden;
     }
+    .app-shell > * { min-width: 0; }
 
     /* Topbar */
     .topbar {
@@ -166,7 +167,10 @@
     /* Popover overflow menu */
     .menu-popover {
       position: fixed;
-      inset: auto;
+      top: 44px;
+      right: 14px;
+      bottom: auto;
+      left: auto;
       margin: 0;
       padding: 6px;
       background: var(--surface-2);
@@ -175,6 +179,7 @@
       box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55);
       color: var(--text);
       min-width: 210px;
+      z-index: 60;
     }
     .menu-popover button {
       display: flex;
@@ -273,6 +278,7 @@
     .workspace-main {
       grid-area: main;
       overflow-y: auto;
+      overflow-x: hidden;
       padding: 16px 20px;
       display: flex;
       flex-direction: column;
@@ -284,6 +290,7 @@
       flex-direction: column;
       gap: 14px;
       flex: 1;
+      min-width: 0;
       min-height: 0;
     }
 
@@ -414,7 +421,9 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 10px;
+      gap: 8px 10px;
+      flex-wrap: wrap;
+      min-width: 0;
     }
     .panel-kicker {
       font-size: 11px;
@@ -531,6 +540,8 @@
     /* Tables */
     .table-wrap {
       overflow: auto;
+      max-width: 100%;
+      min-width: 0;
       border-radius: 8px;
       border: 1px solid var(--border);
       background: var(--surface);
@@ -634,9 +645,10 @@
     }
     .rec-grid {
       display: grid;
-      grid-template-columns: minmax(310px, 42%) 1fr;
+      grid-template-columns: minmax(290px, 40%) minmax(0, 1fr);
       gap: 14px;
       flex: 1;
+      min-width: 0;
       min-height: 0;
     }
     .mirror-panel {
@@ -838,9 +850,10 @@
        ================================================================ */
     .split-library {
       display: grid;
-      grid-template-columns: 220px 1fr;
+      grid-template-columns: 212px minmax(0, 1fr);
       gap: 16px;
       flex: 1;
+      min-width: 0;
       min-height: 0;
     }
     .library-rail {
@@ -849,6 +862,7 @@
       border-radius: var(--radius);
       display: flex;
       flex-direction: column;
+      min-width: 0;
       min-height: 0;
       overflow: hidden;
     }
@@ -929,17 +943,20 @@
 
     .dataset-workspace {
       display: grid;
-      grid-template-columns: 1fr 310px;
+      grid-template-columns: minmax(0, 1fr) 292px;
       gap: 14px;
       flex: 1;
+      min-width: 0;
       min-height: 0;
       align-items: stretch;
     }
     .dataset-card {
       display: flex;
       flex-direction: column;
+      min-width: 0;
       min-height: 0;
     }
+    .run-config-card { min-width: 0; }
     .dataset-card .table-wrap {
       border: none;
       border-radius: 0;
@@ -1037,12 +1054,13 @@
     .runs-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     .runs-grid {
       display: grid;
-      grid-template-columns: 1fr minmax(300px, 36%);
+      grid-template-columns: minmax(0, 1fr) minmax(280px, 36%);
       gap: 14px;
       flex: 1;
+      min-width: 0;
       min-height: 0;
     }
-    .runs-table-panel { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+    .runs-table-panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
     .runs-table-panel .table-wrap { border: none; border-radius: 0; flex: 1; }
     .batch-child-row td:first-child { padding-left: 24px; color: var(--text-soft); }
     .art-link { color: #38bdf8; text-decoration: none; font-weight: 500; }
@@ -1151,11 +1169,24 @@
       gap: 8px;
     }
 
+    @media (max-width: 1180px) {
+      .dataset-workspace {
+        grid-template-columns: 1fr;
+        flex: none;
+        min-height: auto;
+      }
+      .split-library, .detail-main {
+        flex: none;
+        min-height: auto;
+      }
+      .dataset-card .table-wrap { min-height: 200px; }
+    }
     @media (max-width: 1060px) {
-      .rec-grid, .dataset-workspace, .runs-grid, .grid-2, .split-library {
+      .rec-grid, .runs-grid, .grid-2, .split-library {
         grid-template-columns: 1fr;
       }
-      .app-shell { grid-template-columns: 190px 1fr; }
+      .library-rail { max-height: 210px; }
+      .app-shell { grid-template-columns: 190px minmax(0, 1fr); }
     }
   </style>
 </head>
@@ -1201,8 +1232,6 @@
       <button type="button" id="btnReloadWorkspace">&#x21bb; Reload workspace</button>
       <button type="button" id="btnOpenWorkspaceFolder">&#x1F4C2; Open workspace folder</button>
       <button type="button" id="btnQuickValidate">&#x2713; Validate workspace</button>
-      <div class="menu-sep"></div>
-      <button type="button" id="btnOpenFlowsModal">Workflows library</button>
     </div>
 
     <!-- LEFT SIDEBAR -->
@@ -1241,7 +1270,7 @@
 
         <div class="nav-group">
           <div class="nav-group-label">Library</div>
-          <button type="button" class="nav-item" data-nav="workflows">
+          <button type="button" class="nav-item" id="btnOpenFlowsModal" data-nav="workflows">
             <span class="nav-item-left">
               <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="4" cy="4" r="1.8"/><circle cx="12" cy="12" r="1.8"/><path d="M5.8 4H10a2 2 0 0 1 2 2v4.2M4 5.8v4.2a2 2 0 0 0 2 2h4.2"/></svg>
               <span>Workflows</span>
@@ -1590,14 +1619,14 @@
               <span class="badge b-skip" id="emuStatusBadge">Checking...</span>
             </div>
             <div class="panel-body" style="display:flex;flex-direction:column;gap:12px;">
-              <p class="muted" id="emuStatusDesc" style="margin:0;">Checks whether QAlprit_Pixel (Android 34) is installed or booted.</p>
-              <div class="btn-row">
+              <p class="muted" id="emuStatusDesc" style="margin:0;">Launch an Android Virtual Device or iOS Simulator, or use a connected USB device.</p>
+              <div class="btn-row" style="flex-wrap:wrap;gap:8px;">
                 <button type="button" class="btn btn-primary" id="btnEmuSetup" hidden>Setup Android Emulator (~1.8 GB)</button>
                 <button type="button" class="btn btn-primary" id="btnEmuBoot" hidden>Boot Android Emulator</button>
                 <button type="button" class="btn btn-danger" id="btnEmuStop" hidden>Stop Emulator</button>
               </div>
-              <div id="iosSimRow" class="btn-row" hidden>
-                <select id="iosSimSelect" style="flex:1;min-width:180px;" aria-label="iOS Simulator"></select>
+              <div id="iosSimRow" class="btn-row" hidden style="padding-top:2px;">
+                <select id="iosSimSelect" style="flex:1;min-width:190px;" aria-label="iOS Simulator"></select>
                 <button type="button" class="btn btn-primary" id="btnIosBoot">Boot iOS Simulator</button>
               </div>
               <div class="progress-box" id="emuProgressBox" hidden>
@@ -1610,10 +1639,10 @@
               <div id="emuStatusBanner" class="status-banner" hidden aria-live="polite"></div>
               <pre id="emuLiveLog" class="console" hidden></pre>
 
-              <div class="table-wrap" style="max-height:190px;">
+              <div class="table-wrap" style="max-height:220px;">
                 <table>
-                  <thead><tr><th>Platform</th><th>Name</th><th>Identifier</th><th>State</th></tr></thead>
-                  <tbody id="devicesTable"><tr><td colspan="4" class="muted">Click Scan Devices to probe adb / simctl.</td></tr></tbody>
+                  <thead><tr><th>Platform</th><th>Name</th><th>Identifier</th><th>State</th><th>Action</th></tr></thead>
+                  <tbody id="devicesTable"><tr><td colspan="5" class="muted">Click Scan Devices to probe adb / simctl.</td></tr></tbody>
                 </table>
               </div>
               <div id="deviceAuthBanner" class="status-banner status-warn" hidden aria-live="polite"></div>
@@ -1627,8 +1656,8 @@
             </div>
           </div>
 
-          <!-- Active App & Environment -->
-          <div style="display:flex;flex-direction:column;gap:14px;">
+          <!-- Active App & Environment Summary -->
+          <div style="display:flex;flex-direction:column;gap:14px;min-width:0;">
             <div class="panel">
               <div class="panel-head">
                 <span class="panel-kicker">Active App Under Test (<code>apps/</code>)</span>
@@ -1654,7 +1683,7 @@
                   </div>
                   <div id="uploadStatus" class="status-banner" hidden aria-live="polite"></div>
                 </form>
-                <div class="table-wrap" style="max-height:160px;">
+                <div class="table-wrap" style="max-height:220px;">
                   <table>
                     <thead><tr><th>Binary</th><th>Package / Bundle</th><th>Size</th><th>Action</th></tr></thead>
                     <tbody id="appsTable"><tr><td colspan="4" class="muted">No app binaries uploaded yet.</td></tr></tbody>
@@ -1664,43 +1693,13 @@
             </div>
 
             <div class="panel">
-              <div class="panel-head">
-                <span class="panel-kicker">Environment &amp; Package Config</span>
+              <div class="panel-body" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:11px 14px;">
+                <div style="min-width:0;flex:1;">
+                  <div class="panel-kicker" style="margin-bottom:3px;">Active Environment Config</div>
+                  <div class="muted" id="setupEnvSummary" style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Profile: qa · Timeout 12s</div>
+                </div>
+                <button type="button" class="btn btn-sm" id="btnGoEnvSettings">Configure in Settings &rarr;</button>
               </div>
-              <form id="envSaveForm" method="POST" class="panel-body" style="display:flex;flex-direction:column;gap:10px;">
-                <div class="form-grid">
-                  <div>
-                    <label for="envPresetSelect">Saved Profile</label>
-                    <select id="envPresetSelect"></select>
-                  </div>
-                  <div>
-                    <label for="envNameInput">Profile Name</label>
-                    <input id="envNameInput" type="text" value="qa" required />
-                  </div>
-                  <div>
-                    <label for="envTimeoutInput">Timeout (sec)</label>
-                    <input id="envTimeoutInput" type="number" min="1" step="0.5" value="12" required />
-                  </div>
-                </div>
-                <div class="form-grid">
-                  <div>
-                    <label for="envAndroidPkg">Android Package ID</label>
-                    <input id="envAndroidPkg" type="text" placeholder="com.example.myapp" />
-                  </div>
-                  <div id="envIosBundleField">
-                    <label for="envIosBundle">iOS Bundle ID</label>
-                    <input id="envIosBundle" type="text" placeholder="com.example.MyApp" />
-                  </div>
-                </div>
-                <div class="btn-row" style="justify-content:space-between;">
-                  <label class="switch-inline" for="envRedactChk">
-                    <input id="envRedactChk" type="checkbox" switch checked />
-                    <span>Redact sensitive fields in screenshots</span>
-                  </label>
-                  <button type="submit" class="btn btn-primary" id="btnSaveEnv">Save environment</button>
-                </div>
-                <div id="envStatus" class="status-banner" hidden aria-live="polite"></div>
-              </form>
             </div>
           </div>
         </div>
@@ -1789,9 +1788,49 @@
       <section class="view-pane" id="view-settings" hidden aria-label="Settings">
         <div class="runs-header">
           <div>
-            <h2>Settings &amp; Storage</h2>
-            <p class="muted" style="margin:2px 0 0;">Configure OS storage directories, inspect discovered system software, or clean up legacy tool data.</p>
+            <h2>Settings &amp; Environment</h2>
+            <p class="muted" style="margin:2px 0 0;">Configure environment profiles, package identifiers, storage directories, system software, and cleanup.</p>
           </div>
+        </div>
+
+        <div class="panel" id="envConfigCard">
+          <div class="panel-head">
+            <span class="panel-kicker">Environment &amp; Package Config (One-Time Setup)</span>
+          </div>
+          <form id="envSaveForm" method="POST" class="panel-body" style="display:flex;flex-direction:column;gap:10px;">
+            <div class="form-grid">
+              <div>
+                <label for="envPresetSelect">Saved Profile</label>
+                <select id="envPresetSelect"></select>
+              </div>
+              <div>
+                <label for="envNameInput">Profile Name</label>
+                <input id="envNameInput" type="text" value="qa" required />
+              </div>
+              <div>
+                <label for="envTimeoutInput">Timeout (sec)</label>
+                <input id="envTimeoutInput" type="number" min="1" step="0.5" value="12" required />
+              </div>
+            </div>
+            <div class="form-grid">
+              <div>
+                <label for="envAndroidPkg">Android Package ID</label>
+                <input id="envAndroidPkg" type="text" placeholder="com.example.myapp" />
+              </div>
+              <div id="envIosBundleField">
+                <label for="envIosBundle">iOS Bundle ID</label>
+                <input id="envIosBundle" type="text" placeholder="com.example.MyApp" />
+              </div>
+            </div>
+            <div class="btn-row" style="justify-content:space-between;">
+              <label class="switch-inline" for="envRedactChk">
+                <input id="envRedactChk" type="checkbox" switch checked />
+                <span>Redact sensitive fields in screenshots</span>
+              </label>
+              <button type="submit" class="btn btn-primary" id="btnSaveEnv">Save environment</button>
+            </div>
+            <div id="envStatus" class="status-banner" hidden aria-live="polite"></div>
+          </form>
         </div>
 
         <div class="panel" id="storagePreflightCard">
@@ -1861,7 +1900,7 @@
         <span class="sb-item" id="sbToolchainText">Toolchain checking...</span>
       </div>
       <div class="sb-group">
-        <span id="verPill">v0.1.30</span>
+        <span id="verPill">v0.1.31</span>
         <span>&middot; all data stays on this machine &middot;</span>
         <span>Managed by <a href="https://vattitude.ca" target="_blank" rel="noopener">vattitude.ca</a></span>
       </div>
@@ -2128,10 +2167,31 @@
       });
       $("topDevicePill").addEventListener("click", () => navigateTo("setup"));
       $("topAppPill").addEventListener("click", () => navigateTo("setup"));
-      $("btnOpenFlowsModal").addEventListener("click", () => {
-        if ($("topMoreMenu") && $("topMoreMenu").hidePopover) try { $("topMoreMenu").hidePopover(); } catch (_) {}
-        navigateTo("workflows");
-      });
+      if ($("btnGoEnvSettings")) {
+        $("btnGoEnvSettings").addEventListener("click", () => {
+          navigateTo("settings");
+          if ($("envConfigCard")) $("envConfigCard").scrollIntoView({ block: "nearest" });
+        });
+      }
+      function positionTopMoreMenu() {
+        const menu = $("topMoreMenu");
+        const trigger = $("btnTopMore");
+        if (!menu || !trigger) return;
+        const r = trigger.getBoundingClientRect();
+        menu.style.top = `${Math.round(r.bottom + 6)}px`;
+        menu.style.right = `${Math.max(10, Math.round(window.innerWidth - r.right))}px`;
+        menu.style.left = "auto";
+        menu.style.bottom = "auto";
+      }
+      if ($("topMoreMenu") && $("btnTopMore")) {
+        $("btnTopMore").addEventListener("click", positionTopMoreMenu);
+        $("topMoreMenu").addEventListener("beforetoggle", (e) => {
+          if (e.newState === "open") positionTopMoreMenu();
+        });
+        window.addEventListener("resize", () => {
+          if ($("topMoreMenu").matches(":popover-open")) positionTopMoreMenu();
+        });
+      }
 
       // Host OS & Device Sync
       function applyHostOsUi(hostOs) {
@@ -2141,7 +2201,10 @@
           badge.textContent = isMac ? "macOS: Android + iOS" : (hostOs ? hostOs + ": Android" : "Detecting OS...");
           badge.className = "badge " + (isMac ? "b-ok" : "b-skip");
         }
-        if ($("iosSimRow")) $("iosSimRow").hidden = !isMac || !$("iosSimSelect") || !$("iosSimSelect").options.length;
+        if ($("iosSimRow")) $("iosSimRow").hidden = !isMac;
+        if ($("btnIosBoot") && $("iosSimSelect")) {
+          $("btnIosBoot").disabled = !isMac || !$("iosSimSelect").options.length || !$("iosSimSelect").value;
+        }
         if ($("envIosBundleField")) $("envIosBundleField").hidden = !isMac;
         ["recPlatform", "inspectPlatform", "runPlatformSelect"].forEach((id) => {
           const sel = $(id);
@@ -3328,6 +3391,10 @@
         if (cfg.android_package) $("envAndroidPkg").value = cfg.android_package;
         if (cfg.ios_bundle_id) $("envIosBundle").value = cfg.ios_bundle_id;
         $("envRedactChk").checked = isEnvRedacted(envName);
+        if ($("setupEnvSummary")) {
+          const pkgBits = [cfg.android_package, STATE.hostOs === "Darwin" ? cfg.ios_bundle_id : ""].filter(Boolean).join(" / ");
+          $("setupEnvSummary").textContent = `Profile: ${envName}${pkgBits ? " · " + pkgBits : ""} · Timeout ${cfg.default_timeout || 12}s`;
+        }
         ["topEnvSelect", "envPresetSelect", "recEnvSelect", "inspectEnvSelect", "runEnvSelect"].forEach((id) => {
           const s = $(id);
           if (s && Array.from(s.options).some((o) => o.value === envName)) s.value = envName;
@@ -3389,7 +3456,7 @@
         applyHostOsUi(STATE.hostOs);
         if (Array.isArray(data.step_vocabulary) && data.step_vocabulary.length) STATE.stepVocab = data.step_vocabulary;
 
-        $("verPill").textContent = "v" + (data.version || "0.1.30");
+        $("verPill").textContent = "v" + (data.version || "0.1.31");
         $("badgeApps").textContent = (data.apps || []).length + " apps";
         $("badgeScreens").textContent = String((data.screens || []).length);
         $("badgeFlows").textContent = String((data.flows || []).length);
@@ -3555,6 +3622,49 @@
       });
       $("btnCancelUpload").addEventListener("click", () => { if (STATE.uploadXhr) STATE.uploadXhr.abort(); });
 
+      function renderIosSimDropdown(iosList) {
+        const sel = $("iosSimSelect");
+        const isMac = STATE.hostOs === "Darwin";
+        if (!sel) return;
+        const sims = iosList || [];
+        if (sims.length) {
+          populateSelect("iosSimSelect", sims.slice(0, 25).map((s) => ({
+            value: s.identifier,
+            label: `${s.name} [${s.state || "Shutdown"}]`
+          })));
+        } else {
+          populateSelect("iosSimSelect", [], isMac ? "No iOS Simulators installed (check Xcode)" : "macOS required");
+        }
+        if ($("iosSimRow")) $("iosSimRow").hidden = !isMac;
+        if ($("btnIosBoot")) $("btnIosBoot").disabled = !isMac || !sims.length;
+      }
+
+      async function bootAndroidTarget(avdName) {
+        try {
+          const res = await apiJson("/api/emulator/boot", avdName ? { target: "android", avd_name: avdName } : { target: "android" });
+          if (res.already_running) {
+            showBanner("emuStatusBanner", `Android Emulator already running (${res.serial}).`, "ok");
+            pollEmulatorStatus();
+          } else {
+            showBanner("emuStatusBanner", `Booting Android Emulator${avdName ? " (" + avdName + ")" : ""}...`, "info");
+            startEmulatorPolling();
+          }
+        } catch (err) {
+          showBanner("emuStatusBanner", err.message, "error");
+        }
+      }
+
+      async function bootIosTarget(udid) {
+        try {
+          const res = await apiJson("/api/emulator/boot", { target: "ios", udid: udid || $("iosSimSelect").value });
+          showBanner("emuStatusBanner", `iOS Simulator booted: ${res.name || "Simulator"}`, "ok");
+          pollEmulatorStatus();
+          runPreflightChecks({ devices: true, doctor: false });
+        } catch (err) {
+          showBanner("emuStatusBanner", err.message, "error");
+        }
+      }
+
       async function runPreflightChecks(opts) {
         const o = Object.assign({ devices: true, doctor: true }, opts || {});
         if (STATE.preflightAbort) STATE.preflightAbort.abort();
@@ -3565,10 +3675,23 @@
         try {
           if (o.devices) {
             const d = await apiJson("/api/devices", undefined, ctrl.signal);
+            if ((d.ios || []).length) renderIosSimDropdown(d.ios);
             const rows = [];
-            (d.android || []).forEach((x) => rows.push(`<tr><td>Android</td><td>${esc(x.name)}</td><td><code>${esc(x.identifier)}</code></td><td><span class="badge ${x.state === "device" ? "b-ok" : "b-warn"}">${esc(x.state)}</span></td></tr>`));
-            (d.ios || []).slice(0, 12).forEach((x) => rows.push(`<tr><td>iOS</td><td>${esc(x.name)}</td><td><code>${esc(x.identifier)}</code></td><td><span class="badge ${x.state === "Booted" ? "b-ok" : "b-skip"}">${esc(x.state)}</span></td></tr>`));
-            $("devicesTable").innerHTML = rows.length ? rows.join("") : '<tr><td colspan="4" class="muted">No devices or simulators detected.</td></tr>';
+            (d.android || []).forEach((x) => {
+              const isAvd = String(x.state || "").toLowerCase().includes("avd");
+              const act = isAvd
+                ? `<button type="button" class="btn btn-sm btn-primary" data-boot-avd="${esc(x.name)}">Boot</button>`
+                : (x.state === "device" ? '<span class="badge b-ok">Ready</span>' : '<span class="muted">-</span>');
+              rows.push(`<tr><td>Android</td><td>${esc(x.name)}</td><td><code>${esc(x.identifier)}</code></td><td><span class="badge ${x.state === "device" ? "b-ok" : "b-warn"}">${esc(x.state)}</span></td><td>${act}</td></tr>`);
+            });
+            (d.ios || []).slice(0, 12).forEach((x) => {
+              const booted = String(x.state || "").toLowerCase() === "booted";
+              const act = booted
+                ? '<span class="badge b-ok">Booted</span>'
+                : `<button type="button" class="btn btn-sm btn-primary" data-boot-ios="${esc(x.identifier)}">Boot</button>`;
+              rows.push(`<tr><td>iOS</td><td>${esc(x.name)}</td><td><code>${esc(x.identifier)}</code></td><td><span class="badge ${booted ? "b-ok" : "b-skip"}">${esc(x.state)}</span></td><td>${act}</td></tr>`);
+            });
+            $("devicesTable").innerHTML = rows.length ? rows.join("") : '<tr><td colspan="5" class="muted">No devices or simulators detected.</td></tr>';
           }
           if (o.doctor) {
             const doc = await apiJson("/api/doctor", undefined, ctrl.signal);
@@ -3588,6 +3711,12 @@
           STATE.preflightAbort = null;
         }
       }
+      $("devicesTable").addEventListener("click", (e) => {
+        const avdBtn = e.target.closest("[data-boot-avd]");
+        if (avdBtn) { bootAndroidTarget(avdBtn.dataset.bootAvd); return; }
+        const iosBtn = e.target.closest("[data-boot-ios]");
+        if (iosBtn) { bootIosTarget(iosBtn.dataset.bootIos); }
+      });
       $("btnRunPreflight").addEventListener("click", () => runPreflightChecks({ devices: true, doctor: true }));
       $("btnRefreshDevices").addEventListener("click", () => runPreflightChecks({ devices: true, doctor: false }));
       $("btnRunDoctor").addEventListener("click", () => runPreflightChecks({ devices: false, doctor: true }));
@@ -3596,17 +3725,19 @@
       async function pollEmulatorStatus() {
         try {
           const st = await apiJson("/api/emulator/status");
-          STATE.emuStatus = st;
+          const env = st.env_status || st;
+          const isBusy = Boolean(st.running ?? st.busy);
+          STATE.emuStatus = Object.assign({}, st, env, { busy: isBusy });
           const badge = $("emuStatusBadge");
-          const running = st.running_android_emulators || [];
-          const iosSims = st.ios_simulators || [];
-          if ($("iosSimSelect") && st.ios_supported && iosSims.length) {
-            populateSelect("iosSimSelect", iosSims.slice(0, 25).map((s) => ({ value: s.identifier, label: `${s.name} [${s.state}]` })));
-            if ($("iosSimRow")) $("iosSimRow").hidden = false;
-          } else if ($("iosSimRow")) {
-            $("iosSimRow").hidden = true;
-          }
-          if (st.busy) {
+          const running = env.running_android_emulators || [];
+          const avds = env.avds || [];
+          const iosSims = env.ios_simulators || [];
+          const iosSupported = Boolean(env.ios_supported || STATE.hostOs === "Darwin");
+          if (iosSupported) renderIosSimDropdown(iosSims);
+          else if ($("iosSimRow")) $("iosSimRow").hidden = true;
+
+          if (st.error) showBanner("emuStatusBanner", st.error, "error");
+          if (isBusy) {
             badge.className = "badge b-warn";
             badge.textContent = st.phase || "Working...";
             $("emuProgressBox").hidden = false;
@@ -3620,8 +3751,9 @@
             if (running.length) {
               badge.className = "badge b-ok"; badge.textContent = `Booted (${running[0]})`;
               $("btnEmuSetup").hidden = true; $("btnEmuBoot").hidden = true;
-            } else if ((st.avds || []).length) {
-              badge.className = "badge b-warn"; badge.textContent = "Installed (Offline)";
+            } else if (avds.length) {
+              badge.className = "badge b-warn"; badge.textContent = `Installed (${avds[0]})`;
+              $("btnEmuBoot").textContent = `Boot Android (${avds[0]})`;
               $("btnEmuSetup").hidden = true; $("btnEmuBoot").hidden = false;
             } else {
               badge.className = "badge b-skip"; badge.textContent = "Not Installed";
@@ -3642,19 +3774,9 @@
         await apiJson("/api/emulator/setup", {});
         startEmulatorPolling();
       });
-      $("btnEmuBoot").addEventListener("click", async () => {
-        const res = await apiJson("/api/emulator/boot", { target: "android" });
-        if (!res.already_running) startEmulatorPolling();
-        else pollEmulatorStatus();
-      });
+      $("btnEmuBoot").addEventListener("click", () => bootAndroidTarget(""));
       $("btnEmuStop").addEventListener("click", async () => { await apiJson("/api/emulator/stop", {}); pollEmulatorStatus(); });
-      $("btnIosBoot").addEventListener("click", async () => {
-        try {
-          const res = await apiJson("/api/emulator/boot", { target: "ios", udid: $("iosSimSelect").value });
-          showBanner("emuStatusBanner", `iOS Simulator booted: ${res.name}`, "ok");
-          pollEmulatorStatus();
-        } catch (err) { showBanner("emuStatusBanner", err.message, "error"); }
-      });
+      $("btnIosBoot").addEventListener("click", () => bootIosTarget($("iosSimSelect").value));
 
       // ================================================================
       // RECORD VIEW (Mock 1)
@@ -3996,9 +4118,10 @@
             create_test: $("recCreateTestChk").checked,
             stop_after: true
           });
-          showBanner("recStatusBanner", `Saved workflow '${res.flow_name}'.`, "ok");
+          const savedFlowName = (res.flow && res.flow.name) || res.flow_name || ($("recSaveFlowName").value.trim() || "recorded_flow");
+          showBanner("recStatusBanner", `Saved workflow '${savedFlowName}'.`, "ok");
           $("btnRecGoRun").hidden = false;
-          STATE.selectedFlowName = res.flow_name;
+          STATE.selectedFlowName = savedFlowName;
           await loadOverview({ skipAutoSync: true, preserveFormInputs: true });
         } catch (err) { showBanner("recStatusBanner", err.message, "error"); }
       });
@@ -4189,24 +4312,30 @@
       async function loadSystemPreflight() {
         try {
           const pf = await apiJson("/api/system/preflight");
-          $("prefWorkspaceDirInput").value = pf.workspace_dir || "";
-          $("prefDataDirInput").value = pf.data_dir || "";
-          $("prefReuseSystemSdk").checked = Boolean(pf.prefer_existing_system_sdk);
+          const paths = pf.paths || pf;
+          $("prefWorkspaceDirInput").value = paths.workspace_dir || "";
+          $("prefDataDirInput").value = paths.data_dir || "";
+          $("prefReuseSystemSdk").checked = Boolean(paths.prefer_existing_system_sdk);
           $("preflightSoftwareBody").innerHTML = (pf.software || []).map((sw) => {
             const cls = sw.found ? "b-ok" : "b-skip";
-            return `<tr><td><strong>${esc(sw.label)}</strong></td><td><span class="badge ${cls}">${esc(sw.source || (sw.found ? "Found" : "Missing"))}</span></td><td class="mono">${esc(sw.detail || "-")}</td></tr>`;
+            const swLabel = sw.label || sw.name || "Unknown tool";
+            const swDetail = sw.detail || [sw.version, sw.path].filter(Boolean).join(" · ") || "-";
+            return `<tr><td><strong>${esc(swLabel)}</strong></td><td><span class="badge ${cls}">${esc(sw.source || (sw.found ? "Found" : "Missing"))}</span></td><td class="mono">${esc(swDetail)}</td></tr>`;
           }).join("");
         } catch (_) {}
       }
       async function loadCleanupTargets() {
         try {
           const plan = await apiJson("/api/system/cleanup");
-          $("cleanupTargetsBody").innerHTML = (plan.items || []).map((it) => `<tr>
-            <td><input type="checkbox" class="cleanup-chk" value="${esc(it.id)}" ${it.safe_for_new_install && it.exists ? "checked" : ""} ${!it.exists ? "disabled" : ""} /></td>
-            <td><strong>${esc(it.label)}</strong><div class="muted mono" style="font-size:11px;">${esc(it.path)}</div></td>
-            <td><span class="badge ${it.safe_for_new_install ? "b-ok" : "b-warn"}">${it.safe_for_new_install ? "Safe leftover" : "Active data"}</span></td>
-            <td>${it.exists ? esc(it.size_human || fmtBytes(it.size_bytes)) : '<span class="muted">-</span>'}</td>
-          </tr>`).join("");
+          $("cleanupTargetsBody").innerHTML = (plan.items || []).map((it) => {
+            const itemPath = it.path || ((it.existing_paths && it.existing_paths.length ? it.existing_paths : it.paths) || []).join(", ");
+            return `<tr>
+              <td><input type="checkbox" class="cleanup-chk" value="${esc(it.id)}" ${it.safe_for_new_install && it.exists ? "checked" : ""} ${!it.exists ? "disabled" : ""} /></td>
+              <td><strong>${esc(it.label)}</strong><div class="muted mono" style="font-size:11px;">${esc(itemPath)}</div></td>
+              <td><span class="badge ${it.safe_for_new_install ? "b-ok" : "b-warn"}">${it.safe_for_new_install ? "Safe leftover" : "Active data"}</span></td>
+              <td>${it.exists ? esc(it.size_human || fmtBytes(it.size_bytes)) : '<span class="muted">-</span>'}</td>
+            </tr>`;
+          }).join("");
         } catch (_) {}
       }
       $("storagePrefsForm").addEventListener("submit", async (e) => {
@@ -4227,7 +4356,8 @@
         if (!ids.length) return;
         if (!window.confirm(`Delete ${ids.length} checked cleanup item(s) permanently?`)) return;
         const res = await apiJson("/api/system/cleanup", { target_ids: ids });
-        showBanner("cleanupStatusBanner", `Cleaned ${res.deleted.length} item(s), freed ${fmtBytes(res.freed_bytes)}.`, "ok");
+        const removed = res.removed_ids || res.deleted || [];
+        showBanner("cleanupStatusBanner", `Cleaned ${removed.length} item(s), freed ${fmtBytes(res.freed_bytes || 0)}.`, "ok");
         loadCleanupTargets();
         loadOverview({ skipAutoSync: true });
       });

@@ -10,6 +10,25 @@ All notable backend, UI, packaging, and documentation changes to **QAlprit** are
 
 ---
 
+## [v0.1.31] — 2026-11-16
+
+### macOS DMG & Workbench Layout, iOS Simulator Boot & Settings Reorganization (`src/qalprit/ui/index.html`)
+- **Fixed Top-Right Overflow Menu (`#topMoreMenu`) Overlapping Left Sidebar**: Anchored `.menu-popover` cleanly below and right-aligned to `#btnTopMore` via JS `beforetoggle` / `click` / `resize` bounding coordinates plus CSS right-edge fallback (`top: 44px; right: 14px; left: auto;`), eliminating the `(0, 0)` WebKit popover placement bug seen in `QAlprit.app`.
+- **Removed Duplicate `"Workflows library"` Menu Item**: Moved `id="btnOpenFlowsModal"` directly onto the sidebar `Workflows` navigation item and streamlined `#topMoreMenu` to workspace utilities (`Reload workspace`, `Open workspace folder`, `Validate workspace`).
+- **Fixed Horizontal Clipping in `Workflows` & `Journeys` Workspaces**: Constrained CSS grid `1fr` tracks (`minmax(0, 1fr)`) and flex children (`min-width: 0;`, wrap-friendly `.panel-head`), plus responsive `<= 1180px` stacking so `+ Variable`, `+ Add row`, and right-hand `Run Configuration` never clip off-screen at `1360×880` or `960×640`.
+- **Enabled iOS Simulator Boot & Per-Row Device Booting**: Unwrapped `st.env_status` and `st.running` from `GET /api/emulator/status` in `pollEmulatorStatus()` (plus immediate `/api/devices` dropdown sync) so macOS visibly surfaces the iOS Simulator selector + prominent `Boot iOS Simulator` button, detects installed Android AVDs cleanly, and provides direct inline `Boot` buttons in the Devices table.
+- **Moved `Environment & Package Config` to Settings**: Relocated `#envSaveForm` (profile, timeout, Android package ID, iOS bundle ID, screenshot redaction toggle) from `Setup & Devices` into `Settings`, keeping a compact active-profile summary link (`Configure in Settings ->`) in Setup.
+- **Fixed Settings Preflight/Cleanup & Recorder Toast Keys**: Aligned `loadSystemPreflight()`, `loadCleanupTargets()`, `btnCleanupSelected`, and `btnRecSaveAll` with the exact backend JSON schemas (`pf.paths`, `sw.name`, `it.existing_paths`/`it.paths`, `res.removed_ids`, `res.flow.name`).
+
+### Root Causes & Lessons Learned
+- **CSS `[popover]` Placement & `minmax(0, 1fr)`**: Native `[popover]` defaults to `inset: auto` / `(0, 0)` unless positioned via coordinates or CSS anchor positioning, and CSS Grid `1fr` expands to `min-content` width unless written `minmax(0, 1fr)` with `min-width: 0` on ancestors.
+- **Nested Backend Status Payloads**: Whenever `/api/<domain>/status` nests environment capabilities (such as `EmulatorJobManager.status()` nesting `env_status`), add explicit JS-backend contract assertions in `tests/test_datasets_and_redesign.py` so top-level key lookups never silently hide macOS iOS controls or Settings fields.
+
+### Tests
+- Added `test_ui_redesign_layout_ios_boot_and_api_contracts` in `tests/test_datasets_and_redesign.py` and verified all views via headless Chrome DevTools DOM + screenshot checks (`1360×880` and `960×640`).
+
+---
+
 ## [v0.1.30] — 2026-11-16
 
 ### Desktop Workbench Redesign (`src/qalprit/ui/index.html`)
