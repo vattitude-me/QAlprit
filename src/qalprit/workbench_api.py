@@ -27,11 +27,12 @@ from qalprit.config_loader import (
     load_devices,
     load_environments,
 )
+from qalprit.datasets import DatasetBundle, DatasetRow, load_datasets, resolve_dataset_vars
 from qalprit.doctor import find_android_sdk, win_subprocess_kwargs
 from qalprit.driver_factory import create_appium_driver
 from qalprit.env_loader import load_env
 from qalprit.inspector import extract_interactive_elements, format_inspect_output
-from qalprit.report.generator import generate_reports
+from qalprit.report.generator import generate_batch_report, generate_reports
 from qalprit.results import write_results_json
 from qalprit.runner import TestRunner
 from qalprit.spec_loader import TestSpec, load_flows, load_specs
@@ -583,6 +584,10 @@ def save_test_journey(project_root: Path, payload: dict[str, Any]) -> dict[str, 
     }
     if payload.get("retries") is not None and str(payload.get("retries")).strip() != "":
         meta["retries"] = int(payload["retries"])
+    if payload.get("params"):
+        cleaned_params = [str(p).strip() for p in list(payload["params"]) if str(p).strip()]
+        if cleaned_params:
+            meta["params"] = cleaned_params
     if payload.get("setup"):
         meta["setup"] = list(payload["setup"])
     meta["steps"] = steps
@@ -994,6 +999,11 @@ class RunJobManager:
         dry_run = bool(payload.get("dry_run", False))
         raw_redact = payload.get("redact_screenshots")
         redact_override: bool | None = None if raw_redact is None else bool(raw_redact)
+        reset_override = str(payload.get("reset_mode") or "").strip() or None
+        run_datasets = bool(payload.get("run_datasets", False))
+        requested_dataset_names = [
+            str(n).strip() for n in (payload.get("dataset_names") or []) if str(n).strip()
+        ]
         app_raw = str(payload.get("app_path") or "").strip()
 
         resolved_app: Path | None = None
@@ -1054,6 +1064,21 @@ class RunJobManager:
                 )
             raise ValueError("No matching test journeys found to run. Record a Workflow in Step 2 or create a Test Journey in Step 3.")
 
+        dataset_bundle: DatasetBundle | None = None
+        selected_rows: list[DatasetRow] = []
+        if run_datasets or requested_dataset_names:
+            ds_kind: str = "flow" if flow_name else "spec"
+            ds_target: str = flow_name or (spec_id or (specs[0].id if len(specs) == 1 else ""))
+            if ds_target:
+                dataset_bundle = load_datasets(project_root, ds_kind, ds_target)  # type: ignore[arg-type]
+                if requested_dataset_names:
+                    wanted = set(requested_dataset_names)
+                    selected_rows = [r for r in dataset_bundle.rows if r.name in wanted]
+                else:
+                    selected_rows = [r for r in dataset_bundle.rows if r.selected]
+            if (run_datasets or requested_dataset_names) and not selected_rows:
+                raise ValueError(f"No selected datasets found for '{ds_target}'. Select at least one dataset row or import a CSV.")
+
         if dry_run:
             return {
                 "dry_run": True,
@@ -1062,25 +1087,34 @@ class RunJobManager:
                 "env_name": env_name,
                 "spec_id": spec_id or "",
                 "flow_name": flow_name or "",
+                "dataset_count": len(selected_rows),
+                "datasets": [r.name for r in selected_rows],
                 "specs": [
                     {
                         "id": s.id,
                         "title": s.title,
                         "suite": s.suite,
-                        "reset": s.reset,
+                        "reset": reset_override or s.reset,
                         "steps": len(s.steps),
                     }
                     for s in specs
                 ],
             }
 
+        is_batch = len(selected_rows) > 0
         with self._lock:
             if self._state["running"]:
                 raise RuntimeError("A test run is already in progress. Wait for completion before starting another.")
-            run_id = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S") + f"_{platform}_{env_name}"
+            stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+            run_id = f"{stamp}_batch" if is_batch else f"{stamp}_{platform}_{env_name}"
             self._cancel_event.clear()
             self._active_mgr = None
             self._started_monotonic = time.monotonic()
+            init_msg = (
+                f"[{run_id}] Validated {len(selected_rows)} dataset(s) for {flow_name or spec_id or suite}. Starting Appium session..."
+                if is_batch
+                else f"[{run_id}] Validated {len(specs)} journey(s). Starting Appium session..."
+            )
             self._state = {
                 "running": True,
                 "run_id": run_id,
@@ -1088,7 +1122,7 @@ class RunJobManager:
                 "phase": "Starting Appium",
                 "progress_pct": 15,
                 "elapsed_sec": 0.0,
-                "logs": [f"[{run_id}] Validated {len(specs)} journey(s). Starting Appium session..."],
+                "logs": [init_msg],
                 "report_url": "",
                 "summary": None,
                 "error": "",
@@ -1099,6 +1133,7 @@ class RunJobManager:
             run_dir.mkdir(parents=True, exist_ok=True)
             appium_log_path = run_dir / "appium.log"
             masker = val.env_ctx.masker if val.env_ctx else None
+            shared_driver: Any = None
             try:
                 mgr = AppiumManager(log_path=appium_log_path, masker=masker)
                 with self._lock:
@@ -1106,41 +1141,159 @@ class RunJobManager:
                 with mgr:
                     if self._cancel_event.is_set():
                         raise InterruptedError("Stopped by user.")
-                    self._set_progress("Executing Tests", 45)
-                    self._append_log(f"[{run_id}] Appium ready at {mgr.url}. Executing tests...")
-                    runner = TestRunner(
-                        driver_factory=lambda auto_accept: create_appium_driver(
-                            mgr.url,
-                            profile,
-                            env_cfg,
+                    if is_batch:
+                        batch_t0 = time.monotonic()
+                        child_entries: list[dict[str, Any]] = []
+                        total_passed = 0
+                        total_failed = 0
+                        total_skipped = 0
+                        total_ds = len(selected_rows)
+                        secret_cols = dataset_bundle.secret_columns if dataset_bundle else []
+                        target_label = flow_name or (spec_id or (specs[0].id if specs else "batch"))
+                        for idx, row in enumerate(selected_rows, start=1):
+                            if self._cancel_event.is_set():
+                                raise InterruptedError("Stopped by user.")
+                            pct = 20 + int((idx - 1) / max(1, total_ds) * 68)
+                            self._set_progress(f"Dataset {idx}/{total_ds}: {row.name}", pct)
+                            self._append_log(f"[{run_id}] Running dataset {idx}/{total_ds}: '{row.name}'...")
+                            resolved_ds_vars = resolve_dataset_vars(
+                                row,
+                                val.env_ctx,  # type: ignore[arg-type]
+                                secret_cols,
+                                extra_env_vars=env_cfg.as_env_vars(),
+                            )
+                            sub_id = f"{run_id}_{idx:02d}_{_safe_slug(row.name, 'row')}"
+                            sub_dir = results_dir / sub_id
+                            sub_dir.mkdir(parents=True, exist_ok=True)
+                            runner = TestRunner(
+                                driver_factory=lambda auto_accept: create_appium_driver(
+                                    mgr.url,
+                                    profile,
+                                    env_cfg,
+                                    app_path=resolved_app,
+                                    auto_accept_alerts=auto_accept,
+                                ),
+                                profile=profile,
+                                profile_name=device_profile,
+                                env_name=env_name,
+                                env_cfg=env_cfg,
+                                env_ctx=val.env_ctx,  # type: ignore[arg-type]
+                                screens=val.screens,  # type: ignore[arg-type]
+                                flows=val.flows,
+                                run_dir=sub_dir,
+                                run_id=sub_id,
+                                app_path=resolved_app,
+                                suite=f"workflow:{flow_name}" if flow_name else (suite or "all"),
+                                tags=[],
+                                retries=retries,
+                                redact_screenshots=redact_override,
+                                dataset_vars=resolved_ds_vars,
+                                batch_id=run_id,
+                                dataset_name=row.name,
+                                dataset_expected=row.expected,
+                                reset_override=reset_override,
+                            )
+                            sub_res = runner.run(
+                                specs,
+                                appium_log_rel=None,
+                                existing_driver=shared_driver,
+                                close_driver=False,
+                            )
+                            shared_driver = runner._last_driver
+                            write_results_json(sub_res, sub_dir / "results.json", masker=masker)
+                            generate_reports(sub_res, sub_dir, masker=masker)
+                            sub_status = (
+                                "failed"
+                                if sub_res.summary.failed > 0
+                                else ("skipped" if sub_res.summary.skipped == sub_res.summary.total else "passed")
+                            )
+                            if sub_status == "passed":
+                                total_passed += 1
+                            elif sub_status == "failed":
+                                total_failed += 1
+                            else:
+                                total_skipped += 1
+                            first_err = next((t.failure_reason for t in sub_res.tests if t.failure_reason), "")
+                            child_entries.append(
+                                {
+                                    "run_id": sub_id,
+                                    "dir_name": sub_id,
+                                    "dataset_name": row.name,
+                                    "dataset_expected": row.expected,
+                                    "status": sub_status,
+                                    "duration_ms": sub_res.summary.duration_ms,
+                                    "error": first_err or "",
+                                }
+                            )
+                        if shared_driver is not None:
+                            try:
+                                shared_driver.quit()
+                            except Exception:
+                                pass
+                            shared_driver = None
+                        batch_summary = {
+                            "total": total_ds,
+                            "passed": total_passed,
+                            "failed": total_failed,
+                            "skipped": total_skipped,
+                            "duration_ms": int((time.monotonic() - batch_t0) * 1000),
+                        }
+                        self._set_progress("Generating Batch Report", 92)
+                        generate_batch_report(
+                            {
+                                "batch_id": run_id,
+                                "target_label": target_label,
+                                "target_kind": "flow" if flow_name else "spec",
+                                "environment": env_name,
+                                "platform": platform,
+                                "device_name": profile.device_name,
+                                "started_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                                "summary": batch_summary,
+                                "runs": child_entries,
+                            },
+                            run_dir,
+                            masker=masker,
+                        )
+                        summary = batch_summary
+                        report_url = f"/results/{run_id}/batch_report.html"
+                    else:
+                        self._set_progress("Executing Tests", 45)
+                        self._append_log(f"[{run_id}] Appium ready at {mgr.url}. Executing tests...")
+                        runner = TestRunner(
+                            driver_factory=lambda auto_accept: create_appium_driver(
+                                mgr.url,
+                                profile,
+                                env_cfg,
+                                app_path=resolved_app,
+                                auto_accept_alerts=auto_accept,
+                            ),
+                            profile=profile,
+                            profile_name=device_profile,
+                            env_name=env_name,
+                            env_cfg=env_cfg,
+                            env_ctx=val.env_ctx,  # type: ignore[arg-type]
+                            screens=val.screens,  # type: ignore[arg-type]
+                            flows=val.flows,
+                            run_dir=run_dir,
+                            run_id=run_id,
                             app_path=resolved_app,
-                            auto_accept_alerts=auto_accept,
-                        ),
-                        profile=profile,
-                        profile_name=device_profile,
-                        env_name=env_name,
-                        env_cfg=env_cfg,
-                        env_ctx=val.env_ctx,  # type: ignore[arg-type]
-                        screens=val.screens,  # type: ignore[arg-type]
-                        flows=val.flows,
-                        run_dir=run_dir,
-                        run_id=run_id,
-                        app_path=resolved_app,
-                        suite=f"workflow:{flow_name}" if flow_name else (suite or "all"),
-                        tags=[],
-                        retries=retries,
-                        redact_screenshots=redact_override,
-                    )
-                    run_result = runner.run(
-                        specs,
-                        appium_log_rel="appium.log" if appium_log_path.exists() else None,
-                    )
-                if self._cancel_event.is_set():
-                    raise InterruptedError("Stopped by user.")
-                self._set_progress("Generating Report", 88)
-                write_results_json(run_result, run_dir / "results.json", masker=masker)
-                generate_reports(run_result, run_dir, masker=masker)
-                summary = run_result.summary.model_dump()
+                            suite=f"workflow:{flow_name}" if flow_name else (suite or "all"),
+                            tags=[],
+                            retries=retries,
+                            redact_screenshots=redact_override,
+                            reset_override=reset_override,
+                        )
+                        run_result = runner.run(
+                            specs,
+                            appium_log_rel="appium.log" if appium_log_path.exists() else None,
+                        )
+                        if self._cancel_event.is_set():
+                            raise InterruptedError("Stopped by user.")
+                        self._set_progress("Generating Report", 88)
+                        write_results_json(run_result, run_dir / "results.json", masker=masker)
+                        generate_reports(run_result, run_dir, masker=masker)
+                        summary = run_result.summary.model_dump()
+                        report_url = f"/results/{run_id}/report.html"
                 self._append_log(
                     f"[{run_id}] Finished: {summary['passed']} passed, {summary['failed']} failed, {summary['skipped']} skipped."
                 )
@@ -1152,7 +1305,7 @@ class RunJobManager:
                     self._state["progress_pct"] = 100
                     self._state["elapsed_sec"] = elapsed
                     self._state["summary"] = summary
-                    self._state["report_url"] = f"/results/{run_id}/report.html"
+                    self._state["report_url"] = report_url
             except InterruptedError:
                 self._append_log(f"[{run_id}] Stopped by user.")
                 with self._lock:

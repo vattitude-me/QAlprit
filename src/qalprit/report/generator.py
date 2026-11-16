@@ -331,3 +331,104 @@ def generate_reports(
     md_path.write_text(md_text, encoding="utf-8")
     generate_junit_xml(run_result, junit_path, masker=masker)
     return html_path, md_path
+
+
+def generate_batch_report(
+    batch_payload: dict[str, Any],
+    batch_dir: Path,
+    masker: SecretMasker | None = None,
+) -> Path:
+    """Write batch.json and a concise standalone batch_report.html linking dataset reports."""
+    import html as html_lib
+    import json
+
+    batch_dir.mkdir(parents=True, exist_ok=True)
+    safe_payload = masker.mask_obj(batch_payload) if masker is not None else batch_payload
+    (batch_dir / "batch.json").write_text(json.dumps(safe_payload, indent=2), encoding="utf-8")
+
+    batch_id = html_lib.escape(str(safe_payload.get("batch_id") or batch_dir.name))
+    target_label = html_lib.escape(str(safe_payload.get("target_label") or "Dataset Batch"))
+    env_name = html_lib.escape(str(safe_payload.get("environment") or ""))
+    platform_name = html_lib.escape(str(safe_payload.get("platform") or ""))
+    summary = safe_payload.get("summary") or {}
+    total = int(summary.get("total") or 0)
+    passed = int(summary.get("passed") or 0)
+    failed = int(summary.get("failed") or 0)
+    dur = _format_duration(int(summary.get("duration_ms") or 0))
+
+    rows_html: list[str] = []
+    for item in safe_payload.get("runs") or []:
+        ds = html_lib.escape(str(item.get("dataset_name") or "-"))
+        exp = html_lib.escape(str(item.get("dataset_expected") or "-"))
+        st = str(item.get("status") or "unknown")
+        st_cls = "ok" if st == "passed" else ("fail" if st == "failed" else "skip")
+        rd = html_lib.escape(str(item.get("dir_name") or ""))
+        item_dur = _format_duration(int(item.get("duration_ms") or 0))
+        err = html_lib.escape(str(item.get("error") or ""))
+        rows_html.append(
+            f"<tr>"
+            f"<td><strong>{ds}</strong></td>"
+            f"<td>{exp}</td>"
+            f"<td><span class='pill {st_cls}'>{html_lib.escape(st.title())}</span></td>"
+            f"<td>{item_dur}</td>"
+            f"<td>{err or '-'}</td>"
+            f"<td>"
+            f"<a href='../{rd}/report.html'>HTML</a> &middot; "
+            f"<a href='../{rd}/summary.md'>MD</a> &middot; "
+            f"<a href='../{rd}/junit.xml'>JUnit</a>"
+            f"</td>"
+            f"</tr>"
+        )
+
+    doc = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="color-scheme" content="dark light" />
+<title>QAlprit Batch Report — {batch_id}</title>
+<style>
+  :root {{ --bg:#0b0e14; --card:#151b24; --border:#242e3d; --text:#eef2f7; --muted:#8b97a8; --accent:#2dd4bf; --ok:#34d399; --fail:#f87171; }}
+  body {{ margin:0; font-family:system-ui,-apple-system,sans-serif; background:var(--bg); color:var(--text); padding:28px; }}
+  .wrap {{ max-width:1080px; margin:0 auto; }}
+  h1 {{ margin:0 0 6px; font-size:1.4rem; }}
+  .meta {{ color:var(--muted); font-size:0.9rem; margin-bottom:20px; }}
+  .kpis {{ display:flex; gap:12px; flex-wrap:wrap; margin-bottom:20px; }}
+  .kpi {{ background:var(--card); border:1px solid var(--border); border-radius:10px; padding:12px 16px; min-width:130px; }}
+  .kpi small {{ color:var(--muted); display:block; font-size:0.75rem; }}
+  .kpi strong {{ font-size:1.25rem; }}
+  table {{ width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--border); border-radius:10px; overflow:hidden; }}
+  th, td {{ text-align:left; padding:10px 14px; border-bottom:1px solid var(--border); font-size:0.88rem; }}
+  th {{ color:var(--muted); font-size:0.78rem; text-transform:uppercase; letter-spacing:0.04em; }}
+  .pill {{ padding:2px 8px; border-radius:999px; font-size:0.75rem; font-weight:600; }}
+  .pill.ok {{ background:rgba(52,211,153,0.16); color:var(--ok); }}
+  .pill.fail {{ background:rgba(248,113,113,0.16); color:var(--fail); }}
+  .pill.skip {{ background:rgba(139,151,168,0.16); color:var(--muted); }}
+  a {{ color:var(--accent); text-decoration:none; }}
+  a:hover {{ text-decoration:underline; }}
+  footer {{ margin-top:24px; color:var(--muted); font-size:0.8rem; display:flex; justify-content:space-between; }}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Batch Report · {target_label}</h1>
+  <div class="meta">Batch <code>{batch_id}</code> &middot; {platform_name} / {env_name}</div>
+  <div class="kpis">
+    <div class="kpi"><small>Datasets</small><strong>{total}</strong></div>
+    <div class="kpi"><small>Passed</small><strong style="color:var(--ok)">{passed}</strong></div>
+    <div class="kpi"><small>Failed</small><strong style="color:var(--fail)">{failed}</strong></div>
+    <div class="kpi"><small>Duration</small><strong>{dur}</strong></div>
+  </div>
+  <table>
+    <thead><tr><th>Dataset</th><th>Expected</th><th>Status</th><th>Time</th><th>Error</th><th>Artifacts</th></tr></thead>
+    <tbody>{''.join(rows_html)}</tbody>
+  </table>
+  <footer>
+    <span>QAlprit Batch Report</span>
+    <span>Managed by <a href="https://vattitude.ca" target="_blank" rel="noopener">vattitude.ca</a></span>
+  </footer>
+</div>
+</body>
+</html>"""
+    out = batch_dir / "batch_report.html"
+    out.write_text(doc, encoding="utf-8")
+    return out

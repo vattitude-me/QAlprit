@@ -391,6 +391,7 @@ def validate_project(
     app_path: Path | None = None,
     spec_id: str | None = None,
     flow_name: str | None = None,
+    data_csv_path: Path | None = None,
 ) -> ValidationResult:
     """Validate project configs, screens, flows, specs, locators, and env vars."""
     result = ValidationResult()
@@ -536,9 +537,37 @@ def validate_project(
                 flows[name] for name in sorted(referenced_flow_names) if name in flows
             ]
 
+    csv_dataset_vars: set[str] = set()
+    if data_csv_path is not None:
+        if not data_csv_path.is_file():
+            result.issues.append(
+                ValidationIssue("error", data_csv_path, "data", f"CSV dataset file not found: {data_csv_path}")
+            )
+        else:
+            try:
+                from qalprit.datasets import parse_csv_datasets
+
+                csv_bundle = parse_csv_datasets(
+                    data_csv_path.read_text(encoding="utf-8"),
+                    target_kind="flow" if flow_name else "spec",
+                    target_name=flow_name or (spec_id or "csv"),
+                )
+                csv_dataset_vars.update(csv_bundle.variables)
+                csv_dataset_vars.update({"expected", "dataset"})
+            except Exception as exc:
+                result.issues.append(ValidationIssue("error", data_csv_path, "data", str(exc)))
+
     flow_platforms = [platform] if platform else ["android", "ios"]
+    from qalprit.datasets import load_datasets
+
     for flow in flows_to_validate:
-        declared_params = set(flow.params)
+        declared_params = set(flow.params) | csv_dataset_vars
+        try:
+            flow_ds = load_datasets(project_root, "flow", flow.name)
+            if flow_ds.variables:
+                declared_params |= set(flow_ds.variables) | {"expected", "dataset"}
+        except Exception:
+            pass
         flow_text = "\n".join(_iter_strings([s.params for s in flow.steps]))
         for param_name in flow.params:
             if f"${{{param_name}}}" not in flow_text and f"{{{param_name}}}" not in flow_text:
@@ -575,6 +604,22 @@ def validate_project(
                     f"'retries' must be between 0 and 5, got {spec.retries!r}",
                 )
             )
+        spec_dynamic_vars = set(spec.params) | csv_dataset_vars
+        try:
+            spec_ds = load_datasets(project_root, "spec", spec.id)
+            if spec_ds.variables:
+                spec_dynamic_vars |= set(spec_ds.variables) | {"expected", "dataset"}
+        except Exception:
+            pass
+        # When validating a direct synthetic workflow run (FLOW-*), allow its flow's declared/dataset params
+        if flow_name and flow_name in flows:
+            spec_dynamic_vars |= set(flows[flow_name].params)
+            try:
+                f_ds = load_datasets(project_root, "flow", flow_name)
+                if f_ds.variables:
+                    spec_dynamic_vars |= set(f_ds.variables) | {"expected", "dataset"}
+            except Exception:
+                pass
         spec_platforms = [platform] if platform else list(spec.platforms)
         for phase_name, step_list in (("setup", spec.setup), ("steps", spec.steps), ("teardown", spec.teardown)):
             for idx, step in enumerate(step_list, start=1):
@@ -582,20 +627,20 @@ def validate_project(
                 _validate_step_shape(step, spec.source_path, loc, result.issues, allow_run_flow=True)
 
                 if step.type == "run_flow":
-                    flow_name = step.params.get("flow")
-                    if not flow_name:
+                    ref_flow_name = step.params.get("flow")
+                    if not ref_flow_name:
                         continue
-                    if flow_name not in flows:
+                    if ref_flow_name not in flows:
                         result.issues.append(
                             ValidationIssue(
                                 "error",
                                 spec.source_path,
                                 loc,
-                                f"Unknown flow '{flow_name}'",
+                                f"Unknown flow '{ref_flow_name}'",
                             )
                         )
                         continue
-                    flow = flows[flow_name]
+                    flow = flows[ref_flow_name]
                     provided = step.params.get("params") or {}
                     if not isinstance(provided, dict):
                         result.issues.append(
@@ -607,14 +652,19 @@ def validate_project(
                             )
                         )
                         continue
-                    missing_fp = sorted(set(flow.params) - set(provided.keys()))
+                    # When running a flow directly (flow_name == ref_flow_name) or with datasets,
+                    # flow params can come from spec_dynamic_vars or env_ctx as well.
+                    available_for_flow = set(provided.keys()) | spec_dynamic_vars
+                    if result.env_ctx is not None:
+                        available_for_flow |= set(result.env_ctx.variables.keys())
+                    missing_fp = sorted(set(flow.params) - available_for_flow)
                     if missing_fp:
                         result.issues.append(
                             ValidationIssue(
                                 "error",
                                 spec.source_path,
                                 loc,
-                                f"Flow '{flow_name}' missing required param(s): {', '.join(missing_fp)}",
+                                f"Flow '{ref_flow_name}' missing required param(s): {', '.join(missing_fp)}",
                             )
                         )
                     unexpected_fp = sorted(set(provided.keys()) - set(flow.params))
@@ -624,7 +674,7 @@ def validate_project(
                                 "warning",
                                 spec.source_path,
                                 loc,
-                                f"Flow '{flow_name}' received unused param(s): {', '.join(unexpected_fp)}",
+                                f"Flow '{ref_flow_name}' received unused param(s): {', '.join(unexpected_fp)}",
                             )
                         )
                     # Check expanded steps for env vars & platform locators
@@ -636,7 +686,7 @@ def validate_project(
                         )
                         continue
                     for e_idx, e_step in enumerate(expanded, start=1):
-                        e_loc = f"{loc}->flow:{flow_name}[{e_idx}]"
+                        e_loc = f"{loc}->flow:{ref_flow_name}[{e_idx}]"
                         _validate_step_shape(
                             e_step, spec.source_path, e_loc, result.issues, allow_run_flow=False
                         )
@@ -646,7 +696,7 @@ def validate_project(
                             result.screens,
                             result.env_ctx,
                             extra_env_vars,
-                            set(),
+                            spec_dynamic_vars,
                             spec.source_path,
                             e_loc,
                             result.issues,
@@ -658,7 +708,7 @@ def validate_project(
                         result.screens,
                         result.env_ctx,
                         extra_env_vars,
-                        set(),
+                        spec_dynamic_vars,
                         spec.source_path,
                         loc,
                         result.issues,

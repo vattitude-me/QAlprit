@@ -828,7 +828,7 @@ def test_workspace_apps_detect_android_and_ios_packages_and_ui_layout(tmp_path: 
         encoding="utf-8"
     )
     assert "[hidden] { display: none !important; }" in ui_html
-    assert ui_html.index("Step 1A") < ui_html.index("Step 1B") < ui_html.index("Step 1C")
+    assert ui_html.index("Setup &amp; Devices") < ui_html.index("Record") < ui_html.index("Journeys") < ui_html.index("Runs &amp; Reports")
     assert 'id="activeAppSelect"' in ui_html
     assert 'id="recStartForm"' in ui_html
 
