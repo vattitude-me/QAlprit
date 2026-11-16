@@ -273,6 +273,28 @@
       outline: 2px solid var(--accent);
       outline-offset: 2px;
     }
+    input[type="checkbox"] {
+      accent-color: var(--accent);
+    }
+    input[type="checkbox"][switch] {
+      accent-color: var(--accent);
+      margin: 0;
+      cursor: pointer;
+    }
+    input[type="checkbox"][switch]:focus-visible {
+      outline: 3px solid var(--accent);
+      outline-offset: 3px;
+    }
+    .switch-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin: 8px 0 4px;
+      font-size: 0.84rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
 
     .btn-row {
       display: flex;
@@ -1096,6 +1118,11 @@
                 <input id="envIosBundle" type="text" placeholder="com.example.MyApp" />
               </div>
             </div>
+            <label class="switch-row" for="envRedactChk">
+              <input id="envRedactChk" type="checkbox" switch checked />
+              <span>Redact Sensitive Fields (Black Marker in Live Emulator &amp; Screenshots)</span>
+            </label>
+            <p class="card-help" style="margin:2px 0 10px;">Off by default for <code>dev</code> so inputs are clearly visible during debugging; enabled by default for <code>qa</code>, <code>pre-prod</code>, and <code>prod</code>.</p>
             <div class="btn-row">
               <button type="submit" class="btn" id="btnSaveEnv">Save / Update Environment Config</button>
             </div>
@@ -1154,6 +1181,10 @@
               <select id="recAppSelect"></select>
             </div>
           </div>
+          <label class="switch-row" for="recRedactChk">
+            <input id="recRedactChk" type="checkbox" switch checked />
+            <span>Redact Black Marker on Sensitive Fields (auto-synced to environment: off for <code>dev</code>, on for <code>pre-prod</code> / <code>prod</code>)</span>
+          </label>
           <div class="btn-row">
             <button type="submit" class="btn btn-primary" id="btnRecStart">Start Live Recording on Emulator</button>
             <button type="button" class="btn" id="btnRecSync" hidden>Sync Screen / Typed Text</button>
@@ -1180,6 +1211,9 @@
                 <span class="muted" style="font-size:0.75rem;">Click mode:</span>
                 <button type="button" class="pill-toggle is-active" data-rec-mode="auto" id="btnRecModeAuto">Smart Tap / Type</button>
                 <button type="button" class="pill-toggle" data-rec-mode="assert_text" id="btnRecModeAssert">Capture Error / Text Assert</button>
+                <label class="chk-inline" for="recRedactMirrorChk" style="margin-left:auto;font-size:0.76rem;font-weight:600;">
+                  <input type="checkbox" id="recRedactMirrorChk" switch checked /> Redact Black Marker
+                </label>
               </div>
               <div class="rec-phone-frame" id="recPhoneFrame">
                 <img id="recPhoneImg" alt="Live emulator screen preview" />
@@ -1583,6 +1617,10 @@
               <input id="runRetriesInput" type="number" min="0" max="5" value="0" />
             </div>
           </div>
+          <label class="switch-row" for="runRedactChk">
+            <input id="runRedactChk" type="checkbox" switch checked />
+            <span>Redact Sensitive Screenshots (Black Marker) &mdash; <span class="muted" id="runRedactEnvHint" style="font-weight:400;">auto-set by environment</span></span>
+          </label>
 
           <div class="btn-row">
             <button type="button" class="btn" id="btnDryRun">Preview Execution Plan (Dry Run)</button>
@@ -2250,6 +2288,36 @@
           : '<tr><td colspan="4" class="muted">No app binaries uploaded yet.</td></tr>';
       }
 
+      function defaultRedactForEnv(envName) {
+        const norm = String(envName || "").trim().toLowerCase().replace(/_/g, "-");
+        return !["dev", "development", "local"].includes(norm);
+      }
+
+      function isEnvRedacted(envName) {
+        const envs = (STATE.overview && STATE.overview.environments) || {};
+        const cfg = envs[envName];
+        if (cfg && cfg.redact_screenshots !== undefined && cfg.redact_screenshots !== null) {
+          return Boolean(cfg.redact_screenshots);
+        }
+        return defaultRedactForEnv(envName);
+      }
+
+      function syncRecRedactToEnv(envName) {
+        const val = isEnvRedacted(envName);
+        if ($("recRedactChk")) $("recRedactChk").checked = val;
+        if ($("recRedactMirrorChk")) $("recRedactMirrorChk").checked = val;
+      }
+
+      function syncRunRedactToEnv(envName) {
+        const val = isEnvRedacted(envName);
+        if ($("runRedactChk")) $("runRedactChk").checked = val;
+        if ($("runRedactEnvHint")) {
+          $("runRedactEnvHint").textContent = val
+            ? `enabled by default for '${envName || "prod"}'`
+            : `off by default for '${envName || "dev"}'`;
+        }
+      }
+
       function loadEnvIntoForm(envName) {
         const envs = (STATE.overview && STATE.overview.environments) || {};
         const cfg = envs[envName];
@@ -2258,11 +2326,14 @@
         $("envTimeoutInput").value = cfg.default_timeout || 12;
         if (cfg.android_package) $("envAndroidPkg").value = cfg.android_package;
         if (cfg.ios_bundle_id) $("envIosBundle").value = cfg.ios_bundle_id;
+        if ($("envRedactChk")) $("envRedactChk").checked = isEnvRedacted(envName);
         ["recEnvSelect", "inspectEnvSelect", "runEnvSelect"].forEach((selId) => {
           if ($(selId) && Array.from($(selId).options).some((o) => o.value === envName)) {
             $(selId).value = envName;
           }
         });
+        syncRecRedactToEnv(envName);
+        syncRunRedactToEnv(envName);
       }
 
       async function selectSessionApp(relPath, opts) {
@@ -2313,11 +2384,10 @@
                 env_name: envName,
                 android_package: isAndroid ? pkg : $("envAndroidPkg").value.trim(),
                 ios_bundle_id: isAndroid ? $("envIosBundle").value.trim() : pkg,
-                default_timeout: Number($("envTimeoutInput").value) || 12
+                default_timeout: Number($("envTimeoutInput").value) || 12,
+                sync_placeholders: true
               });
-              if (STATE.overview && STATE.overview.environments) {
-                STATE.overview.environments[savedRes.env_name] = savedRes.config;
-              }
+              await loadOverview({ skipAutoSync: true, preserveFormInputs: true });
               showBanner("envStatus", `Auto-synced '${pkg}' from ${app.name} into environment '${savedRes.env_name}' — ready to test.`, "ok");
             } catch (err) {
               showBanner("envStatus", err.message, "error");
@@ -2592,11 +2662,18 @@
         const val = $("envPresetSelect").value;
         if (val === "__new__") {
           $("envNameInput").value = "";
+          if ($("envRedactChk")) $("envRedactChk").checked = true;
           $("envNameInput").focus();
-          showBanner("envStatus", "Type a new profile name (e.g. staging or prod) and click Save / Update Environment Config.", "");
+          showBanner("envStatus", "Type a new profile name (e.g. dev, pre-prod, or prod) and click Save / Update Environment Config.", "");
         } else {
           loadEnvIntoForm(val);
           updateStep1Checklist();
+        }
+      });
+
+      $("envNameInput").addEventListener("input", () => {
+        if ($("envPresetSelect").value === "__new__" && $("envRedactChk")) {
+          $("envRedactChk").checked = defaultRedactForEnv($("envNameInput").value);
         }
       });
 
@@ -2678,9 +2755,14 @@
             env_name: $("envNameInput").value.trim() || "qa",
             android_package: $("envAndroidPkg").value.trim(),
             ios_bundle_id: $("envIosBundle").value.trim(),
-            default_timeout: Number($("envTimeoutInput").value) || 12
+            default_timeout: Number($("envTimeoutInput").value) || 12,
+            redact_screenshots: $("envRedactChk") ? $("envRedactChk").checked : true
           });
-          showBanner("envStatus", "Saved environment '" + data.env_name + "' into config/environments.yaml.", "ok");
+          showBanner(
+            "envStatus",
+            "Saved environment '" + data.env_name + "' (redaction " + (data.config && data.config.redact_screenshots ? "ON" : "OFF") + ") into config/environments.yaml.",
+            "ok"
+          );
           await loadOverview({ skipAutoSync: true });
           $("envPresetSelect").value = data.env_name;
         } catch (err) {
@@ -3102,8 +3184,13 @@
         if (st.error) {
           showBanner("recStatusBanner", st.error, "error");
         }
+        if (active || starting) {
+          const redactOn = st.redact_sensitive !== undefined ? Boolean(st.redact_sensitive) : true;
+          if ($("recRedactChk")) $("recRedactChk").checked = redactOn;
+          if ($("recRedactMirrorChk")) $("recRedactMirrorChk").checked = redactOn;
+        }
         if (active) {
-          $("recMirrorMeta").textContent = `${st.screen_width}×${st.screen_height} · ${(st.elements || []).length} elements`;
+          $("recMirrorMeta").textContent = `${st.screen_width}×${st.screen_height} · ${(st.elements || []).length} elements · ${st.redact_sensitive ? "Redacted" : "Clear View"}`;
           if (st.has_screenshot && st.rev !== STATE.recLastRev) {
             STATE.recLastRev = st.rev;
             $("recPhoneImg").src = "/api/recorder/screenshot?rev=" + encodeURIComponent(st.rev);
@@ -3156,7 +3243,8 @@
             env_name: $("recEnvSelect").value,
             app_path: $("recAppSelect").value,
             screen_name: $("recScreenName").value.trim() || "login",
-            flow_name: $("recSaveFlowName").value.trim() || "recorded_flow"
+            flow_name: $("recSaveFlowName").value.trim() || "recorded_flow",
+            redact_sensitive: $("recRedactChk") ? $("recRedactChk").checked : true
           });
           startRecorderPolling();
           await pollRecorderStatus();
@@ -3164,6 +3252,35 @@
           showBanner("recStatusBanner", err.message, "error");
         }
       });
+
+      if ($("recEnvSelect")) {
+        $("recEnvSelect").addEventListener("change", () => {
+          if (!(STATE.recState && (STATE.recState.active || STATE.recState.starting))) {
+            syncRecRedactToEnv($("recEnvSelect").value);
+          }
+        });
+      }
+
+      async function toggleLiveRecorderRedaction(enabled) {
+        if ($("recRedactChk")) $("recRedactChk").checked = enabled;
+        if ($("recRedactMirrorChk")) $("recRedactMirrorChk").checked = enabled;
+        if (STATE.recState && STATE.recState.active) {
+          try {
+            const st = await apiJson("/api/recorder/redaction", { enabled });
+            applyRecorderState(st);
+            showBanner("recStatusBanner", `Live emulator redaction ${enabled ? "enabled (black marker ON)" : "disabled (clear view)"}.`, "");
+          } catch (err) {
+            showBanner("recStatusBanner", err.message, "error");
+          }
+        }
+      }
+
+      if ($("recRedactChk")) {
+        $("recRedactChk").addEventListener("change", () => toggleLiveRecorderRedaction($("recRedactChk").checked));
+      }
+      if ($("recRedactMirrorChk")) {
+        $("recRedactMirrorChk").addEventListener("change", () => toggleLiveRecorderRedaction($("recRedactMirrorChk").checked));
+      }
 
       $("btnRecStop").addEventListener("click", async () => {
         try {
@@ -3978,6 +4095,9 @@
       if ($("runPlatformSelect")) {
         $("runPlatformSelect").addEventListener("change", () => refreshRunSpecDropdown());
       }
+      if ($("runEnvSelect")) {
+        $("runEnvSelect").addEventListener("change", () => syncRunRedactToEnv($("runEnvSelect").value));
+      }
 
       async function startRun(dryRun) {
         $("openFinishedReportLink").hidden = true;
@@ -3991,6 +4111,7 @@
             spec_id: $("runSpecFilter") ? $("runSpecFilter").value : "",
             app_path: $("runAppSelect").value,
             retries: Number($("runRetriesInput").value) || 0,
+            redact_screenshots: $("runRedactChk") ? $("runRedactChk").checked : true,
             dry_run: dryRun
           });
           if (dryRun) {

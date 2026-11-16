@@ -1392,3 +1392,124 @@ def test_avd_sdk_matching_and_windows_adb_dll_health(tmp_path: Path, monkeypatch
     iss_text = (Path(__file__).resolve().parents[1] / "packaging" / "windows" / "installer.iss").read_text(encoding="utf-8")
     assert "PrepareToInstall" in iss_text
     assert "AdbWinApi.dll" in iss_text
+
+
+def test_recorder_and_environments_redaction_toggle_api(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import io
+    import json
+    import threading
+    import time
+    import urllib.request
+    from PIL import Image
+    import qalprit.recorder as rec_mod
+    from qalprit.config_loader import load_environments
+    from qalprit.ui_server import create_ui_server
+
+    ws = ensure_workspace(tmp_path / "redact_ws")
+    default_envs = load_environments(ws / "config" / "environments.yaml")
+    assert default_envs["dev"].redact_screenshots is False
+    assert default_envs["qa"].redact_screenshots is True
+    assert default_envs["pre-prod"].redact_screenshots is True
+    assert default_envs["prod"].redact_screenshots is True
+
+    buf = io.BytesIO()
+    Image.new("RGB", (1080, 2400), color=(240, 245, 250)).save(buf, format="PNG")
+    clear_png = buf.getvalue()
+
+    pw_xml = (
+        '<hierarchy rotation="0">'
+        '  <android.widget.EditText resource-id="com.demo:id/password_et" text="secret123" bounds="[60,300][1000,420]" clickable="true" />'
+        '</hierarchy>'
+    )
+
+    class _FakeDriver:
+        capabilities = {"deviceUDID": "emulator-5554"}
+        page_source = pw_xml
+
+        def get_screenshot_as_png(self) -> bytes:
+            return clear_png
+
+        def get_window_size(self) -> dict[str, int]:
+            return {"width": 1080, "height": 2400}
+
+        def quit(self) -> None:
+            return
+
+    class _FakeAppiumMgr:
+        url = "http://127.0.0.1:4723"
+
+        def __init__(self, **_kwargs: object) -> None:
+            pass
+
+        def __enter__(self) -> "_FakeAppiumMgr":
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return
+
+    monkeypatch.setattr(rec_mod, "AppiumManager", _FakeAppiumMgr)
+    monkeypatch.setattr(rec_mod, "create_appium_driver", lambda *_a, **_kw: _FakeDriver())
+    monkeypatch.setattr(rec_mod.RecorderManager, "_start_android_getevent_watcher", lambda *_a: None)
+
+    server = create_ui_server(ws, host="127.0.0.1", port=0)
+    port = server.server_address[1]
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+
+    def _post(path: str, payload: dict[str, object]) -> dict[str, object]:
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{port}{path}",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req) as r:
+            return json.loads(r.read().decode("utf-8"))
+
+    try:
+        # 1. Saving pre-prod / dev via API exposes redact_screenshots cleanly
+        saved = _post("/api/environments/save", {
+            "env_name": "pre-prod",
+            "android_package": "com.demo.preprod",
+            "default_timeout": 12,
+            "redact_screenshots": True,
+        })
+        assert saved["config"]["redact_screenshots"] is True
+
+        # 2. Starting recorder in 'dev' defaults to clear unredacted frames
+        _post("/api/recorder/start", {
+            "platform": "android",
+            "device_profile": "android_emulator",
+            "env_name": "dev",
+            "screen_name": "login",
+        })
+        for _ in range(100):
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/recorder/status") as r:
+                st = json.loads(r.read().decode("utf-8"))
+            if not st.get("starting"):
+                break
+            time.sleep(0.05)
+        assert st["active"] is True
+        assert st["redact_sensitive"] is False
+
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/recorder/screenshot") as r:
+            with Image.open(io.BytesIO(r.read())) as im:
+                assert im.convert("RGB").getpixel((200, 350)) == (240, 245, 250)
+
+        # 3. Toggling black-marker redaction ON live immediately masks password box
+        st_on = _post("/api/recorder/redaction", {"enabled": True})
+        assert st_on["redact_sensitive"] is True
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/recorder/screenshot") as r:
+            with Image.open(io.BytesIO(r.read())) as im:
+                assert im.convert("RGB").getpixel((200, 350)) != (240, 245, 250)
+
+        # 4. Toggling back OFF restores clear frame
+        st_off = _post("/api/recorder/redaction", {"enabled": False})
+        assert st_off["redact_sensitive"] is False
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/recorder/screenshot") as r:
+            with Image.open(io.BytesIO(r.read())) as im:
+                assert im.convert("RGB").getpixel((200, 350)) == (240, 245, 250)
+
+        _post("/api/recorder/stop", {})
+    finally:
+        server.shutdown()
+        server.server_close()

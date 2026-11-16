@@ -37,15 +37,46 @@ _DEFAULT_DEVICES_YAML = """profiles:
 """
 
 _DEFAULT_ENVIRONMENTS_YAML = """environments:
+  dev:
+    android_package: com.example.app
+    ios_bundle_id: com.example.app
+    default_timeout: 12
+    poll_interval: 0.25
+    redact_screenshots: false
+    secure_evidence: true
+    save_page_source_on_failure: true
+    variables:
+      ENV_LABEL: DEV
   qa:
     android_package: com.example.app
     ios_bundle_id: com.example.app
     default_timeout: 12
     poll_interval: 0.25
+    redact_screenshots: true
     secure_evidence: true
     save_page_source_on_failure: true
     variables:
       ENV_LABEL: QA
+  pre-prod:
+    android_package: com.example.app
+    ios_bundle_id: com.example.app
+    default_timeout: 12
+    poll_interval: 0.25
+    redact_screenshots: true
+    secure_evidence: true
+    save_page_source_on_failure: true
+    variables:
+      ENV_LABEL: PRE-PROD
+  prod:
+    android_package: com.example.app
+    ios_bundle_id: com.example.app
+    default_timeout: 15
+    poll_interval: 0.25
+    redact_screenshots: true
+    secure_evidence: true
+    save_page_source_on_failure: true
+    variables:
+      ENV_LABEL: PROD
 """
 
 _DEFAULT_SCREENS_YAML = "{}\n"

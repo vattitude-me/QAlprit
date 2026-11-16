@@ -1,7 +1,7 @@
 ; Inno Setup script for QAlprit Windows Installer (per-user, no admin required)
 
 #ifndef QAlpritVersion
-  #define QAlpritVersion "0.1.21"
+  #define QAlpritVersion "0.1.22"
 #endif
 
 #ifndef DistDir

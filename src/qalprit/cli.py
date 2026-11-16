@@ -340,6 +340,7 @@ def validate(
 @click.option("--retries", type=int, default=0, show_default=True)
 @click.option("--appium-url", default=None, help="Attach to existing Appium 2 server instead of spawning.")
 @click.option("--external-assets", is_flag=True, help="Link screenshots externally in report.html instead of embedding.")
+@click.option("--redact/--no-redact", "redact_screenshots", default=None, help="Enable or disable black-marker PII redaction on screenshots (defaults to environment setting: off for dev, on for pre-prod/prod/qa).")
 @click.option("--project-root", type=click.Path(path_type=Path), default=None, hidden=True)
 def run(
     platform: str,
@@ -357,6 +358,7 @@ def run(
     retries: int,
     appium_url: str | None,
     external_assets: bool,
+    redact_screenshots: bool | None,
     project_root: Path | None,
 ) -> None:
     """Execute automated UI tests and generate report.html, summary.md, results.json, and junit.xml."""
@@ -454,6 +456,7 @@ def run(
             tags=tag_list or [],
             retries=retries,
             update_baselines=update_baselines,
+            redact_screenshots=redact_screenshots,
         )
         run_result = runner.run(
             selected_specs,
