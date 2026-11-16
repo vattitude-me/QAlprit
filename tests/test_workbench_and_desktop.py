@@ -1245,7 +1245,12 @@ def test_streamlined_ui_and_workflow_spec_crud_endpoints(tmp_path: Path, monkeyp
         assert "Record App Flow" in html
         assert 'id="btnOpenFlowsModal"' in html
         assert 'id="recAssertBar"' in html
-        assert 'id="flowUploadStep2Form"' in html
+        # Workflow import lives in the Workflows rail. The form nested in the Record toolbar is gone.
+        assert 'id="flowRailUploadInput"' in html
+        assert 'id="flowUploadStep2Form"' not in html
+        # Native alert/confirm/prompt are blocked or unstyled in the desktop webview.
+        assert "window.confirm(" not in html and "window.prompt(" not in html and "alert(" not in html
+        assert 'id="uiAskDialog"' in html and 'id="toastHost"' in html
         assert 'id="specUploadInput"' in html
         assert 'id="btnAutoSpecId"' in html
         assert 'id="runSpecFilter"' in html

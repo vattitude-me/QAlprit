@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 480" width="1080" height="480" role="img" aria-labelledby="arch-title arch-desc">
   <title id="arch-title">QAlprit Architecture Flow</title>
-  <desc id="arch-desc">Animated flow from app build artifact and AI-authored specs through human plus QAlprit validation, workflow execution on simulator or real device, in-memory screen masking, to proof reports and dashboard.</desc>
+  <desc id="arch-desc">Animated flow from app build artifact, through flows and specs recorded live in the Workbench or written by hand or AI, human plus QAlprit validation, workflow execution on simulator or real device once per CSV dataset row, in-memory screen masking, to proof reports and the Workbench.</desc>
   <defs>
     <marker id="arr-indigo" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
       <path d="M 0 1 L 10 5 L 0 9 z" fill="#4f46e5" />
@@ -43,7 +43,7 @@
   <!-- Header -->
   <rect x="24" y="18" width="1032" height="56" rx="12" fill="#0f172a" />
   <text x="46" y="43" class="sans" font-size="18.5" font-weight="700" fill="#f8fafc">QAlprit Architecture</text>
-  <text x="46" y="61" class="sans" font-size="12" fill="#94a3b8">Build -&gt; AI Authoring -&gt; Validate -&gt; Execute -&gt; Mask -&gt; Dashboard</text>
+  <text x="46" y="61" class="sans" font-size="12" fill="#94a3b8">Build -&gt; Record or Author -&gt; Validate -&gt; Execute per CSV row -&gt; Mask -&gt; Report</text>
   <rect x="880" y="30" width="154" height="32" rx="16" fill="#134e4a" stroke="#2dd4bf" stroke-width="1.2" />
   <text x="957" y="50" text-anchor="middle" class="mono" font-size="11.5" font-weight="600" fill="#2dd4bf">Deterministic Core</text>
 
@@ -64,14 +64,14 @@
   <rect x="396" y="102" width="286" height="124" rx="14" fill="#ffffff" stroke="#22d3ee" stroke-width="2" />
   <circle cx="420" cy="128" r="13" fill="#0891b2" />
   <text x="420" y="133" text-anchor="middle" class="sans" font-size="12.5" font-weight="700" fill="#ffffff">2</text>
-  <text x="442" y="133" class="sans" font-size="15" font-weight="700" fill="#164e63">AI Authoring</text>
+  <text x="442" y="133" class="sans" font-size="15" font-weight="700" fill="#164e63">Record or Author</text>
   <rect x="412" y="150" width="254" height="32" rx="8" fill="#ecfeff" stroke="#a5f3fc" />
-  <text x="539" y="170" text-anchor="middle" class="mono" font-size="12.5" font-weight="700" fill="#0e7490">Screens · Flows · Specs</text>
-  <text x="539" y="206" text-anchor="middle" class="sans" font-size="12" fill="#475569">YAML &amp; Markdown Suites</text>
+  <text x="539" y="170" text-anchor="middle" class="mono" font-size="12.5" font-weight="700" fill="#0e7490">Live Recorder · AI · Markdown</text>
+  <text x="539" y="206" text-anchor="middle" class="sans" font-size="12" fill="#475569">Screens, Flows, Specs &amp; CSV Datasets</text>
 
   <!-- 2 -> 3 -->
   <path class="flow-line" d="M 682 164 L 742 164" stroke="#0891b2" marker-end="url(#arr-cyan)" />
-  <text x="712" y="152" text-anchor="middle" class="mono" font-size="10.5" font-weight="600" fill="#0891b2">author</text>
+  <text x="712" y="152" text-anchor="middle" class="mono" font-size="10.5" font-weight="600" fill="#0891b2">save</text>
 
   <!-- 3: Validate -->
   <rect x="748" y="102" width="286" height="124" rx="14" fill="#ffffff" stroke="#2dd4bf" stroke-width="2" />
@@ -95,7 +95,7 @@
   <text x="764" y="347" class="mono" font-size="12" font-weight="600" fill="#15803d">qalprit run</text>
   <rect x="764" y="362" width="254" height="74" rx="10" fill="#f0fdf4" stroke="#86efac" stroke-width="1.5" />
   <text x="891" y="392" text-anchor="middle" class="sans" font-size="13.5" font-weight="700" fill="#14532d">Simulator / Real Device</text>
-  <text x="891" y="416" text-anchor="middle" class="mono" font-size="11.5" fill="#15803d">Appium 2 · Step Runner</text>
+  <text x="891" y="416" text-anchor="middle" class="mono" font-size="11.5" fill="#15803d">Appium 2 · one run per CSV row</text>
 
   <!-- 4 -> 5 -->
   <path class="flow-line" d="M 748 371 L 688 371" stroke="#e11d48" marker-end="url(#arr-rose)" />
@@ -134,8 +134,8 @@
   <text x="120" y="431" text-anchor="middle" class="sans" font-size="10.5" fill="#475569">PR Summary</text>
 
   <rect x="193" y="396" width="121" height="44" rx="8" fill="#ffffff" stroke="#fcd34d" />
-  <text x="253" y="415" text-anchor="middle" class="mono" font-size="11.5" font-weight="700" fill="#0f172a">qalprit ui</text>
-  <text x="253" y="431" text-anchor="middle" class="sans" font-size="10.5" fill="#475569">Dashboard</text>
+  <text x="253" y="415" text-anchor="middle" class="mono" font-size="11.5" font-weight="700" fill="#0f172a">Workbench</text>
+  <text x="253" y="431" text-anchor="middle" class="sans" font-size="10.5" fill="#475569">Runs &amp; Reports</text>
 
   <!-- Animated Flow Pulses -->
   <circle r="4.5" fill="#4f46e5">

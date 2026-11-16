@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import io
 import os
 import platform as py_platform
@@ -16,8 +17,10 @@ from PIL import Image, ImageDraw
 
 from qalprit.appium_manager import AppiumManager, build_appium_env
 from qalprit.doctor import find_android_tool, win_subprocess_kwargs
+from qalprit.datasets import is_sensitive_column, load_datasets, save_datasets
 from qalprit.driver_factory import create_appium_driver
 from qalprit.env_loader import SecretMasker
+from qalprit.error_text import friendly_error
 from qalprit.inspector import extract_interactive_elements
 from qalprit.validator import validate_project
 from qalprit.workbench_api import (
@@ -38,7 +41,10 @@ def _redact_sensitive_png(png_bytes: bytes, elements: list[dict[str, Any]]) -> b
     sensitive_rects = [
         el["rect"]
         for el in elements
-        if el.get("suggested_sensitive") and isinstance(el.get("rect"), list) and len(el["rect"]) == 4
+        if el.get("suggested_sensitive")
+        and el.get("visible") is not False
+        and isinstance(el.get("rect"), list)
+        and len(el["rect"]) == 4
     ]
     if not sensitive_rects or not png_bytes:
         return png_bytes
@@ -54,6 +60,46 @@ def _redact_sensitive_png(png_bytes: bytes, elements: list[dict[str, Any]]) -> b
             return out.getvalue()
     except Exception:
         return png_bytes
+
+
+# OS password-manager sheets ("Save Password?", "Save password to Google?") sit on top of
+# the app after a login. They are not part of the flow under test, so the recorder closes them.
+_SYSTEM_PROMPT_RE = re.compile(
+    r"\b(save|update|remember)\b.{0,40}\b(password|passkey|username|login|sign-in info)\b",
+    re.IGNORECASE,
+)
+_PROMPT_DISMISS_LABELS = ("not now", "no thanks", "no, thanks", "never", "never for this app", "cancel")
+
+
+def _element_caption(el: dict[str, Any]) -> str:
+    text = str(el.get("text") or "").strip()
+    if text and text != SecretMasker.REPLACEMENT:
+        return text
+    if el.get("recommended_strategy") in {"accessibility_id", "text"}:
+        return str(el.get("recommended_value") or "").strip()
+    return ""
+
+
+def find_system_prompt_dismiss(elements: list[dict[str, Any]]) -> tuple[str, dict[str, Any]] | None:
+    """Return (prompt title, dismiss button) when an OS password-save sheet covers the app."""
+    title = ""
+    for el in elements:
+        if el.get("visible") is False or el.get("editable"):
+            continue
+        caption = _element_caption(el)
+        if caption and len(caption) <= 80 and caption.endswith("?") and _SYSTEM_PROMPT_RE.search(caption):
+            title = caption
+            break
+    if not title:
+        return None
+    for wanted in _PROMPT_DISMISS_LABELS:
+        for el in elements:
+            rect = el.get("rect")
+            if el.get("visible") is False or not isinstance(rect, list) or len(rect) != 4:
+                continue
+            if _element_caption(el).lower() == wanted:
+                return title, el
+    return None
 
 
 def hit_test_element(elements: list[dict[str, Any]], x: float, y: float) -> tuple[int, dict[str, Any]] | None:
@@ -78,8 +124,13 @@ def hit_test_element(elements: list[dict[str, Any]], x: float, y: float) -> tupl
 def detect_changed_editable_inputs(
     prev_elements: list[dict[str, Any]],
     curr_elements: list[dict[str, Any]],
+    require_previous: bool = False,
 ) -> list[tuple[dict[str, Any], str]]:
-    """Detect editable fields whose visible text changed between two XML snapshots."""
+    """Detect editable fields whose visible text changed between two XML snapshots.
+
+    With `require_previous`, a field only counts when it was already on the previous screen,
+    so a prefilled field on a newly opened screen is not mistaken for typing.
+    """
     prev_by_sig: dict[tuple[str, str], dict[str, Any]] = {}
     for el in prev_elements:
         sig = (str(el.get("recommended_strategy") or ""), str(el.get("recommended_value") or ""))
@@ -96,10 +147,63 @@ def detect_changed_editable_inputs(
             continue
         sig = (str(cur.get("recommended_strategy") or ""), str(cur.get("recommended_value") or ""))
         prev = prev_by_sig.get(sig)
+        if require_previous and prev is None:
+            continue
         old_txt = str(prev.get("text") or "").strip() if prev else ""
         if new_txt != old_txt:
             changes.append((cur, new_txt))
     return changes
+
+
+_GENERIC_FIELD_KEY_RE = re.compile(
+    r"^(text|edit|input|field|secure|textfield|edittext|securetextfield|text_?input|edit_?text|text_?field|secure_?text_?field)?(_?\d+)?$"
+)
+
+
+def parameterize_typed_steps(
+    steps: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[str], list[str], dict[str, str]]:
+    """Swap literal typed values for ``${variable}`` references.
+
+    Returns ``(steps, variables, secret_variables, recorded_values)``. The same field typed twice
+    with the same value shares one variable. Values that already reference a variable are kept.
+    """
+    out: list[dict[str, Any]] = []
+    variables: list[str] = []
+    secrets: list[str] = []
+    values: dict[str, str] = {}
+    by_field: dict[tuple[str, str], str] = {}
+
+    for step in steps:
+        value = str(step.get("value") or "")
+        if str(step.get("action") or "") != "type" or not value or "${" in value:
+            out.append(dict(step))
+            continue
+        target = str(step.get("target") or "")
+        secret = bool(step.get("secret", False))
+        name = by_field.get((target, value), "")
+        if not name:
+            key = re.sub(r"[^a-z0-9]+", "_", target.rsplit(".", 1)[-1].lower()).strip("_")
+            for suffix in ("_field", "_input", "_edit_text", "_text_field", "_textfield", "_edittext"):
+                if key.endswith(suffix) and len(key) > len(suffix):
+                    key = key[: -len(suffix)]
+            if _GENERIC_FIELD_KEY_RE.match(key):
+                key = "password" if secret else ("username" if "@" in value else "value")
+            elif secret and not is_sensitive_column(key):
+                key = f"{key}_password"
+            if key[0].isdigit():
+                key = f"v_{key}"
+            name, n = key, 2
+            while name in values:
+                name = f"{key}_{n}"
+                n += 1
+            by_field[(target, value)] = name
+            variables.append(name)
+            values[name] = value
+            if secret:
+                secrets.append(name)
+        out.append(dict(step, value="${" + name + "}"))
+    return out, variables, secrets, values
 
 
 def _step_to_yaml_dict(step: dict[str, Any]) -> Any:
@@ -166,6 +270,11 @@ class RecorderManager:
         self._logs: list[str] = []
         self._direct_tap_watch = False
         self._redact_sensitive = True
+        self._auto_dismiss_prompts = True
+        self._last_raw_hash = ""
+        self._notice = ""
+        self._notice_rev = 0
+        self._refresh_failures = 0
 
     def _log(self, msg: str) -> None:
         with self._lock:
@@ -191,6 +300,9 @@ class RecorderManager:
                 "has_screenshot": bool(self._screenshot_png),
                 "direct_tap_watch": self._direct_tap_watch,
                 "redact_sensitive": self._redact_sensitive,
+                "auto_dismiss_prompts": self._auto_dismiss_prompts,
+                "notice": self._notice,
+                "notice_rev": self._notice_rev,
                 "elements": list(self._elements[:250]),
                 "locators": list(self._locators.values()),
                 "steps": [dict(s, yaml_step=_step_to_yaml_dict(s)) for s in self._steps],
@@ -201,7 +313,51 @@ class RecorderManager:
         with self._lock:
             return self._screenshot_png
 
+    def _set_notice(self, msg: str) -> None:
+        with self._lock:
+            self._notice = msg
+            self._notice_rev += 1
+            self._logs.append(msg)
+
+    def _tap_point_locked(self, px: float, py: float) -> None:
+        """Tap a screenshot-pixel coordinate on the device while holding `_driver_lock`."""
+        driver = self._driver
+        if driver is None:
+            return
+        gx = int(round(px * self._gesture_width / max(1, self._screen_width)))
+        gy = int(round(py * self._gesture_height / max(1, self._screen_height)))
+        try:
+            if self._platform == "ios":
+                driver.execute_script("mobile: tap", {"x": gx, "y": gy})
+            else:
+                driver.execute_script("mobile: clickGesture", {"x": gx, "y": gy})
+        except Exception:
+            driver.swipe(gx, gy, gx, gy, 60)
+
     def _capture_snapshot_locked(self) -> None:
+        """Capture the screen, closing OS password-save sheets that would block the app."""
+        self._capture_once_locked()
+        for _ in range(2):
+            with self._lock:
+                enabled = self._auto_dismiss_prompts
+                elements = list(self._elements)
+            found = find_system_prompt_dismiss(elements) if enabled else None
+            if found is None:
+                return
+            title, button = found
+            x1, y1, x2, y2 = button["rect"]
+            try:
+                self._tap_point_locked((x1 + x2) / 2, (y1 + y2) / 2)
+            except Exception as exc:
+                self._log(f"Could not close system prompt '{title}': {friendly_error(exc)}")
+                return
+            time.sleep(0.9)
+            self._set_notice(
+                f"Closed the system prompt \"{title}\" ({_element_caption(button)}). It is not part of your flow."
+            )
+            self._capture_once_locked()
+
+    def _capture_once_locked(self) -> None:
         """Read current XML + PNG while holding `_driver_lock` and scale rects to screenshot pixels."""
         driver = self._driver
         if driver is None:
@@ -275,18 +431,86 @@ class RecorderManager:
         with self._lock:
             self._elements = ranked
             self._screenshot_png = png_safe
+            self._last_raw_hash = hashlib.sha1(png_raw).hexdigest()
             self._screen_width = px_w
             self._screen_height = px_h
             self._gesture_width = win_w
             self._gesture_height = win_h
             self._rev += 1
 
+    def _mark_session_lost(self, exc: BaseException) -> None:
+        with self._lock:
+            if not self._active:
+                return
+            self._active = False
+            self._status = "failed"
+            self._phase = "Session lost"
+            self._error = friendly_error(exc)
+            self._logs.append(f"Session lost: {self._error}")
+            self._rev += 1
+
+    def _refresh_loop(self, interval: float = 2.0) -> None:
+        """Keep the mirror in step with the device and keep the Appium session alive while idle."""
+        while not self._stop_event.wait(interval):
+            if not self._active or self._driver is None:
+                continue
+            if time.monotonic() - self._last_ui_action_ts < 1.5:
+                continue
+            if not self._driver_lock.acquire(blocking=False):
+                continue
+            try:
+                driver = self._driver
+                if driver is None or not self._active:
+                    continue
+                raw = driver.get_screenshot_as_png()
+                self._refresh_failures = 0
+                if hashlib.sha1(raw).hexdigest() == self._last_raw_hash:
+                    continue
+                with self._lock:
+                    prev_elems = list(self._elements)
+                    cur_screen = self._screen_name
+                self._capture_snapshot_locked()
+                self._record_direct_typing(prev_elems, cur_screen, require_previous=True)
+            except Exception as exc:
+                self._refresh_failures += 1
+                if self._refresh_failures >= 3:
+                    self._mark_session_lost(exc)
+            finally:
+                self._driver_lock.release()
+
+    def _record_direct_typing(
+        self, prev_elems: list[dict[str, Any]], screen_name: str, require_previous: bool = False
+    ) -> None:
+        """Turn text typed straight into the emulator into `type` steps."""
+        with self._lock:
+            new_elems = list(self._elements)
+        for changed_el, typed_val in detect_changed_editable_inputs(
+            prev_elems, new_elems, require_previous=require_previous
+        ):
+            loc = self._register_locator_locked(changed_el, screen_name)
+            step_val = "${SECRET_VALUE}" if loc["sensitive"] else typed_val
+            shown = SecretMasker.REPLACEMENT if loc["sensitive"] else step_val
+            self._append_or_merge_step({
+                "action": "type",
+                "target": loc["target"],
+                "value": step_val,
+                "secret": loc["sensitive"],
+                "label": f"Type '{shown}' into {loc['display_label']}",
+            })
+
     def _register_locator_locked(self, el: dict[str, Any], screen_name: str, key_override: str = "") -> dict[str, Any]:
         clean_screen = _safe_slug(screen_name or self._screen_name, "screen")
         base_key = _safe_slug(key_override or str(el.get("key") or "element"), "element")
         strat = str(el.get("recommended_strategy") or "xpath")
         val = str(el.get("recommended_value") or "")
+        rect = el.get("rect") if isinstance(el.get("rect"), list) else None
         with self._lock:
+            if el.get("editable") and rect and not key_override:
+                # An input keeps its place while its text changes. Reuse the locator saved for
+                # the same box so retyping does not create a second, text-based target.
+                for existing in self._locators.values():
+                    if existing["screen"] == clean_screen and existing.get("editable") and existing.get("rect") == rect:
+                        return existing
             key = base_key
             target = f"{clean_screen}.{key}"
             suffix = 2
@@ -305,6 +529,8 @@ class RecorderManager:
                 "value": val,
                 "sensitive": bool(el.get("suggested_sensitive", False)),
                 "display_label": str(el.get("display_label") or key),
+                "editable": bool(el.get("editable")),
+                "rect": rect,
             }
             self._locators[target] = entry
         return entry
@@ -522,6 +748,9 @@ class RecorderManager:
             self._locators = {}
             self._steps = []
             self._screenshot_png = b""
+            self._last_raw_hash = ""
+            self._notice = ""
+            self._refresh_failures = 0
             self._direct_tap_watch = False
             self._redact_sensitive = (
                 env_cfg.redact_screenshots if redact_sensitive is None else bool(redact_sensitive)
@@ -555,6 +784,7 @@ class RecorderManager:
                 self._log(f"Connected! Captured {len(self._elements)} elements on '{self._screen_name}'.")
                 if platform == "android" and self._serial:
                     self._start_android_getevent_watcher(self._serial)
+                threading.Thread(target=self._refresh_loop, daemon=True).start()
             except Exception as exc:
                 if driver is not None:
                     try:
@@ -571,8 +801,8 @@ class RecorderManager:
                     self._active = False
                     self._status = "failed"
                     self._phase = "Recorder Failed"
-                    self._error = str(exc)
-                    self._logs.append(f"Recorder error: {exc}")
+                    self._error = friendly_error(exc)
+                    self._logs.append(f"Recorder error: {self._error}")
 
         threading.Thread(target=_boot_worker, daemon=True).start()
         return {"ok": True, "status": "starting"}
@@ -589,10 +819,14 @@ class RecorderManager:
         direction: str = "up",
         screen_name: str = "",
         key_override: str = "",
+        locator_strategy: str = "",
+        locator_value: str = "",
     ) -> dict[str, Any]:
         """Execute a live interaction against the attached emulator and record it cleanly."""
         if not self._active or self._driver is None:
-            raise RuntimeError("No active recording session. Click Start Recording first.")
+            if self._status == "failed" and self._error:
+                raise RuntimeError(self._error)
+            raise RuntimeError("No active recording session. Start a session first.")
 
         act = (action or "tap").strip().lower()
         cur_screen = _safe_slug(screen_name or self._screen_name, "screen")
@@ -642,12 +876,39 @@ class RecorderManager:
             target_el: dict[str, Any] | None = None
             if element_index is not None and 0 <= int(element_index) < len(snapshot):
                 target_el = snapshot[int(element_index)]
+                # The mirror refreshes on its own, so the index the UI sent may point at a
+                # different element by now. Trust the locator it sent over the index.
+                if locator_value and (
+                    str(target_el.get("recommended_strategy") or "") != locator_strategy
+                    or str(target_el.get("recommended_value") or "") != locator_value
+                ):
+                    target_el = next(
+                        (
+                            el
+                            for el in snapshot
+                            if str(el.get("recommended_strategy") or "") == locator_strategy
+                            and str(el.get("recommended_value") or "") == locator_value
+                        ),
+                        None,
+                    )
+                    if target_el is None:
+                        raise RuntimeError("The screen changed before the action ran. Pick the element again.")
             elif x is not None and y is not None:
                 hit = hit_test_element(snapshot, float(x), float(y))
                 if hit is not None:
                     target_el = hit[1]
             if target_el is None:
-                raise ValueError("No interactive element matched that selection on screen.")
+                if act == "tap" and x is not None and y is not None:
+                    # Nothing with a locator sits here (system dialog, canvas, map). Still pass
+                    # the tap through so the user is never stuck, but do not record a step.
+                    self._tap_point_locked(float(x), float(y))
+                    time.sleep(0.75)
+                    self._capture_snapshot_locked()
+                    self._set_notice(
+                        f"Tapped the screen at ({int(float(x))}, {int(float(y))}). No element with a locator is there, so no step was recorded."
+                    )
+                    return self.status()
+                raise ValueError("No element with a locator is at that spot. Pick a highlighted element instead.")
 
             loc = self._register_locator_locked(target_el, cur_screen, key_override=key_override)
             is_secret = bool(secret or loc["sensitive"])
@@ -656,8 +917,37 @@ class RecorderManager:
 
             strat = loc["strategy"]
             loc_val = loc["value"]
+            rect = target_el.get("rect") if isinstance(target_el.get("rect"), list) else None
+
+            # A tap on something hidden behind the keyboard would hit a key instead. Close the
+            # keyboard first and record that, the same way a hand-written flow would.
+            if act in {"tap", "type"} and target_el.get("visible") is False:
+                kb_shown = False
+                try:
+                    kb_shown = bool(driver.is_keyboard_shown())
+                except Exception:
+                    kb_shown = False
+                if kb_shown:
+                    try:
+                        driver.hide_keyboard()
+                    except Exception:
+                        pass
+                    time.sleep(0.4)
+                    self._append_or_merge_step(
+                        {"action": "hide_keyboard", "target": "", "value": "", "secret": False, "label": "Hide Keyboard"}
+                    )
+                    self._log("Keyboard was covering that element. Added a Hide Keyboard step first.")
+
+            def _find() -> Any:
+                try:
+                    return driver.find_element(strat, loc_val)
+                except Exception as exc:
+                    raise RuntimeError(
+                        f"'{loc['display_label']}' is no longer on screen. Refresh the mirror and pick it again."
+                    ) from exc
+
             if act == "assert_visible":
-                driver.find_element(strat, loc_val)
+                _find()
                 step = {
                     "action": "assert_visible",
                     "target": loc["target"],
@@ -666,7 +956,7 @@ class RecorderManager:
                     "label": f"Verify '{loc['display_label']}' is visible",
                 }
             elif act == "assert_text":
-                elem = driver.find_element(strat, loc_val)
+                elem = _find()
                 expected = value or str(target_el.get("text") or "")
                 actual = str(getattr(elem, "text", "") or target_el.get("text") or "")
                 if expected and expected not in actual:
@@ -679,7 +969,7 @@ class RecorderManager:
                     "label": f"Verify '{loc['display_label']}' contains '{expected}'",
                 }
             elif act == "type":
-                elem = driver.find_element(strat, loc_val)
+                elem = _find()
                 elem.click()
                 try:
                     elem.clear()
@@ -694,10 +984,21 @@ class RecorderManager:
                     "secret": is_secret,
                     "label": f"Type '{shown_val}' into {loc['display_label']}",
                 }
-                time.sleep(0.5)
+                time.sleep(0.6)
             else:
-                elem = driver.find_element(strat, loc_val)
-                elem.click()
+                try:
+                    driver.find_element(strat, loc_val).click()
+                except Exception as exc:
+                    if not rect:
+                        raise RuntimeError(
+                            f"'{loc['display_label']}' is no longer on screen. Refresh the mirror and pick it again."
+                        ) from exc
+                    # The locator did not resolve but the user can see the element. Tap where it
+                    # is drawn, and say so, because replay may need a better locator.
+                    self._tap_point_locked((rect[0] + rect[2]) / 2, (rect[1] + rect[3]) / 2)
+                    self._log(
+                        f"Locator {strat}={loc_val} did not resolve. Tapped its position instead. Check this locator before replay."
+                    )
                 step = {
                     "action": "tap",
                     "target": loc["target"],
@@ -715,7 +1016,10 @@ class RecorderManager:
     def sync_screen(self, screen_name: str = "") -> dict[str, Any]:
         """Refresh screenshot/elements and auto-detect any direct emulator text input changes."""
         if not self._active or self._driver is None:
+            if self._status == "failed" and self._error:
+                raise RuntimeError(self._error)
             raise RuntimeError("No active recording session.")
+        self._last_ui_action_ts = time.monotonic()
         if screen_name.strip():
             with self._lock:
                 self._screen_name = _safe_slug(screen_name, "screen")
@@ -724,18 +1028,7 @@ class RecorderManager:
                 prev_elems = list(self._elements)
                 cur_screen = self._screen_name
             self._capture_snapshot_locked()
-            with self._lock:
-                new_elems = list(self._elements)
-            for changed_el, typed_val in detect_changed_editable_inputs(prev_elems, new_elems):
-                loc = self._register_locator_locked(changed_el, cur_screen)
-                step_val = "${SECRET_VALUE}" if loc["sensitive"] else typed_val
-                self._append_or_merge_step({
-                    "action": "type",
-                    "target": loc["target"],
-                    "value": step_val,
-                    "secret": loc["sensitive"],
-                    "label": f"Type '{SecretMasker.REPLACEMENT if loc['sensitive'] else step_val}' into {loc['display_label']}",
-                })
+            self._record_direct_typing(prev_elems, cur_screen)
         return self.status()
 
     def undo(self) -> dict[str, Any]:
@@ -796,6 +1089,7 @@ class RecorderManager:
         test_title: str = "",
         create_test: bool = True,
         stop_after: bool = True,
+        parameterize: bool = False,
     ) -> dict[str, Any]:
         """Persist captured locators (`screens.yaml`), reusable workflow (`flows/`), and test journey (`specs/`)."""
         with self._lock:
@@ -832,11 +1126,17 @@ class RecorderManager:
             saved_targets.extend(res["saved_targets"])
 
         # 2. Save reusable workflow (`flows/<flow_name>.md`)
+        variables: list[str] = []
+        secret_vars: list[str] = []
+        recorded_values: dict[str, str] = {}
+        if parameterize:
+            steps, variables, secret_vars, recorded_values = parameterize_typed_steps(steps)
         yaml_steps = [_step_to_yaml_dict(s) for s in steps]
         flow_res = save_flow_spec(
             project_root,
             name=flow_name or "recorded_flow",
-            params=[],
+            params=variables,
+            platforms=[platform] if platform in ("android", "ios") else None,
             steps=yaml_steps,
             notes=f"Recorded live on {platform} emulator ({len(yaml_steps)} steps).",
         )
@@ -860,6 +1160,16 @@ class RecorderManager:
                 },
             )
 
+        # 4. Keep the typed values as the first dataset row, so the workflow runs as recorded
+        #    and more rows (or a CSV import) rerun it with other values.
+        dataset_targets: list[tuple[str, str]] = []
+        if variables:
+            dataset_targets.append(("flow", flow_res["name"]))
+            if spec_res is not None:
+                dataset_targets.append(("spec", str(spec_res["id"])))
+        for kind, name in dataset_targets:
+            self._seed_recorded_dataset(project_root, kind, name, variables, secret_vars, recorded_values)
+
         if stop_after:
             self.stop()
 
@@ -868,7 +1178,38 @@ class RecorderManager:
             "saved_targets": saved_targets,
             "flow": flow_res,
             "spec": spec_res,
+            "variables": variables,
+            "secret_variables": secret_vars,
         }
+
+    @staticmethod
+    def _seed_recorded_dataset(
+        project_root: Path,
+        kind: str,
+        name: str,
+        variables: list[str],
+        secret_vars: list[str],
+        recorded_values: dict[str, str],
+    ) -> None:
+        existing = load_datasets(project_root, kind, name)  # type: ignore[arg-type]
+        all_vars = list(existing.variables) + [v for v in variables if v not in existing.variables]
+        rows = [
+            {"name": r.name, "selected": r.selected, "expected": r.expected,
+             "values": {v: r.values.get(v, recorded_values.get(v, "")) for v in all_vars}}
+            for r in existing.rows
+        ]
+        if not rows:
+            rows = [{"name": "recorded", "selected": True, "values": dict(recorded_values)}]
+        save_datasets(
+            project_root,
+            kind,  # type: ignore[arg-type]
+            name,
+            {
+                "variables": all_vars,
+                "secret_columns": sorted(set(existing.secret_columns) | set(secret_vars)),
+                "rows": rows,
+            },
+        )
 
     def set_redaction(self, enabled: bool) -> dict[str, Any]:
         """Toggle black-marker PII redaction on the live emulator mirror."""

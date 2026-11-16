@@ -157,12 +157,30 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 
 out = Path(sys.argv[1])
-base = Image.new("RGBA", (512, 512), (0, 0, 0, 0))
+S = 1024  # QAlprit mark: teal tile, white Q lens, mint check (matches src/qalprit/ui/qalprit-icon.svg)
+grad = Image.new("RGBA", (S, S))
+gd = ImageDraw.Draw(grad)
+for i in range(2 * S):
+    t = i / (2 * S - 1)
+    gd.line([(i, 0), (0, i)], fill=(round(13 + t * 6), round(148 - t * 70), round(136 - t * 62), 255), width=2)
+mask = Image.new("L", (S, S), 0)
+ImageDraw.Draw(mask).rounded_rectangle([64, 64, 960, 960], radius=196, fill=255)
+base = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+base.paste(grad, (0, 0), mask)
 draw = ImageDraw.Draw(base)
-draw.rounded_rectangle([32, 32, 480, 480], radius=110, fill=(15, 118, 110, 255))
-draw.rounded_rectangle([112, 112, 400, 400], radius=80, outline=(248, 250, 252, 255), width=42)
-draw.line([(192, 256), (240, 304), (352, 184)], fill=(94, 234, 212, 255), width=38, joint="curve")
-draw.line([(296, 296), (392, 392)], fill=(248, 250, 252, 255), width=42)
+white, mint = (248, 250, 252, 255), (94, 234, 212, 255)
+
+
+def stroke(points, color, width):
+    draw.line(points, fill=color, width=width, joint="curve")
+    r = width / 2
+    for x, y in (points[0], points[-1]):
+        draw.ellipse([x - r, y - r, x + r, y + r], fill=color)
+
+
+draw.ellipse([229, 229, 739, 739], outline=white, width=76)
+stroke([(645, 645), (771, 771)], white, 76)
+stroke([(392, 492), (460, 561), (582, 420)], mint, 59)
 base.save(out, format="ICO", sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
 '@ | python - $WinIconPath
     if ($LASTEXITCODE -ne 0) { throw "Windows icon generation failed" }

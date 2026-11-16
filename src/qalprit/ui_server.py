@@ -28,6 +28,7 @@ from qalprit.datasets import (
 from qalprit.devices import list_android_devices, list_ios_simulators
 from qalprit.doctor import discover_system_software, run_doctor
 from qalprit.emulator_manager import DEFAULT_AVD_NAME, EmulatorJobManager
+from qalprit.error_text import friendly_error
 from qalprit.recorder import RecorderManager
 from qalprit.results import load_results_json
 from qalprit.spec_loader import STEP_VOCABULARY, load_flows, load_specs
@@ -219,6 +220,7 @@ def collect_workspace_overview(
                 "name": f.name,
                 "params": merged_params,
                 "declared_params": f.params,
+                "platforms": list(f.platforms),
                 "body": f.body,
                 "step_count": len(f.steps),
                 "steps": [st.model_dump() for st in f.steps],
@@ -849,6 +851,8 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
                         direction=str(body.get("direction") or "up"),
                         screen_name=str(body.get("screen_name") or ""),
                         key_override=str(body.get("key_override") or ""),
+                        locator_strategy=str(body.get("locator_strategy") or ""),
+                        locator_value=str(body.get("locator_value") or ""),
                     )
                 )
                 return
@@ -887,6 +891,7 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
                         test_title=str(body.get("test_title") or ""),
                         create_test=bool(body.get("create_test", True)),
                         stop_after=bool(body.get("stop_after", True)),
+                        parameterize=bool(body.get("parameterize", False)),
                     )
                 )
                 return
@@ -899,9 +904,14 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
         except ValueError as exc:
             self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
         except RuntimeError as exc:
-            self._send_json({"error": str(exc)}, status=HTTPStatus.CONFLICT)
+            self._send_json({"error": friendly_error(exc)}, status=HTTPStatus.CONFLICT)
         except Exception as exc:
-            self._send_json({"error": str(exc)}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
+            # Driver and OS errors carry stack traces and doc links. Send the short version to
+            # the UI and keep the type name so a bug report still says what broke.
+            self._send_json(
+                {"error": friendly_error(exc), "error_type": type(exc).__name__},
+                status=HTTPStatus.INTERNAL_SERVER_ERROR,
+            )
 
 
 def create_ui_server(

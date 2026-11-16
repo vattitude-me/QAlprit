@@ -381,7 +381,9 @@ def test_ui_redesign_layout_ios_boot_and_api_contracts() -> None:
     assert 'id="recAppSelect"' in rec_toolbar
     assert 'id="recFlowNameInput"' in rec_toolbar
     assert 'id="btnRecHideKeyboard"' in ui_html
-    assert 'id="btnRecTypeHideKb"' in ui_html
+    # One Hide keyboard control. The duplicate inside the type bar was removed.
+    assert 'id="btnRecHideKeyboard"' in ui_html
+    assert 'id="btnRecTypeHideKb"' not in ui_html
     assert "resolveSelectedDeviceForAction" in ui_html
     assert "else if (!starting)" in ui_html
 

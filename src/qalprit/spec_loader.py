@@ -58,6 +58,8 @@ class FlowSpec(BaseModel):
 
     name: str
     params: list[str] = Field(default_factory=list)
+    # Platforms the flow has locators for. Empty means "any" (hand-written flows).
+    platforms: list[Literal["android", "ios"]] = Field(default_factory=list)
     steps: list[StepItem] = Field(default_factory=list)
     source_path: Path
     body: str = ""
@@ -199,6 +201,10 @@ def load_flows(flows_dir: Path) -> tuple[dict[str, FlowSpec], list[str]]:
             flow = FlowSpec(
                 name=str(name),
                 params=[str(p) for p in (meta.get("params") or [])],
+                platforms=[
+                    p for p in dict.fromkeys(str(x).strip().lower() for x in (meta.get("platforms") or []))
+                    if p in ("android", "ios")
+                ],
                 steps=steps,
                 source_path=md_path,
                 body=body,

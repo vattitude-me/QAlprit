@@ -11,14 +11,15 @@ These project rules and architecture notes govern git workflow, codebase navigat
     - `ui_server.py`: Threading HTTP + API server (`create_ui_server()`, `/api/overview`, `/api/runs/*`, `/api/recorder/*`, `/api/emulator/*`, `/api/datasets/*`, `/api/flows/*`, `/api/specs/*`, `/api/screens/*`, `/api/environments/*`, `/api/apps/*`, `/api/system/*`).
     - `ui/index.html`: Single-file Workbench UI (Workbench views: `Workflows`, `Journeys`, `Record`, `Runs & Reports`; Library: `Screens & locators`; Settings: `Settings & Setup`).
   - **Execution & Validation**:
-    - `spec_loader.py` & `validator.py`: Parse Markdown+YAML journeys (`specs/`), reusable flows (`flows/`), screen locators (`screens/screens.yaml`), and `validate_project()` pre-flight checks.
+    - `spec_loader.py` & `validator.py`: Parse Markdown+YAML journeys (`specs/`), reusable flows (`flows/`, optional `platforms:` scoping locator checks), screen locators (`screens/screens.yaml`), and `validate_project()` pre-flight checks.
     - `datasets.py`: CSV dynamic variable parameterization (`datasets/flows/`, `datasets/specs/`), secret column detection, and UI masking (`mask_bundle_for_ui()`).
     - `runner.py` & `steps/`: Step execution (`execute_step()`), flow expansion, retries, teardown, `SecretMasker`, and `FailureCategory` classification.
     - `driver_factory.py`: `AppiumDriverAdapter` and `create_appium_driver()` (Android UiAutomator2 AVD resolution + iOS XCUITest auto-boot via `_ensure_ios_simulator_ready()` + multi-strategy `hide_keyboard()`).
     - `inspector.py`: XML hierarchy parser (`parse_page_source_elements()` / `extract_interactive_elements()`) filtering keyboard overlays and ranking locators.
     - `evidence.py`, `visual_diff.py`, `results.py`, `report/`: Secret-redacted screenshots, XML failure dumps, visual baseline comparisons, and Jinja2 HTML/JUnit/Markdown report generation (`report/templates/report.html.j2`).
   - **Live Recorder & Emulator/Toolchain Management**:
-    - `recorder.py`: `RecorderManager` interactive live mirror, element hit-testing, step editing (`update_step()` with `value`, `secret`, `move_to`, `duplicate`, `delete`), and saving into `screens.yaml`, `flows/`, and `specs/`.
+    - `recorder.py`: `RecorderManager` interactive live mirror, element hit-testing, step editing (`update_step()` with `value`, `secret`, `move_to`, `duplicate`, `delete`), system prompt auto-dismiss (`find_system_prompt_dismiss()`, e.g. iOS "Save Password"), and saving into `screens.yaml`, `flows/` (with `platforms:`), and `specs/`. `save_recorded(parameterize=True)` turns typed values into `${variables}` (`parameterize_typed_steps()`) and seeds a `recorded` row in `datasets/flows/<name>.csv`.
+    - `error_text.py`: `clean_error()` / `friendly_error()` turn exceptions into one readable line with a next step for the UI and API.
     - `workbench_api.py`: Workspace CRUD, `_resolve_device_profile()` (`live:`, `avd:`, YAML profiles, built-in `ios_simulator`/`android_emulator`), `RunJobManager`, and batch dataset runs.
     - `emulator_manager.py`: `EmulatorJobManager` for SDK/AVD setup, booting Android AVDs / iOS Simulators, and clean shutdown (`shutdown()`).
     - `doctor.py`, `devices.py`, `appium_manager.py`, `cleanup.py`, `paths.py`, `config_loader.py`, `env_loader.py`: Toolchain diagnostics, ADB/`xcrun simctl` discovery, Appium 2 subprocess lifecycle, OS data directories, and uninstall/leftover cleanup.

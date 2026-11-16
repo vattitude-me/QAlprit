@@ -563,8 +563,13 @@ def save_flow_spec(
     params: list[str],
     steps: list[Any],
     notes: str = "",
+    platforms: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Save a reusable workflow (`flows/<name>.md`) and validate it parses cleanly."""
+    """Save a reusable workflow (`flows/<name>.md`) and validate it parses cleanly.
+
+    ``platforms`` is merged with the platforms already in the file, so editing a flow in the
+    Workbench keeps them and recording it on a second platform adds that platform.
+    """
     clean_parts = [_safe_slug(part, "flow") for part in (name or "").replace("\\", "/").split("/") if part.strip()]
     if not clean_parts:
         raise ValueError("Flow name is required (for example `auth/login`).")
@@ -579,11 +584,24 @@ def save_flow_spec(
         raise ValueError("Flow path escapes flows/ directory.")
     dest.parent.mkdir(parents=True, exist_ok=True)
 
+    kept_platforms: list[str] = []
+    if dest.is_file():
+        try:
+            old_meta = frontmatter.loads(dest.read_text(encoding="utf-8")).metadata
+            kept_platforms = [str(p).strip().lower() for p in (old_meta.get("platforms") or [])]
+        except Exception:
+            kept_platforms = []
+    merged_platforms = [
+        p for p in dict.fromkeys([*kept_platforms, *(str(x).strip().lower() for x in (platforms or []))])
+        if p in ("android", "ios")
+    ]
     meta: dict[str, Any] = {
         "name": rel_name,
         "params": [str(p).strip() for p in params if str(p).strip()],
-        "steps": steps,
     }
+    if merged_platforms:
+        meta["platforms"] = sorted(merged_platforms)
+    meta["steps"] = steps
     dest.write_text(_dump_frontmatter_md(meta, notes or f"Reusable workflow `{rel_name}`."), encoding="utf-8")
     flows, errors = load_flows(flows_dir)
     if rel_name not in flows or errors:

@@ -1287,6 +1287,62 @@
       .library-rail { max-height: 240px; }
       .app-shell { grid-template-columns: clamp(160px, var(--sidebar-w, 190px), 280px) minmax(0, 1fr); }
     }
+
+    /* Toasts and in-app ask dialog (replace native alert/confirm/prompt, which webviews block or style badly) */
+    .toast-host {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      z-index: 2147483000;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-width: min(420px, calc(100vw - 32px));
+      pointer-events: none;
+    }
+    .toast {
+      pointer-events: auto;
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border-strong);
+      border-left: 4px solid var(--accent);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 12.5px;
+      line-height: 1.45;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+      animation: toast-in 0.18s ease-out;
+    }
+    .toast.is-error { border-left-color: #ef4444; }
+    .toast.is-ok { border-left-color: #22c55e; }
+    .toast.is-warn { border-left-color: #f59e0b; }
+    .toast-msg { flex: 1; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .toast-close {
+      border: 0;
+      background: none;
+      color: inherit;
+      opacity: 0.6;
+      cursor: pointer;
+      font-size: 14px;
+      line-height: 1;
+      padding: 2px;
+    }
+    .toast-close:hover { opacity: 1; }
+    @keyframes toast-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    #uiAskDialog { width: min(460px, calc(100vw - 32px)); }
+    #uiAskMsg { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.5; margin: 0; }
+    #uiAskInput { width: 100%; margin-top: 10px; }
+    .rec-phone-frame.is-busy { cursor: progress; }
+    .rec-phone-frame.is-busy .rec-overlays { pointer-events: none; }
+    .rec-phone-frame.is-busy img { opacity: 0.82; }
+    .live-pill.is-busy .dot { animation: pulse-dot 0.8s ease-in-out infinite; }
+    @keyframes pulse-dot { 50% { opacity: 0.25; } }
+    @media (prefers-reduced-motion: reduce) {
+      .toast, .live-pill.is-busy .dot { animation: none; }
+    }
   </style>
 </head>
 <body>
@@ -1296,15 +1352,15 @@
       <div class="brand">
         <svg class="brand-icon" viewBox="0 0 64 64" fill="none" aria-hidden="true">
           <defs>
-            <linearGradient id="qg" x1="6" y1="6" x2="58" y2="58" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#0f766e" />
-              <stop offset="100%" stop-color="#2dd4bf" />
+            <linearGradient id="qg" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#0d9488"/>
+              <stop offset="1" stop-color="#134e4a"/>
             </linearGradient>
           </defs>
-          <rect x="4" y="4" width="56" height="56" rx="14" fill="url(#qg)" />
-          <rect x="14" y="14" width="36" height="36" rx="10" stroke="#f8fafc" stroke-width="5.5" />
-          <path d="M24 32L30 38L44 23" stroke="#d1fae5" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
-          <path d="M37 37L49 49" stroke="#f8fafc" stroke-width="5.5" stroke-linecap="round" />
+          <rect width="64" height="64" rx="14" fill="url(#qg)"/>
+          <circle cx="30" cy="30" r="15.5" fill="none" stroke="#f8fafc" stroke-width="5.4"/>
+          <path d="M41.5 41.5 L50.5 50.5" fill="none" stroke="#f8fafc" stroke-width="5.4" stroke-linecap="round"/>
+          <path d="M23.4 30.6 L28.3 35.5 L37 25.4" fill="none" stroke="#5eead4" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
         <span class="brand-title">QAlprit</span>
         <span class="brand-slash">/</span>
@@ -1467,17 +1523,12 @@
               <input id="recRedactChk" type="checkbox" switch checked />
               <span>Redact secrets</span>
             </label>
-            <form id="flowUploadStep2Form" style="display:inline-flex;margin:0;">
-              <input id="flowUploadStep2Input" type="file" accept=".md,.markdown" hidden />
-              <button type="button" class="btn" id="btnImportWorkflowRec">Import workflow</button>
-            </form>
-            <button type="button" class="btn" id="btnRecSync" hidden>Sync screen</button>
+            <button type="button" class="btn" id="btnRecSync" hidden title="Re-read the device screen now">Refresh screen</button>
             <button type="button" class="btn btn-primary" id="btnRecStart">&#9679; Start recording</button>
             <button type="button" class="btn btn-danger" id="btnRecStop" hidden>&#9632; Stop recording</button>
           </div>
         </form>
 
-        <div id="flowUploadStep2Status" class="status-banner" hidden aria-live="polite"></div>
         <div id="recStatusBanner" class="status-banner" hidden aria-live="polite"></div>
         <div class="progress-box" id="recProgressBox" hidden>
           <div class="progress-head">
@@ -1492,10 +1543,9 @@
           <div class="panel mirror-panel">
             <div class="panel-head">
               <div class="seg" role="group" aria-label="Click recording mode">
-                <button type="button" class="is-active" data-rec-mode="tap">Tap</button>
+                <button type="button" class="is-active" data-rec-mode="tap" title="Click a control to tap it. Text fields open the type bar.">Tap</button>
                 <button type="button" data-rec-mode="type">Type</button>
-                <button type="button" data-rec-mode="assert_text">Assert text</button>
-                <button type="button" data-rec-mode="wait">Wait</button>
+                <button type="button" data-rec-mode="assert_text" title="Click a label to check its text">Assert</button>
               </div>
               <span class="live-pill" id="recLivePill"><span class="dot" id="recLiveDot"></span> <span id="recMirrorMeta">Idle</span></span>
             </div>
@@ -1504,7 +1554,7 @@
               <div class="rec-phone-frame" id="recPhoneFrame">
                 <div class="rec-phone-placeholder" id="recPhoneEmpty">
                   <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="6" y="2" width="12" height="20" rx="2.5"/><circle cx="12" cy="18" r="1"/></svg>
-                  <span style="font-size:12px;">Click <strong>Start recording</strong> to mirror your device and record steps.</span>
+                  <span style="font-size:12px;">Pick a device and app above, then click <strong>Start recording</strong>. Every tap and typed value becomes a step.</span>
                 </div>
                 <img id="recPhoneImg" alt="Live emulator screen preview" hidden />
                 <div class="rec-overlays" id="recOverlays"></div>
@@ -1522,8 +1572,8 @@
                   <input id="recTypeInput" type="text" placeholder="Value or ${username} / ${QA_PASS}" style="flex:1;min-width:140px;" />
                   <label class="chk-inline"><input type="checkbox" id="recTypeSecret" /> Secret</label>
                   <button type="button" class="btn btn-primary btn-sm" id="btnRecSendType">Send &amp; Type</button>
-                  <button type="button" class="btn btn-sm" id="btnRecTapSelected">Tap</button>
-                  <button type="button" class="btn btn-sm" id="btnRecTypeHideKb" title="Dismiss device keyboard &amp; record hide_keyboard">Hide KB</button>
+                  <button type="button" class="btn btn-sm" id="btnRecTapSelected" title="Tap this field without typing">Tap only</button>
+                  <button type="button" class="btn btn-sm btn-ghost" id="btnRecTypeCancel" aria-label="Close type bar">&times;</button>
                 </div>
               </div>
 
@@ -1536,21 +1586,17 @@
                 <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
                   <input id="recAssertTextInput" type="text" placeholder="Expected text or ${expected}" style="flex:1;min-width:140px;" />
                   <button type="button" class="btn btn-primary btn-sm" id="btnRecVerifyText">Assert Text</button>
-                  <button type="button" class="btn btn-sm" id="btnRecVerifyVisible">Visible</button>
+                  <button type="button" class="btn btn-sm" id="btnRecVerifyVisible" title="Only check that this element is on screen">Is visible</button>
+                  <button type="button" class="btn btn-sm btn-ghost" id="btnRecAssertCancel" aria-label="Close assert bar">&times;</button>
                 </div>
               </div>
 
-              <div class="btn-row" style="justify-content:space-between;">
-                <div class="btn-row">
-                  <button type="button" class="btn btn-sm" id="btnRecSwipeUp">Swipe &uarr;</button>
-                  <button type="button" class="btn btn-sm" id="btnRecSwipeDown">Swipe &darr;</button>
-                  <button type="button" class="btn btn-sm" id="btnRecBack">Back</button>
-                  <button type="button" class="btn btn-sm" id="btnRecHideKeyboard" title="Lower on-screen keyboard &amp; add hide_keyboard step">Hide keyboard</button>
-                  <button type="button" class="btn btn-sm" id="btnRecWait">Wait 2s</button>
-                </div>
-                <label class="switch-inline" for="recRedactMirrorChk" style="font-size:11.5px;">
-                  <input type="checkbox" id="recRedactMirrorChk" switch checked /> Redact mask
-                </label>
+              <div class="btn-row" id="recGestureRow">
+                <button type="button" class="btn btn-sm" id="btnRecSwipeUp">Swipe &uarr;</button>
+                <button type="button" class="btn btn-sm" id="btnRecSwipeDown">Swipe &darr;</button>
+                <button type="button" class="btn btn-sm" id="btnRecBack">Back</button>
+                <button type="button" class="btn btn-sm" id="btnRecHideKeyboard" title="Lower the on-screen keyboard and record a hide_keyboard step">Hide keyboard</button>
+                <button type="button" class="btn btn-sm" id="btnRecWait" title="Record a 2 second pause">Wait 2s</button>
               </div>
             </div>
           </div>
@@ -1562,10 +1608,10 @@
             <div class="panel" style="min-height:0;">
               <div class="panel-head">
                 <span class="panel-kicker">Steps <span class="count-pill" id="recStepCount">0</span></span>
-                <button type="button" class="btn btn-sm" id="btnRecUndo">Undo</button>
+                <button type="button" class="btn btn-sm" id="btnRecUndo" disabled title="Remove the last recorded step">Undo last</button>
               </div>
               <div class="rec-steps-scroll" id="recStepsList">
-                <div class="muted" style="padding:18px 14px;">Click an element on the mirrored device to record steps.</div>
+                <div class="muted" style="padding:18px 14px;">No steps yet. Click a control on the device screen to record one.</div>
               </div>
 
               <!-- Optional inline step editor when clicking a recorded step -->
@@ -1583,15 +1629,19 @@
               </div>
 
               <div class="rec-save-bar">
-                <input id="recSaveFlowName" type="text" value="auth/recorded_flow" placeholder="auth/login-logout-android" style="flex:1;min-width:180px;" />
-                <label class="chk-inline" title="Also save a runnable Test Journey in specs/">
-                  <input type="checkbox" id="recCreateTestChk" /> + Journey
+                <input id="recSaveFlowName" type="hidden" value="auth/recorded_flow" />
+                <span class="muted" style="flex:1;min-width:150px;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Saves to <code id="recSaveFlowLabel">flows/auth/recorded_flow.md</code></span>
+                <label class="chk-inline" title="Typed values become ${variables}. The values you typed are kept as the first dataset row, so you can add rows or import a CSV and rerun.">
+                  <input type="checkbox" id="recParamChk" checked /> Typed values as variables
+                </label>
+                <label class="chk-inline" title="Also save a runnable test journey in specs/ that calls this workflow">
+                  <input type="checkbox" id="recCreateTestChk" /> Also create a journey
                 </label>
                 <input id="recSaveSuite" type="text" value="smoke" placeholder="smoke" style="width:80px;" hidden />
                 <input id="recSaveTestId" type="text" value="SMK-001" placeholder="SMK-001" style="width:92px;" hidden />
                 <input id="recSaveTestTitle" type="text" value="Repeat recorded workflow" placeholder="Test title" style="width:160px;" hidden />
-                <button type="button" class="btn btn-primary" id="btnRecSaveAll">Save workflow</button>
-                <button type="button" class="btn btn-sm" id="btnRecGoRun" hidden>Run &rarr;</button>
+                <button type="button" class="btn btn-primary" id="btnRecSaveAll" disabled>Save workflow</button>
+                <button type="button" class="btn btn-sm" id="btnRecGoRun" hidden>Open workflow &rarr;</button>
               </div>
             </div>
 
@@ -2171,6 +2221,22 @@
   <datalist id="screenTargetOptions"></datalist>
   <datalist id="flowNameOptions"></datalist>
 
+  <div class="toast-host" id="toastHost" role="status" aria-live="polite"></div>
+
+  <dialog id="uiAskDialog" aria-labelledby="uiAskTitle">
+    <form method="dialog" id="uiAskForm">
+      <div class="dlg-head"><h3 id="uiAskTitle">Confirm</h3></div>
+      <div class="dlg-body">
+        <p id="uiAskMsg"></p>
+        <input id="uiAskInput" type="text" hidden autocomplete="off" />
+      </div>
+      <div class="dlg-foot">
+        <button type="button" class="btn" id="uiAskCancel">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="uiAskOk">OK</button>
+      </div>
+    </form>
+  </dialog>
+
   <script>
     (function () {
       const SAMPLE_LOGIN_XML = `<hierarchy rotation="0">
@@ -2192,6 +2258,9 @@
         emuStatus: null,
         emuPollTimer: null,
         recState: null,
+        recBusy: false,
+        recDirty: false,
+        recNoticeRev: null,
         recPollTimer: null,
         recLastRev: -1,
         recSelectedIdx: null,
@@ -2255,11 +2324,88 @@
         el.textContent = msg;
       }
 
+      function toast(msg, kind, ms) {
+        const host = $("toastHost");
+        const text = String(msg || "").trim();
+        if (!host || !text) return;
+        const last = host.lastElementChild;
+        if (last && last.dataset.msg === text) return;
+        const el = document.createElement("div");
+        el.className = "toast" + (kind ? " is-" + kind : "");
+        el.dataset.msg = text;
+        const body = document.createElement("div");
+        body.className = "toast-msg";
+        body.textContent = text;
+        const close = document.createElement("button");
+        close.type = "button";
+        close.className = "toast-close";
+        close.setAttribute("aria-label", "Dismiss");
+        close.textContent = "\u00d7";
+        close.addEventListener("click", () => el.remove());
+        el.append(body, close);
+        host.appendChild(el);
+        while (host.children.length > 4) host.firstElementChild.remove();
+        const ttl = ms || (kind === "error" ? 9000 : 4500);
+        setTimeout(() => el.remove(), ttl);
+      }
+      const toastError = (err, prefix) => toast((prefix ? prefix + ": " : "") + ((err && err.message) || String(err || "Something went wrong")), "error");
+
+      // In-app replacement for confirm()/prompt(). Resolves true/false, or the entered text/null when `input` is set.
+      function uiAsk(opts) {
+        const o = opts || {};
+        const dlg = $("uiAskDialog");
+        const input = $("uiAskInput");
+        const wantsInput = o.input !== undefined;
+        $("uiAskTitle").textContent = o.title || "Confirm";
+        $("uiAskMsg").textContent = o.message || "";
+        $("uiAskOk").textContent = o.okLabel || "OK";
+        $("uiAskOk").className = "btn " + (o.danger ? "btn-danger" : "btn-primary");
+        $("uiAskCancel").hidden = Boolean(o.noCancel);
+        input.hidden = !wantsInput;
+        input.value = wantsInput ? String(o.input || "") : "";
+        input.placeholder = o.placeholder || "";
+        return new Promise((resolve) => {
+          let done = false;
+          const finish = (val) => {
+            if (done) return;
+            done = true;
+            $("uiAskForm").removeEventListener("submit", onSubmit);
+            $("uiAskCancel").removeEventListener("click", onCancel);
+            dlg.removeEventListener("close", onClose);
+            if (dlg.open) dlg.close();
+            resolve(val);
+          };
+          const onSubmit = (e) => { e.preventDefault(); finish(wantsInput ? input.value : true); };
+          const onCancel = () => finish(wantsInput ? null : false);
+          const onClose = () => finish(wantsInput ? null : false);
+          $("uiAskForm").addEventListener("submit", onSubmit);
+          $("uiAskCancel").addEventListener("click", onCancel);
+          dlg.addEventListener("close", onClose);
+          dlg.showModal();
+          if (wantsInput) { input.focus(); input.select(); } else { $("uiAskOk").focus(); }
+        });
+      }
+      const uiConfirm = (message, o) => uiAsk(Object.assign({ message }, o || {}));
+      const uiPrompt = (message, value, o) => uiAsk(Object.assign({ message, input: value || "", title: "Name" }, o || {}));
+
+      // Any handler that forgets a try/catch still tells the user what went wrong.
+      window.addEventListener("unhandledrejection", (ev) => {
+        const err = ev.reason;
+        if (err && err.name === "AbortError") return;
+        toastError(err);
+      });
+
       async function apiJson(url, payload, signal) {
         const opts = payload === undefined
           ? { cache: "no-store", signal }
           : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload), signal };
-        const res = await fetch(url, opts);
+        let res;
+        try {
+          res = await fetch(url, opts);
+        } catch (err) {
+          if (err && err.name === "AbortError") throw err;
+          throw new Error("QAlprit is not responding. Check that the app is still running, then try again.");
+        }
         const text = await res.text();
         let data = {};
         try { data = text ? JSON.parse(text) : {}; } catch (_) { data = { error: text }; }
@@ -2806,6 +2952,13 @@
           return;
         }
 
+        // A workflow recorded on one platform opens on that platform. The user can still switch after.
+        if (isFlow && STATE.flowPlatformFor !== item.name) {
+          STATE.flowPlatformFor = item.name;
+          const own = (item.platforms || []).filter((p) => p !== "ios" || STATE.hostOs === "Darwin");
+          if (own.length && !own.includes(STATE.flowPlatform)) STATE.flowPlatform = own[0];
+        }
+
         const bundle = item.datasets || { variables: [], secret_columns: [], rows: [] };
         const variables = Array.from(new Set([...(bundle.variables || []), ...(item.params || [])])).filter((v) => v !== "expected" && v !== "dataset");
         const rows = bundle.rows || [];
@@ -3114,7 +3267,7 @@
               });
               await loadOverview({ skipAutoSync: true, preserveFormInputs: true });
             } catch (err) {
-              alert("CSV Import failed: " + err.message);
+              toastError(err, "CSV import failed");
             } finally {
               csvInput.value = "";
             }
@@ -3337,7 +3490,7 @@
         });
         host.querySelector("[data-ds-del]").addEventListener("click", async () => {
           const label = isFlow ? item.name : item.id;
-          if (!window.confirm(`Delete '${label}' from disk?`)) return;
+          if (!(await uiConfirm(`Delete '${label}' from disk? This cannot be undone.`, { title: "Delete", okLabel: "Delete", danger: true }))) return;
           if (isFlow) {
             await apiJson("/api/flows/delete", { name: item.name });
             STATE.selectedFlowName = "";
@@ -3390,7 +3543,7 @@
 
       // Rail +New / Import buttons
       $("btnNewFlowRail").addEventListener("click", async () => {
-        const name = window.prompt("New workflow name (e.g. auth/login):", "auth/new_flow");
+        const name = await uiPrompt("Workflow name, for example auth/login", "auth/new_flow", { title: "New workflow", okLabel: "Create" });
         if (!name || !name.trim()) return;
         await apiJson("/api/flows/save", { name: name.trim(), params: [], steps: [{ wait: 1 }], notes: "" });
         STATE.selectedFlowName = name.trim();
@@ -3410,7 +3563,7 @@
       $("btnNewSpec").addEventListener("click", async () => {
         const specs = (STATE.overview && STATE.overview.specs) || [];
         const nextId = computeNextJourneyIdLocal("smoke", specs);
-        const title = window.prompt("New smoke journey title:", "Verify user login flow");
+        const title = await uiPrompt("Journey title", "Verify user login flow", { title: "New journey", okLabel: "Create" });
         if (!title || !title.trim()) return;
         await apiJson("/api/specs/save", {
           id: nextId,
@@ -3657,7 +3810,7 @@
               });
               startRunPolling();
             } catch (err) {
-              alert("Re-run failed: " + err.message);
+              toastError(err, "Re-run failed");
             }
           });
         }
@@ -3695,7 +3848,6 @@
       function syncRedactForEnv(envName) {
         const val = isEnvRedacted(envName);
         if ($("recRedactChk")) $("recRedactChk").checked = val;
-        if ($("recRedactMirrorChk")) $("recRedactMirrorChk").checked = val;
         if ($("runRedactChk")) $("runRedactChk").checked = val;
         if ($("runRedactEnvHint")) $("runRedactEnvHint").textContent = val ? `enabled in '${envName}'` : `off in '${envName}'`;
       }
@@ -4171,7 +4323,7 @@
         pollEmulatorStatus();
       }
       $("btnEmuSetup").addEventListener("click", async () => {
-        if (!window.confirm("Download & create Android 34 Virtual Emulator (QAlprit_Pixel, ~1.8 GB)?")) return;
+        if (!(await uiConfirm("Download and create the Android 34 emulator (QAlprit_Pixel)? The download is about 1.8 GB.", { title: "Set up Android emulator", okLabel: "Download" }))) return;
         await apiJson("/api/emulator/setup", {});
         startEmulatorPolling();
       });
@@ -4275,8 +4427,10 @@
       function renderRecorderSteps(steps) {
         const list = steps || [];
         $("recStepCount").textContent = String(list.length);
+        $("btnRecSaveAll").disabled = !list.length;
+        $("btnRecUndo").disabled = !list.length;
         if (!list.length) {
-          $("recStepsList").innerHTML = '<div class="muted" style="padding:18px 14px;">Click an element on the mirrored device to record steps.</div>';
+          $("recStepsList").innerHTML = '<div class="muted" style="padding:18px 14px;">No steps yet. Click a control on the device screen to record one.</div>';
           syncRecStepEditBar(null);
           return;
         }
@@ -4284,7 +4438,8 @@
           const actCls = s.action === "tap" ? " is-tap" : (String(s.action).startsWith("assert") ? " is-assert" : "");
           const actLabel = s.action === "assert_text" ? "assert" : s.action;
           const valParts = [];
-          if (s.value) valParts.push(s.value);
+          // Secret values stay out of the list so a shared screen or screenshot does not leak them.
+          if (s.value) valParts.push(s.secret && !/^\$\{[^}]+\}$/.test(String(s.value)) ? "\u2022\u2022\u2022\u2022\u2022\u2022" : s.value);
           if (s.secret) valParts.push("secret");
           return `<div class="rec-step-row${STATE.recSelectedStepIdx === idx ? " is-selected" : ""}" data-rec-step-idx="${idx}" draggable="true" title="Click to edit/reorder, or drag to rearrange">
             <span class="rec-step-num">${idx + 1}</span>
@@ -4305,6 +4460,7 @@
         $("recTypeTargetLabel").textContent = el.display_label || el.key;
         $("recTypeTargetKey").textContent = `${$("recScreenName").value.trim() || "login"}.${el.key}`;
         $("recTypeSecret").checked = Boolean(el.suggested_sensitive);
+        $("recTypeInput").type = el.suggested_sensitive ? "password" : "text";
         $("recTypeInput").value = "";
         $("recTypeInput").focus();
         updateInspectorForElement(el);
@@ -4338,15 +4494,42 @@
 
         const pill = $("recLivePill");
         const dot = $("recLiveDot");
+        const failed = !active && !starting && st.status === "failed";
+        const stepCount = (st.steps || []).length;
         pill.classList.toggle("is-live", active);
-        dot.className = "dot" + (active ? " is-ok" : (st.status === "failed" ? " is-fail" : ""));
-        $("recMirrorMeta").textContent = active ? `Live · ${st.screen_width}×${st.screen_height}` : (starting ? "Starting..." : "Idle");
-        if (st.error) showBanner("recStatusBanner", st.error, "error");
+        pill.classList.toggle("is-busy", active && STATE.recBusy);
+        $("recPhoneFrame").classList.toggle("is-busy", active && STATE.recBusy);
+        dot.className = "dot" + (active ? " is-ok" : (failed ? " is-fail" : ""));
+        $("recMirrorMeta").textContent = active
+          ? (STATE.recBusy ? "Working..." : `Live · ${st.screen_width}×${st.screen_height}`)
+          : (starting ? "Starting..." : (failed ? "Session lost" : "Idle"));
+        if (st.error) {
+          showBanner("recStatusBanner", st.error + (failed && stepCount ? ` Your ${stepCount} recorded step(s) are kept. Save them, or start a new recording.` : ""), "error");
+        }
+        if (st.notice_rev !== undefined && st.notice_rev !== STATE.recNoticeRev) {
+          if (STATE.recNoticeRev !== null && st.notice) toast(st.notice, "warn", 7000);
+          STATE.recNoticeRev = st.notice_rev;
+        }
+        ["recPlatform", "recDeviceSelect", "recAppSelect", "recEnvSelect", "recFlowNameInput", "btnRecQuickUpload"].forEach((id) => {
+          if ($(id)) $(id).disabled = active || starting;
+        });
+        $("recGestureRow").querySelectorAll("button").forEach((b) => { b.disabled = !active; });
 
         if (active || starting) {
           const rOn = st.redact_sensitive !== undefined ? Boolean(st.redact_sensitive) : true;
           $("recRedactChk").checked = rOn;
-          $("recRedactMirrorChk").checked = rOn;
+          // A reloaded page shows the running session's platform, env and flow, not the defaults.
+          if (st.platform && $("recPlatform").value !== st.platform) {
+            $("recPlatform").value = st.platform;
+            $("recPlatform").dispatchEvent(new Event("change", { bubbles: true }));
+          }
+          if (st.env_name && $("recEnvSelect").value !== st.env_name
+              && Array.from($("recEnvSelect").options).some((o) => o.value === st.env_name)) {
+            $("recEnvSelect").value = st.env_name;
+          }
+          if (st.flow_name && $("recFlowNameInput").value !== st.flow_name && document.activeElement !== $("recFlowNameInput")) {
+            syncFlowNameFields(st.flow_name);
+          }
         }
         if (active) {
           $("recPhoneEmpty").hidden = Boolean(st.has_screenshot);
@@ -4359,7 +4542,6 @@
             $("recOverlays").innerHTML = "";
           }
           renderRecorderElements(st.elements || [], $("recElFilter").value);
-          renderRecorderSteps(st.steps || []);
         } else if (!starting) {
           $("recPhoneImg").hidden = true;
           $("recPhoneImg").removeAttribute("src");
@@ -4371,6 +4553,8 @@
           STATE.recLastRev = -1;
           renderRecorderElements([], "");
         }
+        // Steps outlive the session, so a stopped or dropped recording can still be saved.
+        renderRecorderSteps(st.steps || []);
       }
 
       async function pollRecorderStatus() {
@@ -4384,12 +4568,40 @@
         if (STATE.recPollTimer) clearInterval(STATE.recPollTimer);
         STATE.recPollTimer = setInterval(pollRecorderStatus, 1100);
       }
-      async function runRecorderAction(payload) {
+      function setRecBusy(on) {
+        STATE.recBusy = Boolean(on);
+        if (STATE.recState) applyRecorderState(STATE.recState);
+      }
+      // One device action at a time: a second click while the first is running would hit a stale screen.
+      async function recorderCall(url, payload) {
+        if (STATE.recBusy) return null;
+        setRecBusy(true);
         try {
-          const st = await apiJson("/api/recorder/action", Object.assign({ screen_name: $("recScreenName").value.trim() || "login" }, payload));
+          const st = await apiJson(url, payload || {});
+          STATE.recBusy = false;
+          if (st && st.selected_index !== undefined && st.selected_index !== null) STATE.recSelectedStepIdx = st.selected_index;
           applyRecorderState(st);
           showBanner("recStatusBanner", "", "");
-        } catch (err) { showBanner("recStatusBanner", err.message, "error"); }
+          return st;
+        } catch (err) {
+          STATE.recBusy = false;
+          showBanner("recStatusBanner", err.message, "error");
+          pollRecorderStatus();
+          return null;
+        }
+      }
+      function runRecorderAction(payload) {
+        const body = Object.assign({ screen_name: $("recScreenName").value.trim() || "login" }, payload);
+        if (body.element_index !== undefined) {
+          // Send the locator too, so the server can spot that the screen changed under the click.
+          const el = ((STATE.recState && STATE.recState.elements) || [])[body.element_index];
+          if (el) {
+            body.locator_strategy = el.recommended_strategy || "";
+            body.locator_value = el.recommended_value || "";
+          }
+        }
+        STATE.recDirty = true;
+        return recorderCall("/api/recorder/action", body);
       }
 
       function flowToScreenPrefix(flowName) {
@@ -4400,14 +4612,12 @@
       function syncFlowNameFields(rawVal, sourceId) {
         const val = String(rawVal || "").trim() || "recorded_flow";
         if (sourceId !== "recFlowNameInput" && $("recFlowNameInput")) $("recFlowNameInput").value = val;
-        if (sourceId !== "recSaveFlowName" && $("recSaveFlowName")) $("recSaveFlowName").value = val;
+        if ($("recSaveFlowName")) $("recSaveFlowName").value = val;
+        if ($("recSaveFlowLabel")) $("recSaveFlowLabel").textContent = `flows/${val}.md`;
         if ($("recScreenName")) $("recScreenName").value = flowToScreenPrefix(val);
       }
       if ($("recFlowNameInput")) {
         $("recFlowNameInput").addEventListener("input", () => syncFlowNameFields($("recFlowNameInput").value, "recFlowNameInput"));
-      }
-      if ($("recSaveFlowName")) {
-        $("recSaveFlowName").addEventListener("input", () => syncFlowNameFields($("recSaveFlowName").value, "recSaveFlowName"));
       }
       if ($("recScreenName")) {
         $("recScreenName").value = flowToScreenPrefix(($("recFlowNameInput") && $("recFlowNameInput").value) || "recorded_flow");
@@ -4443,6 +4653,18 @@
       }
 
       $("btnRecStart").addEventListener("click", async () => {
+        const kept = ((STATE.recState && STATE.recState.steps) || []).length;
+        if (kept && STATE.recDirty) {
+          const go = await uiConfirm(`Starting a new recording discards ${kept} unsaved step(s).`, { title: "Discard unsaved steps?", okLabel: "Discard and start", danger: true });
+          if (!go) return;
+        }
+        if (!$("recAppSelect").value) { showBanner("recStatusBanner", "Choose an app binary first. Use + to upload an .apk, .ipa or .zip.", "error"); return; }
+        STATE.recDirty = false;
+        STATE.recBusy = false;
+        STATE.recNoticeRev = 0;
+        STATE.recSelectedStepIdx = null;
+        $("btnRecGoRun").hidden = true;
+        $("btnRecStart").disabled = true;
         STATE.recLastRev = -1;
         STATE.recSelectedIdx = null;
         $("recTypeBar").hidden = true;
@@ -4481,44 +4703,39 @@
           pollEmulatorStatus();
         } catch (err) {
           $("recProgressBox").hidden = true;
+          $("btnRecStart").disabled = false;
           showBanner("recStatusBanner", err.message, "error");
         }
       });
       $("btnRecStop").addEventListener("click", async () => {
         const stopPlat = (STATE.recState && STATE.recState.platform) || $("recPlatform").value || "all";
-        showBanner("recStatusBanner", "Stopping recording & shutting down virtual device...", "info");
+        $("btnRecStop").disabled = true;
+        showBanner("recStatusBanner", "Stopping the recording and shutting down the virtual device...", "info");
         try {
           await apiJson("/api/recorder/stop", {});
+          await shutdownDeviceTarget(stopPlat, "", { quiet: false });
+          const kept = ((STATE.recState && STATE.recState.steps) || []).length;
+          showBanner("recStatusBanner", kept && STATE.recDirty ? `Recording stopped. ${kept} step(s) are still here. Click Save workflow to keep them.` : "Recording stopped.", "info");
         } catch (err) {
           showBanner("recStatusBanner", err.message, "error");
+        } finally {
+          $("btnRecStop").disabled = false;
+          STATE.recBusy = false;
+          pollRecorderStatus();
         }
-        await shutdownDeviceTarget(stopPlat, "", { quiet: false });
-        pollRecorderStatus();
       });
       if ($("recEnvSelect")) {
         $("recEnvSelect").addEventListener("change", () => loadEnvIntoForm($("recEnvSelect").value));
       }
-      $("btnRecSync").addEventListener("click", async () => {
-        const st = await apiJson("/api/recorder/sync", { screen_name: $("recScreenName").value.trim() || "login" });
-        applyRecorderState(st);
+      $("btnRecSync").addEventListener("click", () => recorderCall("/api/recorder/sync", { screen_name: $("recScreenName").value.trim() || "login" }));
+      $("recRedactChk").addEventListener("change", () => {
+        if (STATE.recState && STATE.recState.active) recorderCall("/api/recorder/redaction", { enabled: $("recRedactChk").checked });
       });
-      async function toggleLiveRedaction(enabled) {
-        $("recRedactChk").checked = enabled;
-        $("recRedactMirrorChk").checked = enabled;
-        if (STATE.recState && STATE.recState.active) {
-          applyRecorderState(await apiJson("/api/recorder/redaction", { enabled }));
-        }
-      }
-      $("recRedactChk").addEventListener("change", () => toggleLiveRedaction($("recRedactChk").checked));
-      $("recRedactMirrorChk").addEventListener("change", () => toggleLiveRedaction($("recRedactMirrorChk").checked));
 
       document.querySelectorAll("[data-rec-mode]").forEach((b) => {
         b.addEventListener("click", () => {
           STATE.recMode = b.dataset.recMode;
           document.querySelectorAll("[data-rec-mode]").forEach((x) => x.classList.toggle("is-active", x === b));
-          if (STATE.recMode === "wait" && STATE.recState && STATE.recState.active) {
-            runRecorderAction({ action: "wait", value: "2" });
-          }
         });
       });
       document.querySelectorAll("[data-rec-insp-tab]").forEach((b) => {
@@ -4553,7 +4770,7 @@
       });
       $("recPhoneImg").addEventListener("click", (e) => {
         const st = STATE.recState;
-        if (!st || !st.active) return;
+        if (!st || !st.active || STATE.recBusy) return;
         const rect = e.target.getBoundingClientRect();
         if (!rect.width || !rect.height) return;
         const x = ((e.clientX - rect.left) / rect.width) * (st.screen_width || 1080);
@@ -4593,9 +4810,21 @@
       $("btnRecSwipeDown").addEventListener("click", () => runRecorderAction({ action: "swipe", direction: "down" }));
       $("btnRecBack").addEventListener("click", () => runRecorderAction({ action: "back" }));
       if ($("btnRecHideKeyboard")) $("btnRecHideKeyboard").addEventListener("click", () => runRecorderAction({ action: "hide_keyboard" }));
-      if ($("btnRecTypeHideKb")) $("btnRecTypeHideKb").addEventListener("click", () => { $("recTypeBar").hidden = true; runRecorderAction({ action: "hide_keyboard" }); });
+      $("recTypeSecret").addEventListener("change", () => { $("recTypeInput").type = $("recTypeSecret").checked ? "password" : "text"; });
+      $("recStepEditSecret").addEventListener("change", () => { $("recStepEditVal").type = $("recStepEditSecret").checked ? "password" : "text"; });
+      $("btnRecTypeCancel").addEventListener("click", () => { $("recTypeBar").hidden = true; });
+      $("btnRecAssertCancel").addEventListener("click", () => { $("recAssertBar").hidden = true; });
+      $("recTypeInput").addEventListener("keydown", (e) => {
+        if (e.key === "Enter") { e.preventDefault(); $("btnRecSendType").click(); }
+        else if (e.key === "Escape") { $("recTypeBar").hidden = true; }
+      });
+      $("recAssertTextInput").addEventListener("keydown", (e) => {
+        if (e.key === "Enter") { e.preventDefault(); $("btnRecVerifyText").click(); }
+        else if (e.key === "Escape") { $("recAssertBar").hidden = true; }
+      });
       $("btnRecWait").addEventListener("click", () => runRecorderAction({ action: "wait", value: "2" }));
-      $("btnRecUndo").addEventListener("click", async () => { applyRecorderState(await apiJson("/api/recorder/undo", {})); });
+      const recStepEdit = (payload) => { STATE.recDirty = true; return recorderCall("/api/recorder/update", payload); };
+      $("btnRecUndo").addEventListener("click", () => recorderCall("/api/recorder/undo", {}));
 
       function syncRecStepEditBar(idx) {
         const steps = (STATE.recState && STATE.recState.steps) || [];
@@ -4621,6 +4850,7 @@
           $("recStepEditVal").value = "";
         }
         $("recStepEditSecret").checked = Boolean(st.secret);
+        $("recStepEditVal").type = (isType && st.secret) ? "password" : "text";
         if ($("btnRecStepMoveUp")) $("btnRecStepMoveUp").disabled = idx <= 0;
         if ($("btnRecStepMoveDown")) $("btnRecStepMoveDown").disabled = idx >= steps.length - 1;
       }
@@ -4650,50 +4880,48 @@
         const fromIdx = recDragIdx;
         recDragIdx = null;
         if (fromIdx === toIdx) return;
-        const res = await apiJson("/api/recorder/update", { index: fromIdx, move_to: toIdx });
-        STATE.recSelectedStepIdx = res.selected_index ?? toIdx;
-        applyRecorderState(res);
+        STATE.recSelectedStepIdx = toIdx;
+        await recStepEdit({ index: fromIdx, move_to: toIdx });
       });
       $("btnRecStepEditApply").addEventListener("click", async () => {
         if (STATE.recSelectedStepIdx === null) return;
-        const res = await apiJson("/api/recorder/update", {
+        await recStepEdit({
           index: STATE.recSelectedStepIdx,
           value: $("recStepEditVal").value,
           secret: $("recStepEditSecret").checked
         });
-        applyRecorderState(res);
       });
       if ($("btnRecStepMoveUp")) {
         $("btnRecStepMoveUp").addEventListener("click", async () => {
           if (STATE.recSelectedStepIdx === null || STATE.recSelectedStepIdx <= 0) return;
-          const res = await apiJson("/api/recorder/update", { index: STATE.recSelectedStepIdx, move_to: STATE.recSelectedStepIdx - 1 });
-          STATE.recSelectedStepIdx = res.selected_index ?? (STATE.recSelectedStepIdx - 1);
-          applyRecorderState(res);
+          const from = STATE.recSelectedStepIdx;
+          STATE.recSelectedStepIdx = from - 1;
+          await recStepEdit({ index: from, move_to: from - 1 });
         });
       }
       if ($("btnRecStepMoveDown")) {
         $("btnRecStepMoveDown").addEventListener("click", async () => {
           const steps = (STATE.recState && STATE.recState.steps) || [];
           if (STATE.recSelectedStepIdx === null || STATE.recSelectedStepIdx >= steps.length - 1) return;
-          const res = await apiJson("/api/recorder/update", { index: STATE.recSelectedStepIdx, move_to: STATE.recSelectedStepIdx + 1 });
-          STATE.recSelectedStepIdx = res.selected_index ?? (STATE.recSelectedStepIdx + 1);
-          applyRecorderState(res);
+          const from = STATE.recSelectedStepIdx;
+          STATE.recSelectedStepIdx = from + 1;
+          await recStepEdit({ index: from, move_to: from + 1 });
         });
       }
       if ($("btnRecStepDup")) {
         $("btnRecStepDup").addEventListener("click", async () => {
           if (STATE.recSelectedStepIdx === null) return;
-          const res = await apiJson("/api/recorder/update", { index: STATE.recSelectedStepIdx, duplicate: true });
-          STATE.recSelectedStepIdx = res.selected_index ?? (STATE.recSelectedStepIdx + 1);
-          applyRecorderState(res);
+          const from = STATE.recSelectedStepIdx;
+          STATE.recSelectedStepIdx = from + 1;
+          await recStepEdit({ index: from, duplicate: true });
         });
       }
       $("btnRecStepEditDel").addEventListener("click", async () => {
         if (STATE.recSelectedStepIdx === null) return;
-        const res = await apiJson("/api/recorder/update", { index: STATE.recSelectedStepIdx, delete: true });
+        const from = STATE.recSelectedStepIdx;
         STATE.recSelectedStepIdx = null;
         $("recStepEditBar").hidden = true;
-        applyRecorderState(res);
+        await recStepEdit({ index: from, delete: true });
       });
 
       $("recCreateTestChk").addEventListener("change", () => {
@@ -4703,6 +4931,8 @@
         $("recSaveTestTitle").hidden = !on;
       });
       $("btnRecSaveAll").addEventListener("click", async () => {
+        if (STATE.recBusy) return;
+        $("btnRecSaveAll").disabled = true;
         try {
           const res = await apiJson("/api/recorder/save", {
             flow_name: $("recSaveFlowName").value.trim() || "recorded_flow",
@@ -4710,29 +4940,28 @@
             test_id: $("recSaveTestId").value.trim(),
             test_title: $("recSaveTestTitle").value.trim() || "Repeat recorded workflow",
             create_test: $("recCreateTestChk").checked,
+            parameterize: $("recParamChk").checked,
             stop_after: true
           });
           const savedFlowName = (res.flow && res.flow.name) || res.flow_name || ($("recSaveFlowName").value.trim() || "recorded_flow");
-          showBanner("recStatusBanner", `Saved workflow '${savedFlowName}'.`, "ok");
+          const journey = res.spec && (res.spec.id || res.spec.name);
+          STATE.recDirty = false;
+          const vars = res.variables || [];
+          showBanner("recStatusBanner", `Saved workflow '${savedFlowName}'${journey ? ` and journey ${journey}` : ""}. `
+            + (vars.length ? `Variables: ${vars.join(", ")}. Open it to add dataset rows or import a CSV, then run.` : "Open it to run it."), "ok");
+          if (vars.length) STATE.flowTab = "variables";
+          toast(`Saved workflow '${savedFlowName}'.`, "ok");
           $("btnRecGoRun").hidden = false;
           STATE.selectedFlowName = savedFlowName;
           await loadOverview({ skipAutoSync: true, preserveFormInputs: true });
-        } catch (err) { showBanner("recStatusBanner", err.message, "error"); }
+          pollRecorderStatus();
+        } catch (err) {
+          showBanner("recStatusBanner", err.message, "error");
+        } finally {
+          $("btnRecSaveAll").disabled = !((STATE.recState && STATE.recState.steps) || []).length;
+        }
       });
       $("btnRecGoRun").addEventListener("click", () => navigateTo("workflows"));
-
-      $("btnImportWorkflowRec").addEventListener("click", () => $("flowUploadStep2Input").click());
-      $("flowUploadStep2Input").addEventListener("change", async () => {
-        const f = $("flowUploadStep2Input").files[0];
-        if (!f) return;
-        try {
-          const res = await apiJson("/api/flows/upload", { filename: f.name, content_text: await f.text() });
-          showBanner("flowUploadStep2Status", `Imported workflow '${res.name}'.`, "ok");
-          STATE.selectedFlowName = res.name;
-          await loadOverview({ skipAutoSync: true, preserveFormInputs: true });
-        } catch (err) { showBanner("flowUploadStep2Status", err.message, "error"); }
-        finally { $("flowUploadStep2Input").value = ""; }
-      });
 
       // ================================================================
       // NEW RUN MODAL & POLLING
@@ -4829,7 +5058,7 @@
           } else {
             startRunPolling();
           }
-        } catch (err) { alert(err.message); }
+        } catch (err) { toastError(err, "Run did not start"); }
       }
       $("btnDryRun").addEventListener("click", () => launchRunFromModal(true));
       $("runForm").addEventListener("submit", (e) => { e.preventDefault(); launchRunFromModal(false); });
@@ -4955,7 +5184,7 @@
       $("btnCleanupSelected").addEventListener("click", async () => {
         const ids = Array.from(document.querySelectorAll(".cleanup-chk:checked")).map((c) => c.value);
         if (!ids.length) return;
-        if (!window.confirm(`Delete ${ids.length} checked cleanup item(s) permanently?`)) return;
+        if (!(await uiConfirm(`Delete ${ids.length} checked cleanup item(s)? This cannot be undone.`, { title: "Clean up", okLabel: "Delete", danger: true }))) return;
         const res = await apiJson("/api/system/cleanup", { target_ids: ids });
         const removed = res.removed_ids || res.deleted || [];
         showBanner("cleanupStatusBanner", `Cleaned ${removed.length} item(s), freed ${fmtBytes(res.freed_bytes || 0)}.`, "ok");
@@ -4971,7 +5200,8 @@
       $("btnReloadWorkspace").addEventListener("click", () => loadOverview({ skipAutoSync: true, preserveFormInputs: true }));
       $("btnQuickValidate").addEventListener("click", async () => {
         const res = await apiJson("/api/validate", { env_name: $("topEnvSelect").value || "qa" });
-        alert(res.ok ? `Validation PASSED (${res.specs_count} journeys, ${res.flows_count} flows).` : `Validation FAILED:\n${res.errors.map((e) => e.location + ": " + e.message).join("\n")}`);
+        if (res.ok) toast(`Validation passed: ${res.specs_count} journeys, ${res.flows_count} flows.`, "ok");
+        else uiAsk({ title: "Validation failed", message: res.errors.map((e) => e.location + ": " + e.message).join("\n"), noCancel: true });
       });
       document.querySelectorAll("[data-reload-workspace]").forEach((b) => {
         b.addEventListener("click", () => loadOverview({ skipAutoSync: true, preserveFormInputs: true }));
