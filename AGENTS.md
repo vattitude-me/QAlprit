@@ -1,6 +1,35 @@
-# QAlprit Repository Rules
+# QAlprit Repository Rules & Developer Reference
 
-These project rules govern git workflow, versioning, PyPI publishing, website/Vercel deployments, report generation, and safety in this repository.
+These project rules and architecture notes govern git workflow, codebase navigation, cross-platform builds (`.exe`, `.dmg`, PyPI), website/Vercel deployments, report generation, and safety in this repository.
+
+## 0. Repository Map & Architecture
+
+- **`src/qalprit/` — Core Engine & Shared Desktop/Web Workbench** (bundled identically by PyPI, Windows `.exe`, and macOS `.dmg`):
+  - **Entry points & Desktop Host**:
+    - `cli.py`: Click CLI (`qalprit run`, `validate`, `list`, `inspect`, `doctor`, `devices`, `report`, `ui`, `version`).
+    - `desktop.py`: Frozen `.exe`/`.app` GUI entry point (`launch_workbench()`), pywebview native window host, portable workspace bootstrap (`ensure_workspace()`), and bundled runtime path wiring (`runtime/`).
+    - `ui_server.py`: Threading HTTP + API server (`create_ui_server()`, `/api/overview`, `/api/runs/*`, `/api/recorder/*`, `/api/emulator/*`, `/api/datasets/*`, `/api/flows/*`, `/api/specs/*`, `/api/screens/*`, `/api/environments/*`, `/api/apps/*`, `/api/system/*`).
+    - `ui/index.html`: Single-file Workbench UI (Workbench views: `Workflows`, `Journeys`, `Record`, `Runs & Reports`; Library: `Screens & locators`; Settings: `Settings & Setup`).
+  - **Execution & Validation**:
+    - `spec_loader.py` & `validator.py`: Parse Markdown+YAML journeys (`specs/`), reusable flows (`flows/`), screen locators (`screens/screens.yaml`), and `validate_project()` pre-flight checks.
+    - `datasets.py`: CSV dynamic variable parameterization (`datasets/flows/`, `datasets/specs/`), secret column detection, and UI masking (`mask_bundle_for_ui()`).
+    - `runner.py` & `steps/`: Step execution (`execute_step()`), flow expansion, retries, teardown, `SecretMasker`, and `FailureCategory` classification.
+    - `driver_factory.py`: `AppiumDriverAdapter` and `create_appium_driver()` (Android UiAutomator2 AVD resolution + iOS XCUITest auto-boot via `_ensure_ios_simulator_ready()` + multi-strategy `hide_keyboard()`).
+    - `inspector.py`: XML hierarchy parser (`parse_page_source_elements()` / `extract_interactive_elements()`) filtering keyboard overlays and ranking locators.
+    - `evidence.py`, `visual_diff.py`, `results.py`, `report/`: Secret-redacted screenshots, XML failure dumps, visual baseline comparisons, and Jinja2 HTML/JUnit/Markdown report generation (`report/templates/report.html.j2`).
+  - **Live Recorder & Emulator/Toolchain Management**:
+    - `recorder.py`: `RecorderManager` interactive live mirror, element hit-testing, step editing (`update_step()` with `value`, `secret`, `move_to`, `duplicate`, `delete`), and saving into `screens.yaml`, `flows/`, and `specs/`.
+    - `workbench_api.py`: Workspace CRUD, `_resolve_device_profile()` (`live:`, `avd:`, YAML profiles, built-in `ios_simulator`/`android_emulator`), `RunJobManager`, and batch dataset runs.
+    - `emulator_manager.py`: `EmulatorJobManager` for SDK/AVD setup, booting Android AVDs / iOS Simulators, and clean shutdown (`shutdown()`).
+    - `doctor.py`, `devices.py`, `appium_manager.py`, `cleanup.py`, `paths.py`, `config_loader.py`, `env_loader.py`: Toolchain diagnostics, ADB/`xcrun simctl` discovery, Appium 2 subprocess lifecycle, OS data directories, and uninstall/leftover cleanup.
+- **`packaging/` — Standalone Installers**:
+  - `packaging/windows/`: `qalprit.spec` + `build_win.ps1` + `installer.iss` -> produces `dist-win/QAlprit-Setup-<X.Y.Z>-win64.exe` (pywebview Edge WebView2 + `qalprit-cli.exe` + portable Node/Appium/Java/Android SDK runtime).
+  - `packaging/macos/`: `qalprit.spec` + `build_mac.sh` -> produces `dist-mac/QAlprit-<X.Y.Z>-macos-arm64.dmg` (`QAlprit.app` Cocoa WKWebView + portable Node/Appium/Java/Android platform-tools).
+- **`web/` — Marketing Site & Sample Report** (`https://qalprit.vattitude.ca`): Static landing page (`index.html`, `app.js`, `styles.css`, `architecture.svg`, `sample-report.html`) deployed via Vercel (`vercel.json`).
+- **`.github/workflows/` — CI & Automated Release**:
+  - `ci.yml`: Runs on PRs/pushes to `main` (`pytest -v --cov=qalprit`, `node --check web/app.js`, `qalprit validate`, `python -m build && twine check dist/*`).
+  - `publish.yml`: Runs on GitHub Release `published` (`vX.Y.Z`) to build/publish PyPI (`build-and-publish`), build & attach `QAlprit-Setup-<X.Y.Z>-win64.exe` (`build-windows-exe` on `windows-latest`), and build & attach `QAlprit-<X.Y.Z>-macos-arm64.dmg` (`build-macos-dmg` on `macos-latest`).
+- **`tests/` & Sample Workspace Directories**: `tests/` (`pytest` suite), `config/` (`environments.yaml`, `devices.yaml`, `env.example`), `screens/`, `flows/`, `specs/`, `datasets/`, `examples/`, `docs/`.
 
 ## 1. Git, Commits & PR Workflow
 
@@ -25,15 +54,20 @@ These project rules govern git workflow, versioning, PyPI publishing, website/Ve
 - **Always cut a new release after merging**: After merging any user-approved code, UI, or packaging change to `main`, always bump the version (`X.Y.Z+1`) across all version surfaces, tag `vX.Y.Z` on `main`, and create a GitHub Release so `.github/workflows/publish.yml` builds and publishes updated PyPI packages, Windows `.exe` installer, and macOS `.dmg` artifacts.
 - **Immutable PyPI versions**: Never re-upload to an already-published PyPI version number — bump at least the patch version (`X.Y.Z+1`) for any new PyPI release or `README.md` update on PyPI.
 
-## 3. PyPI Publishing (`qalprit`)
+## 3. Releases, Builds & Publishing (`PyPI`, `.exe`, `.dmg`, `web/`)
 
-- **Primary release flow**: Publishing a GitHub Release (`vX.Y.Z`) triggers `.github/workflows/publish.yml` (`pypa/gh-action-pypi-publish`) via Trusted Publishing.
-- **Manual fallback upload**:
+- **Single Shared Source Across Targets**: All Workbench UI (`src/qalprit/ui/index.html`) and backend (`src/qalprit/*.py`) changes feed PyPI, Windows `.exe`, and macOS `.dmg` simultaneously. Keep PyInstaller specs (`packaging/windows/qalprit.spec`, `packaging/macos/qalprit.spec`) and runtime wrappers in sync whenever adding new Python dependencies or package data.
+- **Automated Multi-Platform Release Flow**: Publishing a GitHub Release (`vX.Y.Z`) triggers `.github/workflows/publish.yml`:
+  1. `build-and-publish` (`ubuntu-latest`): builds `.whl`/`.tar.gz` and publishes to PyPI via Trusted Publishing (`pypa/gh-action-pypi-publish`).
+  2. `build-windows-exe` (`windows-latest`): runs `packaging\windows\build_win.ps1 -Version <X.Y.Z>` + Inno Setup (`packaging/windows/installer.iss`) and attaches `QAlprit-Setup-<X.Y.Z>-win64.exe` + `SHA256SUMS.txt` to the GitHub Release.
+  3. `build-macos-dmg` (`macos-latest`): runs `packaging/macos/build_mac.sh <X.Y.Z>` and attaches `QAlprit-<X.Y.Z>-macos-arm64.dmg` + `SHA256SUMS-mac.txt` to the GitHub Release.
+- **Never commit build artifacts**: Local `build/`, `dist/`, `dist-win/`, and `dist-mac/` directories are gitignored temporary build outputs and must never be committed.
+- **Manual PyPI fallback upload**:
   1. Build fresh packages: `.venv/bin/python -m build` (or `python -m build`) and validate with `twine check dist/*`.
   2. Authenticate with `TWINE_USERNAME=__token__` and `TWINE_PASSWORD` read safely from local `.env` (`PYPI_TOKEN`) without ever printing, logging, or committing `.env` or token values.
   3. Upload **only the target version's artifacts** (`dist/qalprit-<X.Y.Z>*`) so older wheels/sdists in `dist/` are not re-uploaded.
 - **PyPI README rendering**: All image and file links in `README.md` must use absolute GitHub URLs (`https://raw.githubusercontent.com/vattitude-me/QAlprit/main/...` for images and `https://github.com/vattitude-me/QAlprit/blob/main/...` for files), because PyPI rejects/404s relative paths.
-- **Post-publish check**: Verify `https://pypi.org/pypi/qalprit/<X.Y.Z>/json` and `https://pypi.org/project/qalprit/` reflect the new version.
+- **Post-publish check**: Verify all three jobs in `.github/workflows/publish.yml` succeeded, `QAlprit-Setup-<X.Y.Z>-win64.exe` and `QAlprit-<X.Y.Z>-macos-arm64.dmg` are attached to the GitHub Release, and `https://pypi.org/pypi/qalprit/<X.Y.Z>/json` and `https://pypi.org/project/qalprit/` reflect the new version.
 
 ## 4. Website (`web/`), Vercel & Report Consistency
 
