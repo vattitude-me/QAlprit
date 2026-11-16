@@ -6,7 +6,8 @@ All notable backend, UI, packaging, and documentation changes to **QAlprit** are
 
 ## [Unreleased]
 
-- _No unreleased changes yet._
+### Web Showcase (`web/index.html` · `v0.1.25`)
+- Updated `web/index.html` hero copy, guarantees strip, Step 01 card, Workbench showcase (`#workbench`), and architecture flow summary to prominently highlight **live emulator screen capture** for building reusable `flows/` and smoke `specs/` visually while **keeping AI / LLM usage to the minimum** (zero LLM calls at capture or execution time).
 
 ---
 
