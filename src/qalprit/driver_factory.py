@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-import os
 import platform
-import subprocess
+import plistlib
+import zipfile
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
 from qalprit.config_loader import DeviceProfile, EnvironmentConfig
 from qalprit.devices import list_android_devices
+from qalprit.doctor import find_xcode_developer_dir
 
 
 @runtime_checkable
@@ -219,23 +220,56 @@ def _xcode_has_legacy_simulator_app() -> bool:
     """Return True on macOS if Xcode includes Developer/Applications/Simulator.app (pre-Xcode 27)."""
     if platform.system() != "Darwin":
         return True
-    dev_dir_str = os.environ.get("DEVELOPER_DIR", "").strip()
-    if not dev_dir_str:
-        try:
-            proc = subprocess.run(["xcode-select", "-p"], capture_output=True, text=True, timeout=5)
-            if proc.returncode == 0:
-                dev_dir_str = (proc.stdout or "").strip()
-        except Exception:
-            dev_dir_str = ""
-    candidates: list[Path] = []
-    if dev_dir_str:
-        candidates.append(Path(dev_dir_str))
-    default_dev = Path("/Applications/Xcode.app/Contents/Developer")
-    if default_dev.is_dir() and default_dev not in candidates:
-        candidates.append(default_dev)
-    if not candidates:
+    dev_dir = find_xcode_developer_dir()
+    if dev_dir is None:
         return True
-    return any((cand / "Applications" / "Simulator.app").exists() for cand in candidates)
+    return (dev_dir / "Applications" / "Simulator.app").exists()
+
+
+def _read_ios_info_plist(app_path: Path) -> dict[str, Any]:
+    """Read Info.plist dictionary from an iOS .app directory, .ipa, or zipped .app."""
+    try:
+        if app_path.is_dir():
+            plist_file = app_path / "Info.plist"
+            if plist_file.is_file():
+                data = plistlib.loads(plist_file.read_bytes())
+                return data if isinstance(data, dict) else {}
+            return {}
+        if app_path.is_file() and app_path.suffix.lower() in {".ipa", ".zip"}:
+            with zipfile.ZipFile(app_path, "r") as zf:
+                plists = [
+                    name
+                    for name in zf.namelist()
+                    if name.endswith("/Info.plist") and ".app/" in name
+                ]
+                if not plists:
+                    return {}
+                plists.sort(key=lambda n: (n.count("/"), len(n)))
+                data = plistlib.loads(zf.read(plists[0]))
+                return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+    return {}
+
+
+def _validate_ios_simulator_app_binary(app_path: Path | None) -> None:
+    """Fail fast with a helpful error if a device-only .ipa (iphoneos) is targeted at iOS Simulator."""
+    if app_path is None or not app_path.exists():
+        return
+    if app_path.suffix.lower() == ".apk":
+        raise ValueError(
+            f"'{app_path.name}' is an Android .apk binary and cannot be installed on an iOS Simulator."
+        )
+    plist = _read_ios_info_plist(app_path)
+    if not plist:
+        return
+    supported = {str(item).lower() for item in (plist.get("CFBundleSupportedPlatforms") or [])}
+    dt_plat = str(plist.get("DTPlatformName") or "").strip().lower()
+    if (dt_plat == "iphoneos" or "iphoneos" in supported) and "iphonesimulator" not in supported:
+        raise ValueError(
+            f"'{app_path.name}' is a physical-device iOS build (iphoneos) and cannot run on an iOS Simulator. "
+            "Upload a zipped Simulator .app bundle built with '-sdk iphonesimulator', or select a physical iPhone profile."
+        )
 
 
 def create_appium_driver(
@@ -294,6 +328,7 @@ def create_appium_driver(
         opts.no_reset = True
         opts.new_command_timeout = 180
         if profile.target_type == "simulator":
+            _validate_ios_simulator_app_binary(app_path)
             opts.connect_hardware_keyboard = True
             opts.force_simulator_software_keyboard_presence = False
             has_headless_override = any(

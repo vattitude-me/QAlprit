@@ -196,6 +196,10 @@ $verOut = & $QAlpritCliExe --version
 if ($LASTEXITCODE -ne 0) { throw "qalprit-cli.exe --version failed" }
 Write-Host "Version output: $verOut"
 
+$deskCheckOut = & $QAlpritCliExe --check-desktop
+if ($LASTEXITCODE -ne 0) { throw "qalprit-cli.exe --check-desktop failed: $deskCheckOut" }
+Write-Host $deskCheckOut
+
 $origPath = $env:PATH
 $origAndroidHome = $env:ANDROID_HOME
 $origJavaHome = $env:JAVA_HOME

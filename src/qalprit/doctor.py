@@ -625,14 +625,39 @@ def _run_quick(cmd: list[str], env: dict[str, str] | None = None, timeout: float
         return 1, str(exc)
 
 
-def _macos_xcode_env() -> dict[str, str]:
-    env = dict(os.environ)
-    xcode_dev = Path("/Applications/Xcode.app/Contents/Developer")
-    if xcode_dev.exists():
-        # Prefer full Xcode if xcode-select points to CommandLineTools
-        rc, sel = _run_quick(["xcode-select", "-p"])
-        if rc != 0 or "CommandLineTools" in sel:
-            env["DEVELOPER_DIR"] = str(xcode_dev)
+def find_xcode_developer_dir(base_env: dict[str, str] | None = None) -> Path | None:
+    """Locate an active or installed full Xcode Developer directory on macOS."""
+    if platform.system() != "Darwin":
+        return None
+    env = os.environ if base_env is None else base_env
+    env_dev = str(env.get("DEVELOPER_DIR") or "").strip()
+    if env_dev:
+        cand = Path(env_dev)
+        if cand.is_dir():
+            return cand
+    rc, sel = _run_quick(["xcode-select", "-p"])
+    sel_clean = sel.strip()
+    if rc == 0 and sel_clean and "CommandLineTools" not in sel_clean:
+        cand = Path(sel_clean)
+        if cand.is_dir():
+            return cand
+    default_dev = Path("/Applications/Xcode.app/Contents/Developer")
+    if default_dev.is_dir():
+        return default_dev
+    apps_root = Path("/Applications")
+    if apps_root.is_dir():
+        for app_dir in sorted(apps_root.glob("Xcode*.app")):
+            cand = app_dir / "Contents" / "Developer"
+            if cand.is_dir():
+                return cand
+    return None
+
+
+def _macos_xcode_env(base_env: dict[str, str] | None = None) -> dict[str, str]:
+    env = dict(os.environ if base_env is None else base_env)
+    xcode_dev = find_xcode_developer_dir(env)
+    if xcode_dev is not None:
+        env.setdefault("DEVELOPER_DIR", str(xcode_dev))
     return env
 
 
@@ -852,24 +877,34 @@ def run_doctor(python_min: tuple[int, int] = (3, 10)) -> list[CheckItem]:
 
     # 6. Xcode & iOS Simulator (macOS only)
     if system == "Darwin":
-        xcode_app = Path("/Applications/Xcode.app")
+        xcode_dev = find_xcode_developer_dir()
         rc_sel, sel_out = _run_quick(["xcode-select", "-p"])
-        if xcode_app.exists():
+        if xcode_dev is not None:
             xc_env = _macos_xcode_env()
             rc_sim, sim_out = _run_quick(["xcrun", "simctl", "list", "devices", "available"], env=xc_env)
             if rc_sim == 0:
                 sim_count = sum(1 for ln in sim_out.splitlines() if "(" in ln and ")" in ln and "--" not in ln)
-                note = "" if "Xcode.app" in sel_out else " (using DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer)"
-                checks.append(
-                    CheckItem("Xcode / iOS Simulator", "ok", f"{sim_count} available simulator(s){note}")
-                )
+                note = "" if "Xcode" in sel_out else f" (using DEVELOPER_DIR={xcode_dev})"
+                if sim_count > 0:
+                    checks.append(
+                        CheckItem("Xcode / iOS Simulator", "ok", f"{sim_count} available simulator(s){note}")
+                    )
+                else:
+                    checks.append(
+                        CheckItem(
+                            "Xcode / iOS Simulator",
+                            "warn",
+                            f"0 available simulator(s){note}",
+                            "Open Xcode -> Settings -> Components (or Platforms) and install an iOS Simulator runtime",
+                        )
+                    )
             elif "license" in sim_out.lower():
                 checks.append(
                     CheckItem(
                         "Xcode / iOS Simulator",
                         "fail",
                         "Xcode license agreement not accepted",
-                        "Run: sudo xcodebuild -license accept && sudo xcode-select -s /Applications/Xcode.app/Contents/Developer",
+                        f"Run: sudo xcodebuild -license accept && sudo xcode-select -s {xcode_dev}",
                     )
                 )
             else:
@@ -878,7 +913,7 @@ def run_doctor(python_min: tuple[int, int] = (3, 10)) -> list[CheckItem]:
                         "Xcode / iOS Simulator",
                         "warn",
                         sim_out.splitlines()[0] if sim_out else "simctl unavailable",
-                        "Run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer",
+                        f"Run: sudo xcode-select -s {xcode_dev}",
                     )
                 )
         else:

@@ -15,11 +15,13 @@ from typing import Any
 from qalprit.appium_manager import build_appium_env
 from qalprit.devices import list_android_devices, list_ios_simulators
 from qalprit.doctor import (
+    _macos_xcode_env,
     find_android_sdk,
     find_android_tool,
     find_cmdline_tool,
     find_sdk_for_avd,
     find_system_android_sdk,
+    find_xcode_developer_dir,
     prepare_writable_android_sdk,
     win_subprocess_kwargs,
 )
@@ -582,15 +584,24 @@ class EmulatorJobManager:
         if not sims:
             raise RuntimeError(err or "No iOS Simulators available. Install Xcode & iOS Simulator runtime.")
         target = next((s for s in sims if s.identifier == udid), sims[0])
+        xc_env = _macos_xcode_env()
         if target.state != "Booted":
-            proc = subprocess.run(["xcrun", "simctl", "boot", target.identifier], capture_output=True, text=True, timeout=30)
+            proc = subprocess.run(
+                ["xcrun", "simctl", "boot", target.identifier],
+                capture_output=True,
+                text=True,
+                env=xc_env,
+                timeout=30,
+            )
             if proc.returncode != 0 and "Unable to boot device in current state: Booted" not in (proc.stderr or ""):
                 raise RuntimeError((proc.stderr or proc.stdout).strip() or "Failed to boot iOS Simulator.")
-        ui_proc = subprocess.run(["open", "-a", "Simulator"], capture_output=True, text=True, timeout=10)
+        ui_proc = subprocess.run(["open", "-a", "Simulator"], capture_output=True, text=True, env=xc_env, timeout=10)
         if ui_proc.returncode != 0:
-            device_hub = Path("/Applications/Xcode.app/Contents/Applications/DeviceHub.app")
-            if device_hub.exists():
-                subprocess.run(["open", "-a", str(device_hub)], capture_output=True, text=True, timeout=10)
+            xcode_dev = find_xcode_developer_dir(xc_env)
+            if xcode_dev is not None:
+                device_hub = xcode_dev.parent / "Applications" / "DeviceHub.app"
+                if device_hub.exists():
+                    subprocess.run(["open", "-a", str(device_hub)], capture_output=True, text=True, timeout=10)
         return {"ok": True, "name": target.name, "identifier": target.identifier}
 
     def stop(self) -> dict[str, Any]:
