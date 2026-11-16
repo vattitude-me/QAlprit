@@ -400,9 +400,9 @@ def test_ui_redesign_layout_ios_boot_and_api_contracts() -> None:
     assert "res.removed_ids || res.deleted" in ui_html
     assert "res.flow && res.flow.name" in ui_html
 
-    # 6. Grid tracks constrain 1fr with minmax(0, 1fr) so Workflows/Journeys never clip horizontally
-    assert "grid-template-columns: 212px minmax(0, 1fr);" in ui_html
-    assert "grid-template-columns: minmax(0, 1fr) 292px;" in ui_html
+    # 6. Grid tracks constrain 1fr with minmax(0, 1fr) and resizable clamp bounds so Workflows/Journeys never clip horizontally
+    assert "grid-template-columns: clamp(200px, var(--rail-w, 272px), 480px) 10px minmax(0, 1fr);" in ui_html
+    assert "grid-template-columns: minmax(0, 1fr) 10px clamp(240px, var(--ds-right-w, 300px), 460px);" in ui_html
 
 
 def test_ios_default_device_profile_and_emulator_shutdown(tmp_path: Path, monkeypatch) -> None:
@@ -547,4 +547,30 @@ def test_ios_auto_boot_in_driver_factory_and_recorder_stop_clears_preview(monkey
     assert st["has_screenshot"] is False
     assert st["elements"] == []
     assert len(st["steps"]) == 1
+
+
+def test_inspector_ignores_ios_keyboard_overlays_and_marks_cta_clickable() -> None:
+    xml = """<XCUIElementTypeApplication name="MyDemoApp">
+      <XCUIElementTypeWindow>
+        <XCUIElementTypeOther name="Login button" label="Login" accessible="true" x="16" y="600" width="361" height="45" enabled="true" visible="true"/>
+        <XCUIElementTypeKeyboard x="0" y="540" width="393" height="312" enabled="true" visible="true">
+          <XCUIElementTypeKey name="a" label="a" x="0" y="560" width="40" height="45" enabled="true" visible="true"/>
+          <XCUIElementTypeButton name="Return" label="return" x="300" y="740" width="90" height="45" enabled="true" visible="true"/>
+        </XCUIElementTypeKeyboard>
+      </XCUIElementTypeWindow>
+    </XCUIElementTypeApplication>"""
+    elems = extract_interactive_elements(xml, platform="ios")
+    keys = [e["key"] for e in elems]
+    assert "login_btn" in keys
+    assert all(k not in keys for k in ("a", "return", "keyboard"))
+    login = next(e for e in elems if e["key"] == "login_btn")
+    assert login["clickable"] is True
+
+    ui_html = (Path(__file__).resolve().parents[1] / "src" / "qalprit" / "ui" / "index.html").read_text(encoding="utf-8")
+    assert 'flowTab: "steps"' in ui_html
+    assert 'specTab: "steps"' in ui_html
+    assert 'id="btnRailRecordNew"' in ui_html
+    assert 'id="btnWorkflowRecordNew"' in ui_html
+    assert 'class="split-handle"' in ui_html
+    assert 'grid-template-columns: 24px minmax(112px, auto) minmax(0, 1fr) auto;' in ui_html
 

@@ -183,6 +183,16 @@ def _first_descendant_text(node: ET.Element, depth: int = 0) -> str:
     return ""
 
 
+def _is_inside_ios_keyboard(node: ET.Element, parent_map: dict[ET.Element, ET.Element]) -> bool:
+    """Return True if node is the iOS software keyboard container or one of its keys."""
+    cur: ET.Element | None = node
+    while cur is not None:
+        if cur.tag.lower() in {"xcuielementtypekeyboard", "xcuielementtypekey"}:
+            return True
+        cur = parent_map.get(cur)
+    return False
+
+
 def parse_page_source_elements(xml_text: str) -> tuple[list[InspectedElement], bool, list[str]]:
     """Extract actionable/labeled elements and detect WebViews from Appium XML page source."""
     webview_detected, webview_details = detect_webviews(xml_text)
@@ -198,6 +208,8 @@ def parse_page_source_elements(xml_text: str) -> tuple[list[InspectedElement], b
         idx = tag_counts[node.tag]
         tag_low = node.tag.lower()
         if tag_low in {"hierarchy", "appiumaut", "xcuielementtypeapplication", "xcuielementtypewindow"}:
+            continue
+        if _is_inside_ios_keyboard(node, parent_map):
             continue
         attrs = node.attrib
         acc_id = (
@@ -232,7 +244,12 @@ def parse_page_source_elements(xml_text: str) -> tuple[list[InspectedElement], b
             k in tag_low
             for k in ("button", "link", "cell", "switch", "tab", "segmentedcontrol", "stepper", "menuitem")
         )
-        clickable = (str(attrs.get("clickable", "")).lower() == "true") or is_ios_interactive_tag
+        is_ios_accessible_cta = (
+            tag_low == "xcuielementtypeother"
+            and str(attrs.get("accessible", "")).lower() == "true"
+            and bool(re.search(r"\b(?:button|btn|tab|menu|link)\b|[_-](?:btn|tab|menu|link)$", acc_id.lower()))
+        )
+        clickable = (str(attrs.get("clickable", "")).lower() == "true") or is_ios_interactive_tag or is_ios_accessible_cta
         checkable = str(attrs.get("checkable", "")).lower() == "true"
         enabled = str(attrs.get("enabled", "true")).lower() != "false"
         visible = str(attrs.get("visible", attrs.get("displayed", "true"))).lower() != "false"

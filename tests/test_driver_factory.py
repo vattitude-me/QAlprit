@@ -79,6 +79,32 @@ def test_hide_keyboard_android_ignores_ios_fallback() -> None:
     assert visible_field.clicked == 0
 
 
+def test_hide_keyboard_ios_continues_when_silent_no_op() -> None:
+    kb = _FakeElement(displayed=True)
+
+    class _SilentRawDriver(_FakeRawDriver):
+        def __init__(self) -> None:
+            super().__init__(hide_raises=False, keyboards=[kb], text_fields=[_FakeElement(displayed=True)])
+            self.scripts: list[tuple[str, object]] = []
+
+        def is_keyboard_shown(self) -> bool:
+            return kb.is_displayed()
+
+        def execute_script(self, script: str, arg: object = None) -> None:
+            self.scripts.append((script, arg))
+            if script == "mobile: hideKeyboard":
+                kb._displayed = False
+
+    raw = _SilentRawDriver()
+    adapter = AppiumDriverAdapter(raw, platform="ios")
+
+    adapter.hide_keyboard()
+
+    assert raw.hide_calls == 1
+    assert any(s == "mobile: hideKeyboard" for s, _ in raw.scripts)
+    assert raw.is_keyboard_shown() is False
+
+
 def test_create_appium_driver_sets_ios_simulator_keyboard_options(monkeypatch) -> None:
     captured: dict[str, object] = {}
 

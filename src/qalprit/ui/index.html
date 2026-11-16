@@ -65,7 +65,7 @@
     .app-shell {
       display: grid;
       grid-template-rows: 46px 1fr 28px;
-      grid-template-columns: 218px minmax(0, 1fr);
+      grid-template-columns: clamp(172px, var(--sidebar-w, 218px), 320px) minmax(0, 1fr);
       grid-template-areas:
         "topbar topbar"
         "sidebar main"
@@ -74,6 +74,47 @@
       overflow: hidden;
     }
     .app-shell > * { min-width: 0; }
+
+    /* Resizable Split Handles */
+    .split-handle {
+      width: 10px;
+      min-width: 10px;
+      cursor: col-resize;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      touch-action: none;
+      user-select: none;
+      z-index: 5;
+    }
+    .split-handle::before {
+      content: "";
+      width: 2px;
+      height: 36px;
+      max-height: 55%;
+      border-radius: 999px;
+      background: var(--border-strong);
+      transition: background 0.12s, height 0.12s;
+    }
+    .split-handle:hover::before,
+    .split-handle.is-dragging::before {
+      background: var(--accent);
+      height: 56px;
+    }
+    .split-handle.is-sidebar-edge {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      right: -5px;
+      width: 10px;
+      z-index: 12;
+    }
+    .split-handle.is-sidebar-edge::before { height: 42px; }
+    body.is-resizing, body.is-resizing * {
+      cursor: col-resize !important;
+      user-select: none !important;
+    }
 
     /* Topbar */
     .topbar {
@@ -86,12 +127,14 @@
       justify-content: space-between;
       gap: 12px;
       min-width: 0;
+      overflow: hidden;
     }
     .brand {
       display: flex;
       align-items: center;
       gap: 9px;
       min-width: 0;
+      flex: 1 1 auto;
     }
     .brand-icon { width: 22px; height: 22px; flex-shrink: 0; }
     .brand-title {
@@ -113,7 +156,8 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      max-width: 260px;
+      max-width: 240px;
+      min-width: 0;
       font-family: inherit;
     }
     .ws-pill:hover { color: var(--text); background: var(--surface-2); }
@@ -122,7 +166,8 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      flex-shrink: 0;
+      flex: 0 1 auto;
+      min-width: 0;
     }
     .ctx-chip {
       display: inline-flex;
@@ -139,6 +184,15 @@
       white-space: nowrap;
       cursor: pointer;
       font-family: inherit;
+      min-width: 0;
+      max-width: 260px;
+    }
+    #topDeviceLabel, #topAppLabel {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 190px;
+      display: inline-block;
     }
     .ctx-chip:hover { border-color: #3a4a63; color: var(--text); background: var(--surface-2); }
     .ctx-chip select {
@@ -202,6 +256,7 @@
     /* Sidebar */
     .sidebar {
       grid-area: sidebar;
+      position: relative;
       background: var(--bg-sidebar);
       border-right: 1px solid var(--border);
       display: flex;
@@ -209,6 +264,7 @@
       justify-content: space-between;
       padding: 12px 10px;
       overflow-y: auto;
+      overflow-x: visible;
       user-select: none;
     }
     .nav-group { margin-bottom: 16px; }
@@ -660,8 +716,8 @@
     .menu-popover-wide label { margin-bottom: 2px; }
     .rec-grid {
       display: grid;
-      grid-template-columns: minmax(290px, 40%) minmax(0, 1fr);
-      gap: 14px;
+      grid-template-columns: clamp(290px, var(--rec-left-w, 420px), 680px) 10px minmax(0, 1fr);
+      gap: 2px;
       flex: 1;
       min-width: 0;
       min-height: 0;
@@ -800,7 +856,7 @@
     }
     .rec-step-row {
       display: grid;
-      grid-template-columns: 24px 74px 1fr auto;
+      grid-template-columns: 24px minmax(112px, auto) minmax(0, 1fr) auto;
       align-items: center;
       gap: 10px;
       padding: 8px 14px;
@@ -812,7 +868,7 @@
     .rec-step-row:hover { background: var(--surface-hover); }
     .rec-step-row.is-selected { background: rgba(45, 212, 191, 0.08); }
     .rec-step-num { color: var(--muted); font-variant-numeric: tabular-nums; }
-    .rec-step-act { font-weight: 600; color: var(--accent); }
+    .rec-step-act { font-weight: 600; color: var(--accent); white-space: nowrap; }
     .rec-step-act.is-tap { color: var(--text-soft); }
     .rec-step-act.is-assert { color: #38bdf8; }
     .rec-step-target { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -865,8 +921,8 @@
        ================================================================ */
     .split-library {
       display: grid;
-      grid-template-columns: 212px minmax(0, 1fr);
-      gap: 16px;
+      grid-template-columns: clamp(200px, var(--rail-w, 272px), 480px) 10px minmax(0, 1fr);
+      gap: 2px;
       flex: 1;
       min-width: 0;
       min-height: 0;
@@ -888,6 +944,28 @@
       align-items: center;
       justify-content: space-between;
       gap: 6px;
+      flex-wrap: wrap;
+    }
+    .btn-record-cta {
+      width: 100%;
+      height: 36px;
+      font-size: 13px;
+      font-weight: 700;
+      gap: 7px;
+    }
+    .btn-record-lg {
+      height: 36px;
+      padding: 0 16px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .rec-btn-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      display: inline-block;
+      flex-shrink: 0;
     }
     .library-rail-list {
       flex: 1;
@@ -958,8 +1036,8 @@
 
     .dataset-workspace {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 292px;
-      gap: 14px;
+      grid-template-columns: minmax(0, 1fr) 10px clamp(240px, var(--ds-right-w, 300px), 460px);
+      gap: 2px;
       flex: 1;
       min-width: 0;
       min-height: 0;
@@ -1069,8 +1147,8 @@
     .runs-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     .runs-grid {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(280px, 36%);
-      gap: 14px;
+      grid-template-columns: minmax(0, 1fr) 10px clamp(280px, var(--runs-insp-w, 380px), 620px);
+      gap: 2px;
       flex: 1;
       min-width: 0;
       min-height: 0;
@@ -1187,9 +1265,11 @@
     @media (max-width: 1180px) {
       .dataset-workspace {
         grid-template-columns: 1fr;
+        gap: 12px;
         flex: none;
         min-height: auto;
       }
+      .dataset-workspace > .split-handle { display: none; }
       .split-library, .detail-main {
         flex: none;
         min-height: auto;
@@ -1199,9 +1279,13 @@
     @media (max-width: 1060px) {
       .rec-grid, .runs-grid, .grid-2, .split-library {
         grid-template-columns: 1fr;
+        gap: 12px;
       }
-      .library-rail { max-height: 210px; }
-      .app-shell { grid-template-columns: 190px minmax(0, 1fr); }
+      .rec-grid > .split-handle,
+      .runs-grid > .split-handle,
+      .split-library > .split-handle { display: none; }
+      .library-rail { max-height: 240px; }
+      .app-shell { grid-template-columns: clamp(160px, var(--sidebar-w, 190px), 280px) minmax(0, 1fr); }
     }
   </style>
 </head>
@@ -1332,6 +1416,7 @@
           <span class="nav-badge" id="badgeApps" hidden>0 apps</span>
         </button>
       </div>
+      <div class="split-handle is-sidebar-edge" data-split="sidebar" role="separator" aria-orientation="vertical" tabindex="0" title="Drag to resize sidebar (double-click to reset)"></div>
     </aside>
 
     <!-- MAIN CONTENT -->
@@ -1470,6 +1555,8 @@
             </div>
           </div>
 
+          <div class="split-handle" data-split="record" role="separator" aria-orientation="vertical" tabindex="0" title="Drag to resize recorder panels (double-click to reset)"></div>
+
           <!-- Right: Steps + Inspector -->
           <div class="rec-right-col">
             <div class="panel" style="min-height:0;">
@@ -1556,11 +1643,15 @@
                 <input id="flowRailUploadInput" type="file" accept=".md,.markdown" hidden />
                 <button type="button" class="btn btn-sm" data-reload-workspace="flows" title="Reload workflows">&#x21bb;</button>
                 <button type="button" class="btn btn-sm" id="btnFlowRailUpload" title="Import .md workflow">&#x2191;</button>
-                <button type="button" class="btn btn-sm btn-primary" id="btnNewFlowRail" title="New workflow">+</button>
+                <button type="button" class="btn btn-sm" id="btnNewFlowRail" title="New blank workflow">+</button>
               </div>
+            </div>
+            <div style="padding:8px 8px 4px;border-bottom:1px solid var(--border);">
+              <button type="button" class="btn btn-primary btn-record-cta" id="btnRailRecordNew" data-flow-record-new title="Open live Recorder to capture a new workflow"><span class="rec-btn-dot"></span> Record New</button>
             </div>
             <div class="library-rail-list" id="workflowsRailList"></div>
           </div>
+          <div class="split-handle" data-split="workflows" role="separator" aria-orientation="vertical" tabindex="0" title="Drag to resize workflow list (double-click to reset)"></div>
           <div class="detail-main" id="workflowDetailHost"></div>
         </div>
       </section>
@@ -1578,6 +1669,7 @@
             </div>
             <div class="library-rail-list" id="journeysRailList"></div>
           </div>
+          <div class="split-handle" data-split="journeys" role="separator" aria-orientation="vertical" tabindex="0" title="Drag to resize journeys list (double-click to reset)"></div>
           <div class="detail-main" id="journeyDetailHost"></div>
         </div>
       </section>
@@ -1632,6 +1724,8 @@
               </table>
             </div>
           </div>
+
+          <div class="split-handle" data-split="runs" role="separator" aria-orientation="vertical" tabindex="0" title="Drag to resize runs inspector (double-click to reset)"></div>
 
           <div class="panel run-inspector" id="runInspectorPanel">
             <div class="muted" style="padding:20px 6px;text-align:center;">Select a run or dataset row to inspect steps, failure reason, and screenshots.</div>
@@ -2110,8 +2204,8 @@
         lastOverviewReloadMs: 0,
         selectedFlowName: "",
         selectedSpecId: "",
-        flowTab: "variables",
-        specTab: "variables",
+        flowTab: "steps",
+        specTab: "steps",
         flowPlatform: "android",
         specPlatform: "android",
         flowPreviewRowIdx: 0,
@@ -2659,7 +2753,7 @@
         }
 
         if (!item) {
-          host.innerHTML = `<div class="panel"><div class="panel-body"><p class="muted" style="margin:0;">Create a ${isFlow ? "workflow" : "test journey"} with <strong>+</strong> or import a <code>.md</code> file to begin.</p></div></div>`;
+          host.innerHTML = `<div class="panel"><div class="panel-body" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;"><p class="muted" style="margin:0;">Create a ${isFlow ? "workflow" : "test journey"} with <strong>+</strong> or import a <code>.md</code> file to begin.</p>${isFlow ? `<button type="button" class="btn btn-primary btn-record-lg" data-flow-record-new><span class="rec-btn-dot"></span> Record New</button>` : ""}</div></div>`;
           return;
         }
 
@@ -2690,7 +2784,7 @@
               </div>
             </div>
             <div class="btn-row">
-              <button type="button" class="btn" data-ds-tab-jump="steps">Edit steps</button>
+              ${isFlow ? `<button type="button" class="btn btn-primary btn-record-lg" id="btnWorkflowRecordNew" data-flow-record-new><span class="rec-btn-dot"></span> Record New</button>` : `<button type="button" class="btn" data-ds-tab-jump="steps">Edit steps</button>`}
               <button type="button" class="btn btn-sm" data-ds-dup>Duplicate</button>
               <button type="button" class="btn btn-sm btn-danger" data-ds-del>Delete</button>
             </div>
@@ -2753,6 +2847,8 @@
                 <span class="step-preview-code">${formatStepInlinePreview((item.steps || [])[0], previewRow, variables)}</span>
               </div>
             </div>
+
+            <div class="split-handle" data-split="dataset-right" role="separator" aria-orientation="vertical" tabindex="0" title="Drag to resize run configuration panel (double-click to reset)"></div>
 
             <div class="panel run-config-card">
               <span class="panel-kicker">Run Configuration</span>
@@ -4747,6 +4843,102 @@
         }
       }
       window.addEventListener("focus", scheduleSilentWorkspaceReload);
+
+      function startNewRecordingFromWorkflows() {
+        navigateTo("record");
+        const flowInp = $("recFlowNameInput");
+        if (flowInp) {
+          flowInp.focus();
+          if (typeof flowInp.select === "function") flowInp.select();
+        }
+      }
+      document.addEventListener("click", (e) => {
+        if (e.target && e.target.closest("[data-flow-record-new]")) {
+          startNewRecordingFromWorkflows();
+        }
+      });
+
+      const SPLIT_SPECS = {
+        sidebar: { varName: "--sidebar-w", def: 218, min: 172, max: 320, dir: 1, storageKey: "qalprit.split.sidebar", minOther: 420 },
+        workflows: { varName: "--rail-w", def: 272, min: 200, max: 480, dir: 1, storageKey: "qalprit.split.workflows", targetSel: "#view-workflows", minOther: 340 },
+        journeys: { varName: "--rail-w", def: 272, min: 200, max: 480, dir: 1, storageKey: "qalprit.split.journeys", targetSel: "#view-journeys", minOther: 340 },
+        record: { varName: "--rec-left-w", def: 420, min: 290, max: 680, dir: 1, storageKey: "qalprit.split.record", targetSel: "#view-record", minOther: 320 },
+        runs: { varName: "--runs-insp-w", def: 380, min: 280, max: 620, dir: -1, storageKey: "qalprit.split.runs", targetSel: "#view-runs", minOther: 340 },
+        "dataset-right": { varName: "--ds-right-w", def: 300, min: 240, max: 460, dir: -1, storageKey: "qalprit.split.dsRight", minOther: 300 }
+      };
+      function applySplitWidth(key, px) {
+        const spec = SPLIT_SPECS[key];
+        if (!spec) return;
+        const clamped = Math.round(Math.min(spec.max, Math.max(spec.min, Number(px) || spec.def)));
+        const host = spec.targetSel ? document.querySelector(spec.targetSel) : document.documentElement;
+        if (host) host.style.setProperty(spec.varName, clamped + "px");
+        try { localStorage.setItem(spec.storageKey, String(clamped)); } catch (_) {}
+        return clamped;
+      }
+      function initSplitResizers() {
+        Object.keys(SPLIT_SPECS).forEach((key) => {
+          const spec = SPLIT_SPECS[key];
+          try {
+            const saved = Number(localStorage.getItem(spec.storageKey));
+            if (saved >= spec.min && saved <= spec.max) applySplitWidth(key, saved);
+          } catch (_) {}
+        });
+        let drag = null;
+        document.addEventListener("pointerdown", (e) => {
+          const handle = e.target && e.target.closest(".split-handle[data-split]");
+          if (!handle) return;
+          const key = handle.dataset.split;
+          const spec = SPLIT_SPECS[key];
+          if (!spec) return;
+          const parent = handle.parentElement;
+          const prevEl = handle.previousElementSibling;
+          const nextEl = handle.nextElementSibling;
+          const startWidth = key === "sidebar"
+            ? parent.getBoundingClientRect().width
+            : (spec.dir > 0 ? prevEl.getBoundingClientRect().width : (nextEl ? nextEl.getBoundingClientRect().width : spec.def));
+          const containerWidth = key === "sidebar" ? window.innerWidth : parent.getBoundingClientRect().width;
+          drag = { key, spec, handle, startX: e.clientX, startWidth, containerWidth };
+          handle.classList.add("is-dragging");
+          document.body.classList.add("is-resizing");
+          if (handle.setPointerCapture) {
+            try { handle.setPointerCapture(e.pointerId); } catch (_) {}
+          }
+          e.preventDefault();
+        });
+        window.addEventListener("pointermove", (e) => {
+          if (!drag) return;
+          const delta = (e.clientX - drag.startX) * drag.spec.dir;
+          const maxSafe = Math.max(drag.spec.min, Math.min(drag.spec.max, drag.containerWidth - drag.spec.minOther));
+          const next = Math.min(maxSafe, Math.max(drag.spec.min, drag.startWidth + delta));
+          applySplitWidth(drag.key, next);
+        });
+        const finishDrag = () => {
+          if (!drag) return;
+          drag.handle.classList.remove("is-dragging");
+          document.body.classList.remove("is-resizing");
+          drag = null;
+        };
+        window.addEventListener("pointerup", finishDrag);
+        window.addEventListener("pointercancel", finishDrag);
+        document.addEventListener("dblclick", (e) => {
+          const handle = e.target && e.target.closest(".split-handle[data-split]");
+          if (!handle) return;
+          const spec = SPLIT_SPECS[handle.dataset.split];
+          if (spec) applySplitWidth(handle.dataset.split, spec.def);
+        });
+        document.addEventListener("keydown", (e) => {
+          const handle = e.target && e.target.closest && e.target.closest(".split-handle[data-split]");
+          if (!handle || (e.key !== "ArrowLeft" && e.key !== "ArrowRight")) return;
+          const spec = SPLIT_SPECS[handle.dataset.split];
+          if (!spec) return;
+          const host = spec.targetSel ? document.querySelector(spec.targetSel) : document.documentElement;
+          const cur = Number.parseFloat(getComputedStyle(host).getPropertyValue(spec.varName)) || spec.def;
+          const step = (e.key === "ArrowRight" ? 16 : -16) * spec.dir;
+          applySplitWidth(handle.dataset.split, cur + step);
+          e.preventDefault();
+        });
+      }
+      initSplitResizers();
 
       // Boot
       loadOverview().then(() => {

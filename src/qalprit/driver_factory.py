@@ -168,30 +168,102 @@ class AppiumDriverAdapter:
         self._driver.back()
 
     def hide_keyboard(self) -> None:
+        if self.platform != "ios":
+            try:
+                self._driver.hide_keyboard()
+            except Exception:
+                pass
+            return
+
+        # Try standard Appium hide_keyboard first, but verify the keyboard actually closed
+        # because XCUITest often returns silently while XCUIElementTypeKeyboard stays up.
         try:
             self._driver.hide_keyboard()
-            return
         except Exception:
             pass
-
-        if self.platform != "ios":
+        if not self.is_keyboard_shown():
             return
 
-        # On iOS Simulator, try explicit keyboard dismissal keys first, then AutomaticMinimizationEnabled
-        # (tapping the visible text field), then WDA mobile: hideKeyboard / safe top chrome tap.
+        # On iOS Simulator, try explicit keyboard dismiss buttons first (avoid re-focusing text fields).
         try:
             from appium.webdriver.common.appiumby import AppiumBy
 
-            if not self._driver.find_elements(AppiumBy.CLASS_NAME, "XCUIElementTypeKeyboard"):
-                return
-            for key_name in ("Hide keyboard", "Done", "Return", "Go", "Search", "Next", "done", "return"):
+            for key_name in ("Hide keyboard", "Hide", "Dismiss", "Done", "done", "Return", "return", "Go", "Search", "Next"):
                 for b in self._driver.find_elements(AppiumBy.ACCESSIBILITY_ID, key_name):
                     try:
                         if b.is_displayed():
                             b.click()
-                            return
+                            time.sleep(0.2)
+                            if not self.is_keyboard_shown():
+                                return
                     except Exception:
                         continue
+            for b in self._driver.find_elements(
+                AppiumBy.XPATH,
+                "//XCUIElementTypeKeyboard//*[self::XCUIElementTypeButton or self::XCUIElementTypeKey]"
+                "[@name='Hide keyboard' or @name='Hide' or @name='Dismiss' or @name='Done' or @name='done' "
+                "or @name='Return' or @name='return' or @label='return' or @label='done' or @label='Hide keyboard']",
+            ):
+                try:
+                    if b.is_displayed():
+                        b.click()
+                        time.sleep(0.2)
+                        if not self.is_keyboard_shown():
+                            return
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
+        # Try WDA mobile: hideKeyboard script directly (with and without explicit keys)
+        for script_args in (
+            {"keys": ["Hide keyboard", "Hide", "Dismiss", "Done", "done", "Return", "return", "Go", "Search", "Next"]},
+            None,
+        ):
+            try:
+                if script_args is None:
+                    self._driver.execute_script("mobile: hideKeyboard")
+                else:
+                    self._driver.execute_script("mobile: hideKeyboard", script_args)
+                time.sleep(0.25)
+                if not self.is_keyboard_shown():
+                    return
+            except Exception:
+                continue
+
+        # Tap safe non-input header area above inputs/keyboard to blur focus cleanly
+        try:
+            win = self.get_window_size()
+            w = int(win.get("width") or 390)
+            h = int(win.get("height") or 844)
+            for tx, ty in (
+                (w // 2, max(64, int(h * 0.14))),
+                (max(24, int(w * 0.12)), max(72, int(h * 0.18))),
+            ):
+                try:
+                    self._driver.execute_script("mobile: tap", {"x": tx, "y": ty})
+                    time.sleep(0.25)
+                    if not self.is_keyboard_shown():
+                        return
+                except Exception:
+                    continue
+            try:
+                self._driver.execute_script(
+                    "mobile: swipe",
+                    {"direction": "down", "velocity": 250},
+                )
+                time.sleep(0.25)
+                if not self.is_keyboard_shown():
+                    return
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+        # Legacy simulator fallback when AutomaticMinimizationEnabled is active without execute_script
+        try:
+            from appium.webdriver.common.appiumby import AppiumBy
+
             for field in self._driver.find_elements(AppiumBy.CLASS_NAME, "XCUIElementTypeTextField"):
                 try:
                     if field.is_displayed():
@@ -199,23 +271,6 @@ class AppiumDriverAdapter:
                         return
                 except Exception:
                     continue
-        except Exception:
-            pass
-
-        try:
-            self._driver.execute_script(
-                "mobile: hideKeyboard",
-                {"keys": ["Hide keyboard", "Done", "Return", "Go", "Search"]},
-            )
-            return
-        except Exception:
-            pass
-
-        try:
-            win = self.get_window_size()
-            w = int(win.get("width") or 390)
-            h = int(win.get("height") or 844)
-            self._driver.execute_script("mobile: tap", {"x": w // 2, "y": max(64, int(h * 0.14))})
         except Exception:
             pass
 
