@@ -235,7 +235,7 @@
       min-width: 210px;
       z-index: 60;
     }
-    .menu-popover button {
+    .menu-popover > button:not(.btn) {
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -250,7 +250,7 @@
       cursor: pointer;
       text-align: left;
     }
-    .menu-popover button:hover { background: var(--surface-hover); color: var(--text); }
+    .menu-popover > button:not(.btn):hover { background: var(--surface-hover); color: var(--text); }
     .menu-sep { height: 1px; background: var(--border); margin: 4px 0; }
 
     /* Sidebar */
