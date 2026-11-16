@@ -414,6 +414,24 @@ def _resolve_device_profile(
         )
 
     if device_profile not in devices:
+        if device_profile == "ios_simulator" and platform == "ios":
+            return DeviceProfile(
+                platform="ios",
+                target_type="simulator",
+                device_name="iPhone Simulator",
+                automation_name="XCUITest",
+                auto_accept_alerts=True,
+                capabilities={},
+            )
+        if device_profile == "android_emulator" and platform == "android":
+            return DeviceProfile(
+                platform="android",
+                target_type="simulator",
+                device_name="Android Emulator",
+                automation_name="UiAutomator2",
+                auto_accept_alerts=True,
+                capabilities={"appWaitActivity": "*"},
+            )
         raise ValueError(f"Unknown device profile '{device_profile}'.")
     profile = devices[device_profile]
     if profile.platform != platform:
@@ -989,8 +1007,9 @@ class RunJobManager:
         return {"ok": True, "running": True, "status": "stopping"}
 
     def start(self, project_root: Path, results_dir: Path, payload: dict[str, Any]) -> dict[str, Any]:
-        platform = str(payload.get("platform") or "android")
-        device_profile = str(payload.get("device_profile") or "android_emulator")
+        platform = str(payload.get("platform") or "android").lower()
+        default_dev = "ios_simulator" if platform == "ios" else "android_emulator"
+        device_profile = str(payload.get("device_profile") or default_dev)
         env_name = str(payload.get("env_name") or "qa")
         suite = str(payload.get("suite") or "").strip() or None
         spec_id = str(payload.get("spec_id") or "").strip() or None

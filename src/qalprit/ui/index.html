@@ -628,21 +628,36 @@
       display: flex;
       align-items: flex-end;
       justify-content: space-between;
-      gap: 12px;
+      gap: 10px 14px;
       flex-wrap: wrap;
+      padding: 10px 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
     }
     .rec-toolbar-left {
       display: flex;
       align-items: flex-end;
-      gap: 10px;
+      gap: 8px 10px;
       flex-wrap: wrap;
+      flex: 1 1 560px;
+      min-width: 0;
     }
     .rec-toolbar-right {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 8px 10px;
       flex-wrap: wrap;
+      margin-left: auto;
     }
+    .rec-field-sm { width: 96px; flex-shrink: 0; }
+    .rec-field-md { width: 170px; min-width: 140px; flex: 1 1 155px; max-width: 230px; }
+    .rec-field-dev { min-width: 240px; flex: 1.5 1 250px; max-width: 340px; }
+    .dev-combo { display: flex; align-items: center; gap: 6px; }
+    .dev-combo select { flex: 1; min-width: 0; }
+    .menu-popover-wide { min-width: 290px; max-width: 340px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+    .menu-popover-wide:not(:popover-open) { display: none; }
+    .menu-popover-wide label { margin-bottom: 2px; }
     .rec-grid {
       display: grid;
       grid-template-columns: minmax(290px, 40%) minmax(0, 1fr);
@@ -1217,9 +1232,10 @@
           <span class="muted">Env:</span>
           <select id="topEnvSelect" aria-label="Active environment"></select>
         </label>
-        <button type="button" class="ctx-chip" id="topDevicePill" title="Open Setup & Devices">
+        <button type="button" class="ctx-chip" id="topDevicePill" popovertarget="devicePopoverMenu" title="Boot, switch, or shut down virtual device">
           <span class="dot" id="topDeviceDot"></span>
           <span id="topDeviceLabel">No device booted</span>
+          <span class="muted" style="font-size:10px;">&#9662;</span>
         </button>
         <button type="button" class="ctx-chip" id="topAppPill" title="Active app binary (click to switch or upload)">
           <span id="topAppLabel">No app selected</span>
@@ -1228,10 +1244,37 @@
       </div>
     </header>
 
+    <div id="devicePopoverMenu" class="menu-popover menu-popover-wide" popover>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+        <span class="panel-kicker">Device &amp; Emulator</span>
+        <span class="badge b-skip" id="topDevStatusBadge">Offline</span>
+      </div>
+      <div id="topDevBootedBox" hidden style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px;border-radius:7px;background:var(--surface);border:1px solid var(--border);">
+        <span id="topDevBootedText" style="font-size:12px;font-weight:600;color:var(--text);">Booted</span>
+        <button type="button" class="btn btn-sm btn-danger" id="btnTopShutdownDevice">Shutdown</button>
+      </div>
+      <div>
+        <label for="topQuickPlat">Switch / Boot Target</label>
+        <div style="display:flex;gap:6px;">
+          <select id="topQuickPlat" style="width:94px;" aria-label="Quick target platform">
+            <option value="android">Android</option>
+            <option value="ios">iOS</option>
+          </select>
+          <select id="topQuickDevice" style="flex:1;min-width:0;" aria-label="Quick target device"></select>
+        </div>
+      </div>
+      <div class="btn-row" style="justify-content:space-between;">
+        <button type="button" class="btn btn-sm btn-ghost" id="btnTopGoDeviceSetup">1-time Setup &amp; Doctor &rarr;</button>
+        <button type="button" class="btn btn-sm btn-primary" id="btnTopBootDevice">Boot</button>
+      </div>
+    </div>
+
     <div id="topMoreMenu" class="menu-popover" popover>
       <button type="button" id="btnReloadWorkspace">&#x21bb; Reload workspace</button>
       <button type="button" id="btnOpenWorkspaceFolder">&#x1F4C2; Open workspace folder</button>
       <button type="button" id="btnQuickValidate">&#x2713; Validate workspace</button>
+      <div class="menu-sep"></div>
+      <button type="button" id="btnMoreDeviceSetup">1-time Setup &amp; Doctor</button>
     </div>
 
     <!-- LEFT SIDEBAR -->
@@ -1239,18 +1282,12 @@
       <nav aria-label="QA Workflow Steps">
         <div class="nav-group">
           <div class="nav-group-label">Workbench</div>
-          <button type="button" class="nav-item" data-nav="setup" aria-current="step">
+          <button type="button" class="nav-item" id="btnOpenFlowsModal" data-nav="workflows" aria-current="step">
             <span class="nav-item-left">
-              <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="12" height="8" rx="1.5"/><path d="M5.5 13.5h5M8 11v2.5"/></svg>
-              <span>Setup &amp; Devices</span>
+              <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="4" cy="4" r="1.8"/><circle cx="12" cy="12" r="1.8"/><path d="M5.8 4H10a2 2 0 0 1 2 2v4.2M4 5.8v4.2a2 2 0 0 0 2 2h4.2"/></svg>
+              <span>Workflows</span>
             </span>
-            <span class="nav-badge" id="badgeApps" hidden>0 apps</span>
-          </button>
-          <button type="button" class="nav-item" data-nav="record">
-            <span class="nav-item-left">
-              <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="5.5"/><circle cx="8" cy="8" r="2" fill="currentColor" stroke="none"/></svg>
-              <span>Record</span>
-            </span>
+            <span class="nav-badge" id="badgeFlows">0</span>
           </button>
           <button type="button" class="nav-item" data-nav="journeys">
             <span class="nav-item-left">
@@ -1258,6 +1295,12 @@
               <span>Journeys</span>
             </span>
             <span class="nav-badge" id="badgeSpecs">0</span>
+          </button>
+          <button type="button" class="nav-item" data-nav="record">
+            <span class="nav-item-left">
+              <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="5.5"/><circle cx="8" cy="8" r="2" fill="currentColor" stroke="none"/></svg>
+              <span>Record</span>
+            </span>
           </button>
           <button type="button" class="nav-item" data-nav="runs">
             <span class="nav-item-left">
@@ -1270,13 +1313,6 @@
 
         <div class="nav-group">
           <div class="nav-group-label">Library</div>
-          <button type="button" class="nav-item" id="btnOpenFlowsModal" data-nav="workflows">
-            <span class="nav-item-left">
-              <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="4" cy="4" r="1.8"/><circle cx="12" cy="12" r="1.8"/><path d="M5.8 4H10a2 2 0 0 1 2 2v4.2M4 5.8v4.2a2 2 0 0 0 2 2h4.2"/></svg>
-              <span>Workflows</span>
-            </span>
-            <span class="nav-badge" id="badgeFlows">0</span>
-          </button>
           <button type="button" class="nav-item" data-nav="screens">
             <span class="nav-item-left">
               <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="2" width="8" height="12" rx="1.8"/><line x1="7" y1="11.5" x2="9" y2="11.5"/></svg>
@@ -1291,8 +1327,9 @@
         <button type="button" class="nav-item" data-nav="settings">
           <span class="nav-item-left">
             <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2.2"/><path d="M8 2v1.5M8 12.5V14M2 8h1.5M12.5 8H14M3.8 3.8l1.1 1.1M11.1 11.1l1.1 1.1M12.2 3.8l-1.1 1.1M4.9 11.1l-1.1 1.1"/></svg>
-            <span>Settings</span>
+            <span>Settings &amp; Setup</span>
           </span>
+          <span class="nav-badge" id="badgeApps" hidden>0 apps</span>
         </button>
       </div>
     </aside>
@@ -1302,27 +1339,42 @@
       <div id="corruptBanner" class="status-banner status-warn" hidden role="status" aria-live="polite" style="margin-bottom:12px;"></div>
 
       <!-- ============================================================== -->
-      <!-- VIEW: RECORD (Mock 1)                                          -->
+      <!-- VIEW: RECORD (Mock 1 + Direct Device/App Launcher)             -->
       <!-- ============================================================== -->
       <section class="view-pane" id="view-record" hidden aria-label="Record App Flow">
         <form class="rec-toolbar" id="recStartForm" onsubmit="return false;">
-          <div class="rec-toolbar-left" style="align-items:center;">
-            <div style="width:190px;">
-              <label for="recScreenName">Screen tag</label>
-              <input id="recScreenName" type="text" value="login" placeholder="android-login-logout" />
+          <div class="rec-toolbar-left">
+            <div class="rec-field-sm">
+              <label for="recPlatform">Platform</label>
+              <select id="recPlatform" aria-label="Record platform">
+                <option value="android">Android</option>
+                <option value="ios">iOS</option>
+              </select>
             </div>
-            <details style="margin-top:16px;">
-              <summary class="btn btn-sm" style="list-style:none;cursor:pointer;">Session target</summary>
-              <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;position:absolute;z-index:20;background:var(--surface-2);border:1px solid var(--border-strong);padding:8px;border-radius:8px;box-shadow:0 12px 28px rgba(0,0,0,0.45);">
-                <select id="recPlatform" style="width:94px;" aria-label="Record platform">
-                  <option value="android">Android</option>
-                  <option value="ios">iOS</option>
-                </select>
-                <select id="recDeviceSelect" style="width:170px;" aria-label="Record device"></select>
-                <select id="recEnvSelect" style="width:88px;" aria-label="Record environment"></select>
-                <select id="recAppSelect" style="width:170px;" aria-label="Record app binary"></select>
+            <div class="rec-field-dev">
+              <label for="recDeviceSelect">Target Device / Emulator</label>
+              <div class="dev-combo">
+                <select id="recDeviceSelect" aria-label="Record device"></select>
+                <button type="button" class="btn btn-sm btn-primary" id="btnRecBootDevice" title="Boot selected virtual device">Boot</button>
+                <button type="button" class="btn btn-sm btn-danger" id="btnRecShutdownDevice" hidden title="Shut down booted virtual device">Shutdown</button>
               </div>
-            </details>
+            </div>
+            <div class="rec-field-md">
+              <label for="recAppSelect">App Binary</label>
+              <div class="dev-combo">
+                <select id="recAppSelect" aria-label="Record app binary"></select>
+                <input id="recQuickAppFile" type="file" accept=".apk,.ipa,.zip" hidden />
+                <button type="button" class="btn btn-sm" id="btnRecQuickUpload" title="Upload .apk / .ipa / .zip">+</button>
+              </div>
+            </div>
+            <div class="rec-field-sm" style="width:88px;">
+              <label for="recEnvSelect">Env</label>
+              <select id="recEnvSelect" aria-label="Record environment"></select>
+            </div>
+            <div class="rec-field-md" style="max-width:165px;">
+              <label for="recScreenName">Screen tag</label>
+              <input id="recScreenName" type="text" value="login" placeholder="login" />
+            </div>
           </div>
 
           <div class="rec-toolbar-right">
@@ -1493,7 +1545,7 @@
       <!-- ============================================================== -->
       <!-- VIEW: WORKFLOWS & JOURNEYS (Mock 2 Shared Pattern)             -->
       <!-- ============================================================== -->
-      <section class="view-pane" id="view-workflows" hidden aria-label="Workflows">
+      <section class="view-pane" id="view-workflows" aria-label="Workflows">
         <div class="split-library">
           <div class="library-rail">
             <div class="library-rail-head">
@@ -1586,126 +1638,6 @@
       </section>
 
       <!-- ============================================================== -->
-      <!-- VIEW: SETUP & DEVICES                                          -->
-      <!-- ============================================================== -->
-      <section class="view-pane" id="view-setup" aria-label="Setup and Devices">
-        <div class="runs-header">
-          <div>
-            <h2>Setup &amp; Devices</h2>
-            <p class="muted" style="margin:2px 0 0;" id="step1OsIntro">Prepare a virtual emulator or device, choose 1 active app binary, and verify your environment.</p>
-          </div>
-          <div class="btn-row">
-            <span class="badge b-skip" id="osCapabilityBadge">Detecting OS...</span>
-            <button type="button" class="btn" id="btnRunPreflight">Run Checks</button>
-            <button type="button" class="btn" id="btnRefreshDevices">Scan Devices</button>
-            <button type="button" class="btn" id="btnRunDoctor">Doctor</button>
-            <button type="button" class="btn btn-danger" id="btnStopPreflight" hidden>Stop</button>
-          </div>
-        </div>
-
-        <div class="progress-box" id="preflightProgressBox" hidden>
-          <div class="progress-head">
-            <strong id="preflightProgressText">Running diagnostics...</strong>
-            <span class="muted" id="preflightProgressElapsed">0.0s</span>
-          </div>
-          <div class="progress-track"><div class="progress-fill is-indeterminate" id="preflightProgressFill"></div></div>
-        </div>
-
-        <div class="grid-2">
-          <!-- Emulator & Devices -->
-          <div class="panel">
-            <div class="panel-head">
-              <span class="panel-kicker">Virtual Emulator &amp; Devices</span>
-              <span class="badge b-skip" id="emuStatusBadge">Checking...</span>
-            </div>
-            <div class="panel-body" style="display:flex;flex-direction:column;gap:12px;">
-              <p class="muted" id="emuStatusDesc" style="margin:0;">Launch an Android Virtual Device or iOS Simulator, or use a connected USB device.</p>
-              <div class="btn-row" style="flex-wrap:wrap;gap:8px;">
-                <button type="button" class="btn btn-primary" id="btnEmuSetup" hidden>Setup Android Emulator (~1.8 GB)</button>
-                <button type="button" class="btn btn-primary" id="btnEmuBoot" hidden>Boot Android Emulator</button>
-                <button type="button" class="btn btn-danger" id="btnEmuStop" hidden>Stop Emulator</button>
-              </div>
-              <div id="iosSimRow" class="btn-row" hidden style="padding-top:2px;">
-                <select id="iosSimSelect" style="flex:1;min-width:190px;" aria-label="iOS Simulator"></select>
-                <button type="button" class="btn btn-primary" id="btnIosBoot">Boot iOS Simulator</button>
-              </div>
-              <div class="progress-box" id="emuProgressBox" hidden>
-                <div class="progress-head">
-                  <strong id="emuProgressPhase">Preparing...</strong>
-                  <span class="muted" id="emuProgressMeta">0%</span>
-                </div>
-                <div class="progress-track"><div class="progress-fill" id="emuProgressFill"></div></div>
-              </div>
-              <div id="emuStatusBanner" class="status-banner" hidden aria-live="polite"></div>
-              <pre id="emuLiveLog" class="console" hidden></pre>
-
-              <div class="table-wrap" style="max-height:220px;">
-                <table>
-                  <thead><tr><th>Platform</th><th>Name</th><th>Identifier</th><th>State</th><th>Action</th></tr></thead>
-                  <tbody id="devicesTable"><tr><td colspan="5" class="muted">Click Scan Devices to probe adb / simctl.</td></tr></tbody>
-                </table>
-              </div>
-              <div id="deviceAuthBanner" class="status-banner status-warn" hidden aria-live="polite"></div>
-
-              <div class="table-wrap" style="max-height:190px;">
-                <table>
-                  <thead><tr><th>Toolchain</th><th>Status</th><th>Details</th></tr></thead>
-                  <tbody id="doctorTable"><tr><td colspan="3" class="muted">Click Doctor to verify Node, Appium, Java, and SDK.</td></tr></tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          <!-- Active App & Environment Summary -->
-          <div style="display:flex;flex-direction:column;gap:14px;min-width:0;">
-            <div class="panel">
-              <div class="panel-head">
-                <span class="panel-kicker">Active App Under Test (<code>apps/</code>)</span>
-              </div>
-              <div class="panel-body" style="display:flex;flex-direction:column;gap:10px;">
-                <div>
-                  <label for="activeAppSelect">Session App</label>
-                  <select id="activeAppSelect"></select>
-                  <div class="muted" id="activeAppSummary" style="font-size:11.5px;margin-top:4px;">Upload or select an .apk / .ipa / .zip binary.</div>
-                </div>
-                <form id="uploadAppForm" method="POST" style="display:flex;flex-direction:column;gap:8px;">
-                  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                    <input id="appFileInput" name="appFile" type="file" accept=".apk,.ipa,.zip" style="flex:1;" required />
-                    <button type="submit" class="btn btn-primary" id="btnUploadApp">Upload &amp; Activate</button>
-                    <button type="button" class="btn btn-danger" id="btnCancelUpload" hidden>Cancel</button>
-                  </div>
-                  <div class="progress-box" id="uploadProgressBox" hidden>
-                    <div class="progress-head">
-                      <strong id="uploadProgressText">Uploading...</strong>
-                      <span class="muted" id="uploadProgressPct">0%</span>
-                    </div>
-                    <div class="progress-track"><div class="progress-fill" id="uploadProgressFill"></div></div>
-                  </div>
-                  <div id="uploadStatus" class="status-banner" hidden aria-live="polite"></div>
-                </form>
-                <div class="table-wrap" style="max-height:220px;">
-                  <table>
-                    <thead><tr><th>Binary</th><th>Package / Bundle</th><th>Size</th><th>Action</th></tr></thead>
-                    <tbody id="appsTable"><tr><td colspan="4" class="muted">No app binaries uploaded yet.</td></tr></tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-
-            <div class="panel">
-              <div class="panel-body" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:11px 14px;">
-                <div style="min-width:0;flex:1;">
-                  <div class="panel-kicker" style="margin-bottom:3px;">Active Environment Config</div>
-                  <div class="muted" id="setupEnvSummary" style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Profile: qa · Timeout 12s</div>
-                </div>
-                <button type="button" class="btn btn-sm" id="btnGoEnvSettings">Configure in Settings &rarr;</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ============================================================== -->
       <!-- VIEW: SCREENS & LOCATORS                                       -->
       <!-- ============================================================== -->
       <section class="view-pane" id="view-screens" hidden aria-label="Screens and Locators">
@@ -1783,110 +1715,229 @@
       </section>
 
       <!-- ============================================================== -->
-      <!-- VIEW: SETTINGS (Storage & Cleanup)                             -->
+      <!-- VIEW: SETTINGS & 1-TIME SETUP                                  -->
       <!-- ============================================================== -->
       <section class="view-pane" id="view-settings" hidden aria-label="Settings">
         <div class="runs-header">
           <div>
-            <h2>Settings &amp; Environment</h2>
-            <p class="muted" style="margin:2px 0 0;">Configure environment profiles, package identifiers, storage directories, system software, and cleanup.</p>
+            <h2>Settings &amp; 1-Time Setup</h2>
+            <p class="muted" style="margin:2px 0 0;">Configure environment profiles, app binaries, virtual emulators, toolchain checks, and storage.</p>
+          </div>
+          <div class="btn-row">
+            <span class="badge b-skip" id="osCapabilityBadge">Detecting OS...</span>
           </div>
         </div>
 
-        <div class="panel" id="envConfigCard">
-          <div class="panel-head">
-            <span class="panel-kicker">Environment &amp; Package Config (One-Time Setup)</span>
-          </div>
-          <form id="envSaveForm" method="POST" class="panel-body" style="display:flex;flex-direction:column;gap:10px;">
-            <div class="form-grid">
-              <div>
-                <label for="envPresetSelect">Saved Profile</label>
-                <select id="envPresetSelect"></select>
-              </div>
-              <div>
-                <label for="envNameInput">Profile Name</label>
-                <input id="envNameInput" type="text" value="qa" required />
-              </div>
-              <div>
-                <label for="envTimeoutInput">Timeout (sec)</label>
-                <input id="envTimeoutInput" type="number" min="1" step="0.5" value="12" required />
-              </div>
-            </div>
-            <div class="form-grid">
-              <div>
-                <label for="envAndroidPkg">Android Package ID</label>
-                <input id="envAndroidPkg" type="text" placeholder="com.example.myapp" />
-              </div>
-              <div id="envIosBundleField">
-                <label for="envIosBundle">iOS Bundle ID</label>
-                <input id="envIosBundle" type="text" placeholder="com.example.MyApp" />
-              </div>
-            </div>
-            <div class="btn-row" style="justify-content:space-between;">
-              <label class="switch-inline" for="envRedactChk">
-                <input id="envRedactChk" type="checkbox" switch checked />
-                <span>Redact sensitive fields in screenshots</span>
-              </label>
-              <button type="submit" class="btn btn-primary" id="btnSaveEnv">Save environment</button>
-            </div>
-            <div id="envStatus" class="status-banner" hidden aria-live="polite"></div>
-          </form>
+        <div class="tablist" role="tablist" aria-label="Settings sections">
+          <button type="button" role="tab" aria-selected="true" data-settings-tab="env">Environments &amp; Apps</button>
+          <button type="button" role="tab" aria-selected="false" data-settings-tab="devices">Devices &amp; Toolchain</button>
+          <button type="button" role="tab" aria-selected="false" data-settings-tab="storage">Storage &amp; Cleanup</button>
         </div>
 
-        <div class="panel" id="storagePreflightCard">
-          <div class="panel-head">
-            <span class="panel-kicker">OS Storage Folders &amp; System Software</span>
-          </div>
-          <div class="panel-body" style="display:flex;flex-direction:column;gap:14px;">
-            <form id="storagePrefsForm" method="POST" style="display:flex;flex-direction:column;gap:10px;">
+        <!-- TAB 1: ENVIRONMENTS & APPS -->
+        <div class="grid-2" id="settings-pane-env">
+          <div class="panel" id="envConfigCard">
+            <div class="panel-head">
+              <span class="panel-kicker">Environment &amp; Package Config</span>
+            </div>
+            <form id="envSaveForm" method="POST" class="panel-body" style="display:flex;flex-direction:column;gap:10px;">
               <div class="form-grid">
                 <div>
-                  <label for="prefWorkspaceDirInput">Workspace Folder (specs, flows, datasets, apps, results)</label>
-                  <div style="display:flex;gap:6px;">
-                    <input id="prefWorkspaceDirInput" type="text" placeholder="~/Documents/QAlpritWorkspace" />
-                    <button type="button" class="btn btn-sm" data-reveal-path="">Open</button>
-                  </div>
+                  <label for="envPresetSelect">Saved Profile</label>
+                  <select id="envPresetSelect"></select>
                 </div>
                 <div>
-                  <label for="prefDataDirInput">SDK &amp; Virtual Emulator Data Folder</label>
-                  <div style="display:flex;gap:6px;">
-                    <input id="prefDataDirInput" type="text" placeholder="%LOCALAPPDATA%\QAlprit" />
-                    <button type="button" class="btn btn-sm" data-reveal-path="@data_dir">Open</button>
-                  </div>
+                  <label for="envNameInput">Profile Name</label>
+                  <input id="envNameInput" type="text" value="qa" required />
+                </div>
+                <div>
+                  <label for="envTimeoutInput">Timeout (sec)</label>
+                  <input id="envTimeoutInput" type="number" min="1" step="0.5" value="12" required />
+                </div>
+              </div>
+              <div class="form-grid">
+                <div>
+                  <label for="envAndroidPkg">Android Package ID</label>
+                  <input id="envAndroidPkg" type="text" placeholder="com.example.myapp" />
+                </div>
+                <div id="envIosBundleField">
+                  <label for="envIosBundle">iOS Bundle ID</label>
+                  <input id="envIosBundle" type="text" placeholder="com.example.MyApp" />
                 </div>
               </div>
               <div class="btn-row" style="justify-content:space-between;">
-                <label class="chk-inline"><input type="checkbox" id="prefReuseSystemSdk" /> Reuse existing system Android SDK if installed</label>
-                <button type="submit" class="btn btn-primary" id="btnSaveStoragePrefs">Save &amp; Apply Storage Folders</button>
+                <label class="switch-inline" for="envRedactChk">
+                  <input id="envRedactChk" type="checkbox" switch checked />
+                  <span>Redact sensitive fields in screenshots</span>
+                </label>
+                <button type="submit" class="btn btn-primary" id="btnSaveEnv">Save environment</button>
               </div>
-              <div id="prefStatusBanner" class="status-banner" hidden aria-live="polite"></div>
+              <div id="envStatus" class="status-banner" hidden aria-live="polite"></div>
             </form>
+          </div>
 
-            <div class="table-wrap" style="max-height:220px;">
-              <table>
-                <thead><tr><th>Software / Tool</th><th>Detected Source</th><th>Location / Version</th></tr></thead>
-                <tbody id="preflightSoftwareBody"><tr><td colspan="3" class="muted">Scanning system tools...</td></tr></tbody>
-              </table>
+          <div class="panel">
+            <div class="panel-head">
+              <span class="panel-kicker">App Binaries Under Test (<code>apps/</code>)</span>
+            </div>
+            <div class="panel-body" style="display:flex;flex-direction:column;gap:10px;">
+              <div>
+                <label for="activeAppSelect">Session App</label>
+                <select id="activeAppSelect"></select>
+                <div class="muted" id="activeAppSummary" style="font-size:11.5px;margin-top:4px;">Upload or select an .apk / .ipa / .zip binary.</div>
+              </div>
+              <form id="uploadAppForm" method="POST" style="display:flex;flex-direction:column;gap:8px;">
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                  <input id="appFileInput" name="appFile" type="file" accept=".apk,.ipa,.zip" style="flex:1;" required />
+                  <button type="submit" class="btn btn-primary" id="btnUploadApp">Upload &amp; Activate</button>
+                  <button type="button" class="btn btn-danger" id="btnCancelUpload" hidden>Cancel</button>
+                </div>
+                <div class="progress-box" id="uploadProgressBox" hidden>
+                  <div class="progress-head">
+                    <strong id="uploadProgressText">Uploading...</strong>
+                    <span class="muted" id="uploadProgressPct">0%</span>
+                  </div>
+                  <div class="progress-track"><div class="progress-fill" id="uploadProgressFill"></div></div>
+                </div>
+                <div id="uploadStatus" class="status-banner" hidden aria-live="polite"></div>
+              </form>
+              <div class="table-wrap" style="max-height:220px;">
+                <table>
+                  <thead><tr><th>Binary</th><th>Package / Bundle</th><th>Size</th><th>Action</th></tr></thead>
+                  <tbody id="appsTable"><tr><td colspan="4" class="muted">No app binaries uploaded yet.</td></tr></tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>
 
-        <div class="panel">
-          <div class="panel-head">
-            <span class="panel-kicker">Clean Up Previous Leftovers &amp; Tool Data</span>
-            <button type="button" class="btn btn-sm" id="btnRefreshCleanup">&#x21bb; Rescan Sizes</button>
+        <!-- TAB 2: DEVICES, EMULATORS & TOOLCHAIN (1-Time Setup Sub-Section) -->
+        <div id="view-setup" class="grid-2" hidden aria-label="1-Time Devices and Toolchain Setup">
+          <div class="panel">
+            <div class="panel-head">
+              <span class="panel-kicker">Virtual Emulators &amp; Devices</span>
+              <div class="btn-row">
+                <span class="badge b-skip" id="emuStatusBadge">Checking...</span>
+                <button type="button" class="btn btn-sm" id="btnRefreshDevices">Scan Devices</button>
+              </div>
+            </div>
+            <div class="panel-body" style="display:flex;flex-direction:column;gap:12px;">
+              <p class="muted" id="emuStatusDesc" style="margin:0;font-size:12px;">Install the default Android Virtual Device (~1.8 GB) or boot, switch, and shut down Android &amp; iOS targets.</p>
+              <div class="btn-row" style="flex-wrap:wrap;gap:8px;">
+                <button type="button" class="btn btn-primary" id="btnEmuSetup" hidden>Setup Android Emulator (~1.8 GB)</button>
+                <button type="button" class="btn btn-primary" id="btnEmuBoot" hidden>Boot Android Emulator</button>
+                <button type="button" class="btn btn-danger" id="btnEmuStop" hidden>Shutdown Android</button>
+              </div>
+              <div id="iosSimRow" class="btn-row" hidden style="padding-top:2px;">
+                <select id="iosSimSelect" style="flex:1;min-width:190px;" aria-label="iOS Simulator"></select>
+                <button type="button" class="btn btn-primary" id="btnIosBoot">Boot iOS Simulator</button>
+                <button type="button" class="btn btn-danger" id="btnIosShutdown" hidden>Shutdown iOS</button>
+              </div>
+              <div class="progress-box" id="emuProgressBox" hidden>
+                <div class="progress-head">
+                  <strong id="emuProgressPhase">Preparing...</strong>
+                  <span class="muted" id="emuProgressMeta">0%</span>
+                </div>
+                <div class="progress-track"><div class="progress-fill" id="emuProgressFill"></div></div>
+              </div>
+              <div id="emuStatusBanner" class="status-banner" hidden aria-live="polite"></div>
+              <pre id="emuLiveLog" class="console" hidden></pre>
+
+              <div class="table-wrap" style="max-height:300px;">
+                <table>
+                  <thead><tr><th>Platform</th><th>Name</th><th>Identifier</th><th>State</th><th>Action</th></tr></thead>
+                  <tbody id="devicesTable"><tr><td colspan="5" class="muted">Click Scan Devices to probe adb / simctl.</td></tr></tbody>
+                </table>
+              </div>
+              <div id="deviceAuthBanner" class="status-banner status-warn" hidden aria-live="polite"></div>
+            </div>
           </div>
-          <div class="panel-body" style="display:flex;flex-direction:column;gap:10px;">
-            <div class="table-wrap" style="max-height:240px;">
-              <table>
-                <thead><tr><th style="width:42px;">Clean</th><th>Folder / Item</th><th>Safety Impact</th><th>Size</th></tr></thead>
-                <tbody id="cleanupTargetsBody"><tr><td colspan="4" class="muted">Scanning QAlprit data folders...</td></tr></tbody>
-              </table>
+
+          <div class="panel">
+            <div class="panel-head">
+              <span class="panel-kicker">Toolchain Doctor</span>
+              <div class="btn-row">
+                <span class="badge b-skip" id="doctorSummaryBadge">Checking...</span>
+                <button type="button" class="btn btn-sm" id="btnRunPreflight">Run All Checks</button>
+                <button type="button" class="btn btn-sm" id="btnRunDoctor">Doctor</button>
+                <button type="button" class="btn btn-sm btn-danger" id="btnStopPreflight" hidden>Stop</button>
+              </div>
             </div>
-            <div class="btn-row">
-              <button type="button" class="btn btn-danger" id="btnCleanupSelected">Delete Checked Cleanup Items</button>
+            <div class="panel-body" style="display:flex;flex-direction:column;gap:10px;">
+              <div class="progress-box" id="preflightProgressBox" hidden>
+                <div class="progress-head">
+                  <strong id="preflightProgressText">Running diagnostics...</strong>
+                  <span class="muted" id="preflightProgressElapsed">0.0s</span>
+                </div>
+                <div class="progress-track"><div class="progress-fill is-indeterminate" id="preflightProgressFill"></div></div>
+              </div>
+              <div class="table-wrap" style="max-height:420px;">
+                <table>
+                  <thead><tr><th>Toolchain</th><th>Status</th><th>Details</th></tr></thead>
+                  <tbody id="doctorTable"><tr><td colspan="3" class="muted">Click Doctor to verify Node, Appium, Java, and SDK.</td></tr></tbody>
+                </table>
+              </div>
             </div>
-            <div id="cleanupStatusBanner" class="status-banner" hidden aria-live="polite"></div>
+          </div>
+        </div>
+
+        <!-- TAB 3: STORAGE & CLEANUP -->
+        <div id="settings-pane-storage" hidden style="display:flex;flex-direction:column;gap:14px;">
+          <div class="panel" id="storagePreflightCard">
+            <div class="panel-head">
+              <span class="panel-kicker">OS Storage Folders &amp; System Software</span>
+            </div>
+            <div class="panel-body" style="display:flex;flex-direction:column;gap:14px;">
+              <form id="storagePrefsForm" method="POST" style="display:flex;flex-direction:column;gap:10px;">
+                <div class="form-grid">
+                  <div>
+                    <label for="prefWorkspaceDirInput">Workspace Folder (specs, flows, datasets, apps, results)</label>
+                    <div style="display:flex;gap:6px;">
+                      <input id="prefWorkspaceDirInput" type="text" placeholder="~/Documents/QAlpritWorkspace" />
+                      <button type="button" class="btn btn-sm" data-reveal-path="">Open</button>
+                    </div>
+                  </div>
+                  <div>
+                    <label for="prefDataDirInput">SDK &amp; Virtual Emulator Data Folder</label>
+                    <div style="display:flex;gap:6px;">
+                      <input id="prefDataDirInput" type="text" placeholder="%LOCALAPPDATA%\QAlprit" />
+                      <button type="button" class="btn btn-sm" data-reveal-path="@data_dir">Open</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="btn-row" style="justify-content:space-between;">
+                  <label class="chk-inline"><input type="checkbox" id="prefReuseSystemSdk" /> Reuse existing system Android SDK if installed</label>
+                  <button type="submit" class="btn btn-primary" id="btnSaveStoragePrefs">Save &amp; Apply Storage Folders</button>
+                </div>
+                <div id="prefStatusBanner" class="status-banner" hidden aria-live="polite"></div>
+              </form>
+
+              <div class="table-wrap" style="max-height:220px;">
+                <table>
+                  <thead><tr><th>Software / Tool</th><th>Detected Source</th><th>Location / Version</th></tr></thead>
+                  <tbody id="preflightSoftwareBody"><tr><td colspan="3" class="muted">Scanning system tools...</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <span class="panel-kicker">Clean Up Previous Leftovers &amp; Tool Data</span>
+              <button type="button" class="btn btn-sm" id="btnRefreshCleanup">&#x21bb; Rescan Sizes</button>
+            </div>
+            <div class="panel-body" style="display:flex;flex-direction:column;gap:10px;">
+              <div class="table-wrap" style="max-height:240px;">
+                <table>
+                  <thead><tr><th style="width:42px;">Clean</th><th>Folder / Item</th><th>Safety Impact</th><th>Size</th></tr></thead>
+                  <tbody id="cleanupTargetsBody"><tr><td colspan="4" class="muted">Scanning QAlprit data folders...</td></tr></tbody>
+                </table>
+              </div>
+              <div class="btn-row">
+                <button type="button" class="btn btn-danger" id="btnCleanupSelected">Delete Checked Cleanup Items</button>
+              </div>
+              <div id="cleanupStatusBanner" class="status-banner" hidden aria-live="polite"></div>
+            </div>
           </div>
         </div>
       </section>
@@ -2033,7 +2084,9 @@
 
       const STATE = {
         overview: null,
-        activeNav: "setup",
+        devicesData: { android: [], ios: [] },
+        activeNav: "workflows",
+        settingsTab: "env",
         activeApp: "",
         hostOs: "",
         stepVocab: ["launch", "reset_app", "background", "tap", "tap_if_visible", "type", "clear", "swipe", "scroll_until_visible", "wait", "wait_for_visible", "wait_for_enabled", "wait_for_text", "wait_for_keyboard", "assert_visible", "assert_not_visible", "assert_text", "assert_enabled", "assert_disabled", "back", "hide_keyboard", "biometric", "run_flow", "screenshot", "visual_compare"],
@@ -2145,53 +2198,83 @@
         b.addEventListener("click", () => { const d = $(b.dataset.closeDialog); if (d) d.close(); });
       });
 
-      // Navigation
-      function navigateTo(view) {
-        STATE.activeNav = view;
+      // Navigation & Settings Sub-Tabs
+      function switchSettingsTab(tab) {
+        STATE.settingsTab = tab || "env";
+        document.querySelectorAll("[data-settings-tab]").forEach((b) => {
+          b.setAttribute("aria-selected", b.dataset.settingsTab === STATE.settingsTab ? "true" : "false");
+        });
+        if ($("settings-pane-env")) $("settings-pane-env").hidden = STATE.settingsTab !== "env";
+        if ($("view-setup")) $("view-setup").hidden = STATE.settingsTab !== "devices";
+        if ($("settings-pane-storage")) $("settings-pane-storage").hidden = STATE.settingsTab !== "storage";
+        if (STATE.settingsTab === "storage") {
+          loadSystemPreflight();
+          loadCleanupTargets();
+        } else if (STATE.settingsTab === "devices") {
+          pollEmulatorStatus();
+        }
+      }
+      document.querySelectorAll("[data-settings-tab]").forEach((b) => {
+        b.addEventListener("click", () => switchSettingsTab(b.dataset.settingsTab));
+      });
+
+      function navigateTo(view, subTab) {
+        const target = view === "setup" ? "settings" : view;
+        const resolvedSub = view === "setup" ? "devices" : subTab;
+        STATE.activeNav = target;
         document.querySelectorAll(".nav-item[data-nav]").forEach((btn) => {
-          const match = btn.dataset.nav === view;
+          const match = btn.dataset.nav === target;
           btn.classList.toggle("is-active", match);
           if (match) btn.setAttribute("aria-current", "step");
           else btn.removeAttribute("aria-current");
         });
-        document.querySelectorAll(".view-pane").forEach((sec) => {
-          sec.hidden = sec.id !== ("view-" + view);
+        document.querySelectorAll("main > .view-pane").forEach((sec) => {
+          sec.hidden = sec.id !== ("view-" + target);
         });
-        if (view === "settings") {
-          loadSystemPreflight();
-          loadCleanupTargets();
+        if (target === "settings") {
+          switchSettingsTab(resolvedSub || STATE.settingsTab || "env");
         }
       }
       document.querySelectorAll(".nav-item[data-nav]").forEach((btn) => {
         btn.addEventListener("click", () => navigateTo(btn.dataset.nav));
       });
-      $("topDevicePill").addEventListener("click", () => navigateTo("setup"));
-      $("topAppPill").addEventListener("click", () => navigateTo("setup"));
-      if ($("btnGoEnvSettings")) {
-        $("btnGoEnvSettings").addEventListener("click", () => {
-          navigateTo("settings");
-          if ($("envConfigCard")) $("envConfigCard").scrollIntoView({ block: "nearest" });
+      $("topAppPill").addEventListener("click", () => navigateTo("settings", "env"));
+      if ($("btnTopGoDeviceSetup")) {
+        $("btnTopGoDeviceSetup").addEventListener("click", () => {
+          if ($("devicePopoverMenu") && $("devicePopoverMenu").hidePopover) try { $("devicePopoverMenu").hidePopover(); } catch (_) {}
+          navigateTo("settings", "devices");
         });
       }
-      function positionTopMoreMenu() {
-        const menu = $("topMoreMenu");
-        const trigger = $("btnTopMore");
-        if (!menu || !trigger) return;
-        const r = trigger.getBoundingClientRect();
-        menu.style.top = `${Math.round(r.bottom + 6)}px`;
-        menu.style.right = `${Math.max(10, Math.round(window.innerWidth - r.right))}px`;
-        menu.style.left = "auto";
-        menu.style.bottom = "auto";
+      if ($("btnMoreDeviceSetup")) {
+        $("btnMoreDeviceSetup").addEventListener("click", () => {
+          if ($("topMoreMenu") && $("topMoreMenu").hidePopover) try { $("topMoreMenu").hidePopover(); } catch (_) {}
+          navigateTo("settings", "devices");
+        });
       }
-      if ($("topMoreMenu") && $("btnTopMore")) {
-        $("btnTopMore").addEventListener("click", positionTopMoreMenu);
-        $("topMoreMenu").addEventListener("beforetoggle", (e) => {
-          if (e.newState === "open") positionTopMoreMenu();
+
+      function anchorPopover(menuEl, triggerEl) {
+        if (!menuEl || !triggerEl) return;
+        const r = triggerEl.getBoundingClientRect();
+        menuEl.style.top = `${Math.round(r.bottom + 6)}px`;
+        menuEl.style.right = `${Math.max(10, Math.round(window.innerWidth - r.right))}px`;
+        menuEl.style.left = "auto";
+        menuEl.style.bottom = "auto";
+      }
+      [
+        { menu: "topMoreMenu", trigger: "btnTopMore" },
+        { menu: "devicePopoverMenu", trigger: "topDevicePill" }
+      ].forEach(({ menu, trigger }) => {
+        const m = $(menu);
+        const t = $(trigger);
+        if (!m || !t) return;
+        t.addEventListener("click", () => anchorPopover(m, t));
+        m.addEventListener("beforetoggle", (e) => {
+          if (e.newState === "open") anchorPopover(m, t);
         });
         window.addEventListener("resize", () => {
-          if ($("topMoreMenu").matches(":popover-open")) positionTopMoreMenu();
+          if (m.matches(":popover-open")) anchorPopover(m, t);
         });
-      }
+      });
 
       // Host OS & Device Sync
       function applyHostOsUi(hostOs) {
@@ -2206,37 +2289,114 @@
           $("btnIosBoot").disabled = !isMac || !$("iosSimSelect").options.length || !$("iosSimSelect").value;
         }
         if ($("envIosBundleField")) $("envIosBundleField").hidden = !isMac;
-        ["recPlatform", "inspectPlatform", "runPlatformSelect"].forEach((id) => {
+        ["recPlatform", "inspectPlatform", "runPlatformSelect", "topQuickPlat"].forEach((id) => {
           const sel = $(id);
           if (!sel) return;
           const iosOpt = Array.from(sel.options).find((o) => o.value === "ios");
-          if (iosOpt) { iosOpt.disabled = !isMac; iosOpt.textContent = isMac ? "ios" : "ios (macOS only)"; }
+          if (iosOpt) { iosOpt.disabled = !isMac; iosOpt.textContent = isMac ? "iOS" : "iOS (macOS)"; }
           if (!isMac && sel.value === "ios") sel.value = "android";
         });
       }
 
-      function syncDeviceSelects() {
-        const profiles = (STATE.overview && STATE.overview.device_profiles) || {};
+      function getDeviceOptionsForPlatform(plat) {
         const isMac = STATE.hostOs === "Darwin";
+        if (plat === "ios" && !isMac) return [];
+        const profiles = (STATE.overview && STATE.overview.device_profiles) || {};
+        const devs = STATE.devicesData || { android: [], ios: [] };
+        const opts = [];
+        const seen = new Set();
+        const addOpt = (value, label) => {
+          if (!value || seen.has(value)) return;
+          seen.add(value);
+          opts.push({ value, label });
+        };
+
+        if (plat === "ios") {
+          const bootedIos = (devs.ios || []).filter((x) => String(x.state || "").toLowerCase() === "booted");
+          bootedIos.forEach((x) => addOpt(`live:ios:${x.identifier}`, `${x.name} [Booted]`));
+          Object.entries(profiles)
+            .filter(([, cfg]) => cfg.platform === "ios")
+            .forEach(([k, cfg]) => addOpt(k, `${cfg.device_name} (${k})`));
+          if (!Object.values(profiles).some((cfg) => cfg.platform === "ios")) {
+            addOpt("ios_simulator", "iPhone Simulator (ios_simulator)");
+          }
+          (devs.ios || [])
+            .filter((x) => String(x.state || "").toLowerCase() !== "booted")
+            .slice(0, 18)
+            .forEach((x) => addOpt(`sim:ios:${x.identifier}`, `${x.name} [Shutdown]`));
+        } else {
+          const liveAnd = (devs.android || []).filter((x) => !String(x.identifier || "").startsWith("avd:"));
+          liveAnd.forEach((x) => addOpt(`live:android:${x.identifier}`, `${x.name} (${x.identifier}) [Booted]`));
+          Object.entries(profiles)
+            .filter(([, cfg]) => cfg.platform === "android")
+            .forEach(([k, cfg]) => addOpt(k, `${cfg.device_name} (${k})`));
+          if (!Object.values(profiles).some((cfg) => cfg.platform === "android")) {
+            addOpt("android_emulator", "Android Emulator (android_emulator)");
+          }
+          (devs.android || [])
+            .filter((x) => String(x.identifier || "").startsWith("avd:"))
+            .forEach((x) => addOpt(`avd:${x.name}`, `${x.name} [Offline AVD]`));
+        }
+        return opts;
+      }
+
+      function updateRecDeviceButtons() {
+        const plat = $("recPlatform") ? $("recPlatform").value : "android";
+        const devVal = $("recDeviceSelect") ? $("recDeviceSelect").value : "";
+        const emu = STATE.emuStatus || {};
+        const bootedAnd = (emu.running_android_emulators || []).length > 0 || (STATE.devicesData.android || []).some((d) => d.state === "device");
+        const bootedIos = (emu.ios_simulators || []).some((s) => String(s.state || "").toLowerCase() === "booted")
+          || (STATE.devicesData.ios || []).some((d) => String(d.state || "").toLowerCase() === "booted");
+        const isTargetBooted = devVal.startsWith("live:")
+          || (devVal === "ios_simulator" && bootedIos)
+          || (devVal === "android_emulator" && bootedAnd);
+        const anyPlatBooted = plat === "ios" ? bootedIos : bootedAnd;
+        if ($("btnRecBootDevice")) {
+          $("btnRecBootDevice").hidden = devVal.startsWith("live:") || devVal === "android_device" || devVal === "ios_device";
+          $("btnRecBootDevice").textContent = (anyPlatBooted && !isTargetBooted) ? "Switch & Boot" : "Boot";
+        }
+        if ($("btnRecShutdownDevice")) {
+          $("btnRecShutdownDevice").hidden = !anyPlatBooted;
+        }
+      }
+
+      function syncDeviceSelects(opts) {
+        const o = opts || {};
         const pairs = [
           { platId: "recPlatform", devId: "recDeviceSelect" },
           { platId: "inspectPlatform", devId: "inspectDeviceSelect" },
-          { platId: "runPlatformSelect", devId: "runDeviceSelect" }
+          { platId: "runPlatformSelect", devId: "runDeviceSelect" },
+          { platId: "topQuickPlat", devId: "topQuickDevice" }
         ];
         pairs.forEach(({ platId, devId }) => {
           const pSel = $(platId);
           const dSel = $(devId);
           if (!pSel || !dSel) return;
           const plat = pSel.value || "android";
-          const opts = Object.entries(profiles)
-            .filter(([, cfg]) => cfg.platform === plat && (isMac || cfg.platform !== "ios"))
-            .map(([k, cfg]) => ({ value: k, label: `${cfg.device_name} (${k})` }));
-          populateSelect(devId, opts);
+          const list = getDeviceOptionsForPlatform(plat);
+          const prev = dSel.value;
+          populateSelect(devId, list);
+          if (o.preferBooted) {
+            const liveOpt = list.find((it) => it.value.startsWith("live:"));
+            if (liveOpt) dSel.value = liveOpt.value;
+          } else if (prev && !list.some((it) => it.value === prev) && list.length) {
+            dSel.value = list[0].value;
+          }
         });
+        updateRecDeviceButtons();
       }
-      ["recPlatform", "inspectPlatform", "runPlatformSelect"].forEach((id) => {
-        if ($(id)) $(id).addEventListener("change", () => { syncDeviceSelects(); refreshRunSpecDropdown(); });
+      ["recPlatform", "inspectPlatform", "runPlatformSelect", "topQuickPlat"].forEach((id) => {
+        if ($(id)) $(id).addEventListener("change", () => {
+          const val = $(id).value;
+          if (id === "recPlatform" || id === "runPlatformSelect" || id === "topQuickPlat") {
+            switchTargetPlatformAndApp(val);
+          } else {
+            syncDeviceSelects({ preferBooted: true });
+          }
+          if (id === "runPlatformSelect") refreshRunSpecDropdown();
+        });
       });
+      if ($("recDeviceSelect")) $("recDeviceSelect").addEventListener("change", updateRecDeviceButtons);
 
       function updateTopbarSummary() {
         const ov = STATE.overview || {};
@@ -2253,23 +2413,35 @@
         const runningIos = (emu.ios_simulators || []).filter((s) => String(s.state || "").toLowerCase() === "booted");
         const dot = $("topDeviceDot");
         const lbl = $("topDeviceLabel");
+        const popBadge = $("topDevStatusBadge");
+        const popBox = $("topDevBootedBox");
+        const popText = $("topDevBootedText");
         if (runningAnd.length) {
           dot.className = "dot is-ok";
-          lbl.textContent = `Pixel emulator · Android 34`;
-          $("sbEmuText").textContent = "Emulator booted";
+          lbl.textContent = `${runningAnd[0]} · Android`;
+          $("sbEmuText").textContent = "Android booted";
+          if (popBadge) { popBadge.className = "badge b-ok"; popBadge.textContent = "Booted"; }
+          if (popBox && popText) { popBox.hidden = false; popText.textContent = `${runningAnd[0]} (Android)`; }
         } else if (runningIos.length) {
           dot.className = "dot is-ok";
           lbl.textContent = `${runningIos[0].name || "iOS Simulator"} · iOS`;
           $("sbEmuText").textContent = "Simulator booted";
+          if (popBadge) { popBadge.className = "badge b-ok"; popBadge.textContent = "Booted"; }
+          if (popBox && popText) { popBox.hidden = false; popText.textContent = `${runningIos[0].name} (iOS)`; }
         } else if ((emu.avds || []).length) {
           dot.className = "dot is-warn";
           lbl.textContent = `${emu.avds[0]} · Offline`;
-          $("sbEmuText").textContent = "Emulator offline";
+          $("sbEmuText").textContent = "Device offline";
+          if (popBadge) { popBadge.className = "badge b-warn"; popBadge.textContent = "Offline"; }
+          if (popBox) popBox.hidden = true;
         } else {
           dot.className = "dot";
           lbl.textContent = "No device booted";
-          $("sbEmuText").textContent = "No emulator booted";
+          $("sbEmuText").textContent = "No device booted";
+          if (popBadge) { popBadge.className = "badge b-skip"; popBadge.textContent = "Offline"; }
+          if (popBox) popBox.hidden = true;
         }
+        updateRecDeviceButtons();
       }
 
       // ================================================================
@@ -2429,13 +2601,6 @@
       // ================================================================
       // SHARED WORKFLOW / JOURNEY DETAIL + CSV DATASET VIEW (Mock 2)
       // ================================================================
-      function getDeviceOptionsForPlatform(plat) {
-        const profiles = (STATE.overview && STATE.overview.device_profiles) || {};
-        return Object.entries(profiles)
-          .filter(([, cfg]) => cfg.platform === plat)
-          .map(([k, cfg]) => ({ value: k, label: `${cfg.device_name} (${k})` }));
-      }
-
       function formatStepInlinePreview(step, rowData, variables) {
         if (!step) return '<span class="muted">No steps defined yet.</span>';
         const p = step.params || {};
@@ -2864,9 +3029,13 @@
             banner.className = "status-banner";
             banner.textContent = isDry ? "Validating execution plan..." : "Launching batch run...";
             try {
+              const rawDev = devSel ? devSel.value : "";
+              const resolvedDev = isDry
+                ? (rawDev.startsWith("sim:ios:") ? "ios_simulator" : (rawDev.startsWith("avd:") ? "android_emulator" : (rawDev || (plat === "ios" ? "ios_simulator" : "android_emulator"))))
+                : await resolveSelectedDeviceForAction(plat, rawDev);
               const res = await apiJson("/api/runs/start", {
                 platform: plat,
-                device_profile: devSel ? devSel.value : (plat === "ios" ? "ios_simulator" : "android_emulator"),
+                device_profile: resolvedDev,
                 env_name: envName,
                 suite: isFlow ? "" : item.suite,
                 spec_id: isFlow ? "" : item.id,
@@ -3421,12 +3590,15 @@
         const isAndroid = app.kind === "apk";
         const pkg = app.detected_package || "";
         $("activeAppSummary").textContent = `${app.name} (${app.kind}, ${fmtBytes(app.size_bytes)}${pkg ? ", " + pkg : ""})`;
-        if (STATE.hostOs === "Darwin") {
+        if (STATE.hostOs === "Darwin" || isAndroid) {
           const targetPlat = isAndroid ? "android" : "ios";
-          $("recPlatform").value = targetPlat;
-          $("inspectPlatform").value = targetPlat;
-          $("runPlatformSelect").value = targetPlat;
-          syncDeviceSelects();
+          if (targetPlat !== "ios" || STATE.hostOs === "Darwin") {
+            $("recPlatform").value = targetPlat;
+            $("inspectPlatform").value = targetPlat;
+            $("runPlatformSelect").value = targetPlat;
+            if ($("topQuickPlat")) $("topQuickPlat").value = targetPlat;
+            syncDeviceSelects({ preferBooted: true });
+          }
         }
         if (pkg && !options.preserveFormInputs) {
           if (isAndroid) $("envAndroidPkg").value = pkg;
@@ -3639,29 +3811,94 @@
         if ($("btnIosBoot")) $("btnIosBoot").disabled = !isMac || !sims.length;
       }
 
-      async function bootAndroidTarget(avdName) {
+      function switchTargetPlatformAndApp(plat) {
+        if (plat === "ios" && STATE.hostOs !== "Darwin") return;
+        ["recPlatform", "inspectPlatform", "runPlatformSelect", "topQuickPlat"].forEach((id) => {
+          if ($(id)) $(id).value = plat;
+        });
+        STATE.flowPlatform = plat;
+        STATE.specPlatform = plat;
+        const apps = (STATE.overview && STATE.overview.apps) || [];
+        const currentApp = apps.find((a) => a.rel_path === STATE.activeApp);
+        const currentMatches = currentApp && ((plat === "android" && currentApp.kind === "apk") || (plat === "ios" && currentApp.kind !== "apk"));
+        if (!currentMatches) {
+          const matchingApp = apps.find((a) => (plat === "android" ? a.kind === "apk" : a.kind !== "apk"));
+          if (matchingApp) selectSessionApp(matchingApp.rel_path, { autoSave: false, preserveFormInputs: true });
+        }
+        syncDeviceSelects({ preferBooted: true });
+      }
+
+      async function resolveSelectedDeviceForAction(plat, rawVal) {
+        const val = String(rawVal || "").trim();
+        if (val.startsWith("sim:ios:")) {
+          const udid = val.slice("sim:ios:".length);
+          const res = await apiJson("/api/emulator/boot", { target: "ios", udid });
+          await runPreflightChecks({ devices: true, doctor: false });
+          return `live:ios:${res.identifier || udid}`;
+        }
+        if (val.startsWith("avd:")) {
+          const avdName = val.slice("avd:".length);
+          const res = await apiJson("/api/emulator/boot", { target: "android", avd_name: avdName });
+          if (res.already_running && res.serial) return `live:android:${res.serial}`;
+          startEmulatorPolling();
+          throw new Error(`Booting Android Emulator '${avdName}' — wait until Booted before starting.`);
+        }
+        if (val) return val;
+        return plat === "ios" ? "ios_simulator" : "android_emulator";
+      }
+
+      async function bootAndroidTarget(avdName, switchFirst) {
+        const msgBanner = STATE.activeNav === "record" ? "recStatusBanner" : "emuStatusBanner";
         try {
+          if (switchFirst) await apiJson("/api/emulator/shutdown", { target: "android" });
           const res = await apiJson("/api/emulator/boot", avdName ? { target: "android", avd_name: avdName } : { target: "android" });
+          switchTargetPlatformAndApp("android");
           if (res.already_running) {
-            showBanner("emuStatusBanner", `Android Emulator already running (${res.serial}).`, "ok");
+            showBanner(msgBanner, `Android Emulator ready (${res.serial}).`, "ok");
             pollEmulatorStatus();
+            runPreflightChecks({ devices: true, doctor: false });
           } else {
-            showBanner("emuStatusBanner", `Booting Android Emulator${avdName ? " (" + avdName + ")" : ""}...`, "info");
+            showBanner(msgBanner, `Booting Android Emulator${avdName ? " (" + avdName + ")" : ""}...`, "info");
             startEmulatorPolling();
           }
         } catch (err) {
-          showBanner("emuStatusBanner", err.message, "error");
+          showBanner(msgBanner, err.message, "error");
         }
       }
 
-      async function bootIosTarget(udid) {
+      async function bootIosTarget(udid, switchFirst) {
+        const msgBanner = STATE.activeNav === "record" ? "recStatusBanner" : "emuStatusBanner";
         try {
-          const res = await apiJson("/api/emulator/boot", { target: "ios", udid: udid || $("iosSimSelect").value });
-          showBanner("emuStatusBanner", `iOS Simulator booted: ${res.name || "Simulator"}`, "ok");
-          pollEmulatorStatus();
-          runPreflightChecks({ devices: true, doctor: false });
+          if (switchFirst) await apiJson("/api/emulator/shutdown", { target: "ios" });
+          const chosen = udid || ($("iosSimSelect") ? $("iosSimSelect").value : "");
+          const res = await apiJson("/api/emulator/boot", { target: "ios", udid: chosen });
+          showBanner(msgBanner, `iOS Simulator booted: ${res.name || "Simulator"}`, "ok");
+          await pollEmulatorStatus();
+          await runPreflightChecks({ devices: true, doctor: false });
+          switchTargetPlatformAndApp("ios");
+          if (res.identifier && $("recDeviceSelect")) {
+            const liveKey = `live:ios:${res.identifier}`;
+            if (Array.from($("recDeviceSelect").options).some((o) => o.value === liveKey)) {
+              $("recDeviceSelect").value = liveKey;
+            }
+          }
+          updateRecDeviceButtons();
         } catch (err) {
-          showBanner("emuStatusBanner", err.message, "error");
+          showBanner(msgBanner, err.message, "error");
+        }
+      }
+
+      async function shutdownDeviceTarget(target, identifier) {
+        const msgBanner = STATE.activeNav === "record" ? "recStatusBanner" : "emuStatusBanner";
+        try {
+          if (STATE.recState && STATE.recState.active) await apiJson("/api/recorder/stop", {});
+          const res = await apiJson("/api/emulator/shutdown", { target: target || "all", identifier: identifier || "" });
+          const count = (res.killed_android || []).length + (res.shutdown_ios || []).length;
+          showBanner(msgBanner, count ? `Shut down ${count} virtual device(s).` : "No running virtual devices to shut down.", "ok");
+          await pollEmulatorStatus();
+          await runPreflightChecks({ devices: true, doctor: false });
+        } catch (err) {
+          showBanner(msgBanner, err.message, "error");
         }
       }
 
@@ -3675,19 +3912,24 @@
         try {
           if (o.devices) {
             const d = await apiJson("/api/devices", undefined, ctrl.signal);
+            STATE.devicesData = { android: d.android || [], ios: d.ios || [] };
             if ((d.ios || []).length) renderIosSimDropdown(d.ios);
+            syncDeviceSelects();
             const rows = [];
             (d.android || []).forEach((x) => {
               const isAvd = String(x.state || "").toLowerCase().includes("avd");
+              const isEmuRunning = !isAvd && String(x.identifier || "").startsWith("emulator-") && x.state === "device";
               const act = isAvd
                 ? `<button type="button" class="btn btn-sm btn-primary" data-boot-avd="${esc(x.name)}">Boot</button>`
-                : (x.state === "device" ? '<span class="badge b-ok">Ready</span>' : '<span class="muted">-</span>');
+                : (isEmuRunning
+                  ? `<button type="button" class="btn btn-sm btn-danger" data-shutdown-android="${esc(x.identifier)}">Shutdown</button>`
+                  : (x.state === "device" ? '<span class="badge b-ok">Ready</span>' : '<span class="muted">-</span>'));
               rows.push(`<tr><td>Android</td><td>${esc(x.name)}</td><td><code>${esc(x.identifier)}</code></td><td><span class="badge ${x.state === "device" ? "b-ok" : "b-warn"}">${esc(x.state)}</span></td><td>${act}</td></tr>`);
             });
-            (d.ios || []).slice(0, 12).forEach((x) => {
+            (d.ios || []).slice(0, 14).forEach((x) => {
               const booted = String(x.state || "").toLowerCase() === "booted";
               const act = booted
-                ? '<span class="badge b-ok">Booted</span>'
+                ? `<button type="button" class="btn btn-sm btn-danger" data-shutdown-ios="${esc(x.identifier)}">Shutdown</button>`
                 : `<button type="button" class="btn btn-sm btn-primary" data-boot-ios="${esc(x.identifier)}">Boot</button>`;
               rows.push(`<tr><td>iOS</td><td>${esc(x.name)}</td><td><code>${esc(x.identifier)}</code></td><td><span class="badge ${booted ? "b-ok" : "b-skip"}">${esc(x.state)}</span></td><td>${act}</td></tr>`);
             });
@@ -3697,7 +3939,12 @@
             const doc = await apiJson("/api/doctor", undefined, ctrl.signal);
             const checks = doc.checks || [];
             const fails = checks.filter((c) => c.status === "fail").length;
+            const warns = checks.filter((c) => c.status === "warn").length;
             $("sbToolchainText").textContent = fails ? `${fails} toolchain issue(s)` : "Toolchain OK";
+            if ($("doctorSummaryBadge")) {
+              $("doctorSummaryBadge").className = "badge " + (fails ? "b-fail" : (warns ? "b-warn" : "b-ok"));
+              $("doctorSummaryBadge").textContent = fails ? `${fails} issue(s)` : `${checks.length}/${checks.length} OK`;
+            }
             $("doctorTable").innerHTML = checks.map((c) => {
               const cls = c.status === "ok" ? "b-ok" : (c.status === "warn" ? "b-warn" : (c.status === "fail" ? "b-fail" : "b-skip"));
               return `<tr><td><strong>${esc(c.name)}</strong></td><td><span class="badge ${cls}">${esc(c.status)}</span></td><td>${esc(c.detail)}</td></tr>`;
@@ -3715,7 +3962,11 @@
         const avdBtn = e.target.closest("[data-boot-avd]");
         if (avdBtn) { bootAndroidTarget(avdBtn.dataset.bootAvd); return; }
         const iosBtn = e.target.closest("[data-boot-ios]");
-        if (iosBtn) { bootIosTarget(iosBtn.dataset.bootIos); }
+        if (iosBtn) { bootIosTarget(iosBtn.dataset.bootIos); return; }
+        const shutAndBtn = e.target.closest("[data-shutdown-android]");
+        if (shutAndBtn) { shutdownDeviceTarget("android", shutAndBtn.dataset.shutdownAndroid); return; }
+        const shutIosBtn = e.target.closest("[data-shutdown-ios]");
+        if (shutIosBtn) { shutdownDeviceTarget("ios", shutIosBtn.dataset.shutdownIos); }
       });
       $("btnRunPreflight").addEventListener("click", () => runPreflightChecks({ devices: true, doctor: true }));
       $("btnRefreshDevices").addEventListener("click", () => runPreflightChecks({ devices: true, doctor: false }));
@@ -3732,9 +3983,12 @@
           const running = env.running_android_emulators || [];
           const avds = env.avds || [];
           const iosSims = env.ios_simulators || [];
+          const bootedIos = iosSims.filter((s) => String(s.state || "").toLowerCase() === "booted");
           const iosSupported = Boolean(env.ios_supported || STATE.hostOs === "Darwin");
+          if (iosSims.length) STATE.devicesData.ios = iosSims;
           if (iosSupported) renderIosSimDropdown(iosSims);
           else if ($("iosSimRow")) $("iosSimRow").hidden = true;
+          if ($("btnIosShutdown")) $("btnIosShutdown").hidden = !bootedIos.length;
 
           if (st.error) showBanner("emuStatusBanner", st.error, "error");
           if (isBusy) {
@@ -3747,7 +4001,7 @@
             $("btnEmuSetup").hidden = true; $("btnEmuBoot").hidden = true; $("btnEmuStop").hidden = false;
           } else {
             $("emuProgressBox").hidden = true;
-            $("btnEmuStop").hidden = true;
+            $("btnEmuStop").hidden = !running.length;
             if (running.length) {
               badge.className = "badge b-ok"; badge.textContent = `Booted (${running[0]})`;
               $("btnEmuSetup").hidden = true; $("btnEmuBoot").hidden = true;
@@ -3761,6 +4015,7 @@
             }
             if (STATE.emuPollTimer) { clearInterval(STATE.emuPollTimer); STATE.emuPollTimer = null; }
           }
+          syncDeviceSelects();
           updateTopbarSummary();
         } catch (_) {}
       }
@@ -3775,8 +4030,32 @@
         startEmulatorPolling();
       });
       $("btnEmuBoot").addEventListener("click", () => bootAndroidTarget(""));
-      $("btnEmuStop").addEventListener("click", async () => { await apiJson("/api/emulator/stop", {}); pollEmulatorStatus(); });
+      $("btnEmuStop").addEventListener("click", () => shutdownDeviceTarget("android", ""));
       $("btnIosBoot").addEventListener("click", () => bootIosTarget($("iosSimSelect").value));
+      if ($("btnIosShutdown")) $("btnIosShutdown").addEventListener("click", () => shutdownDeviceTarget("ios", ""));
+
+      if ($("btnTopBootDevice")) {
+        $("btnTopBootDevice").addEventListener("click", async () => {
+          const plat = $("topQuickPlat").value;
+          const val = $("topQuickDevice").value;
+          if ($("devicePopoverMenu") && $("devicePopoverMenu").hidePopover) try { $("devicePopoverMenu").hidePopover(); } catch (_) {}
+          if (plat === "ios") {
+            const udid = val.startsWith("sim:ios:") ? val.slice(8) : (val.startsWith("live:ios:") ? val.slice(9) : "");
+            const booted = ((STATE.devicesData && STATE.devicesData.ios) || []).some((s) => String(s.state || "").toLowerCase() === "booted");
+            await bootIosTarget(udid, booted && !val.startsWith("live:"));
+          } else {
+            const avd = val.startsWith("avd:") ? val.slice(4) : "";
+            const booted = ((STATE.emuStatus && STATE.emuStatus.running_android_emulators) || []).length > 0;
+            await bootAndroidTarget(avd, booted && !val.startsWith("live:"));
+          }
+        });
+      }
+      if ($("btnTopShutdownDevice")) {
+        $("btnTopShutdownDevice").addEventListener("click", async () => {
+          if ($("devicePopoverMenu") && $("devicePopoverMenu").hidePopover) try { $("devicePopoverMenu").hidePopover(); } catch (_) {}
+          await shutdownDeviceTarget("all", "");
+        });
+      }
 
       // ================================================================
       // RECORD VIEW (Mock 1)
@@ -3952,15 +4231,61 @@
         } catch (err) { showBanner("recStatusBanner", err.message, "error"); }
       }
 
+      if ($("btnRecBootDevice")) {
+        $("btnRecBootDevice").addEventListener("click", async () => {
+          const plat = $("recPlatform").value;
+          const val = $("recDeviceSelect").value;
+          if (plat === "ios") {
+            const udid = val.startsWith("sim:ios:") ? val.slice(8) : (val.startsWith("live:ios:") ? val.slice(9) : "");
+            const booted = ((STATE.devicesData && STATE.devicesData.ios) || []).some((s) => String(s.state || "").toLowerCase() === "booted");
+            await bootIosTarget(udid, booted && !val.startsWith("live:"));
+          } else {
+            const avd = val.startsWith("avd:") ? val.slice(4) : "";
+            const booted = ((STATE.emuStatus && STATE.emuStatus.running_android_emulators) || []).length > 0;
+            await bootAndroidTarget(avd, booted && !val.startsWith("live:"));
+          }
+        });
+      }
+      if ($("btnRecShutdownDevice")) {
+        $("btnRecShutdownDevice").addEventListener("click", () => shutdownDeviceTarget($("recPlatform").value, ""));
+      }
+      if ($("btnRecQuickUpload") && $("recQuickAppFile")) {
+        $("btnRecQuickUpload").addEventListener("click", () => $("recQuickAppFile").click());
+        $("recQuickAppFile").addEventListener("change", async () => {
+          const file = $("recQuickAppFile").files[0];
+          if (!file) return;
+          try {
+            showBanner("recStatusBanner", `Uploading ${file.name}...`, "info");
+            const resp = await fetch("/api/apps/upload?filename=" + encodeURIComponent(file.name), {
+              method: "POST",
+              headers: { "Content-Type": "application/octet-stream" },
+              body: file
+            });
+            const res = await resp.json();
+            if (!resp.ok) throw new Error(res.error || "Upload failed");
+            STATE.activeApp = res.rel_path;
+            await loadOverview({ skipAutoSync: true });
+            await selectSessionApp(res.rel_path, { autoSave: true });
+            showBanner("recStatusBanner", `Activated ${res.name}.`, "ok");
+          } catch (err) {
+            showBanner("recStatusBanner", err.message, "error");
+          } finally {
+            $("recQuickAppFile").value = "";
+          }
+        });
+      }
+
       $("btnRecStart").addEventListener("click", async () => {
         STATE.recLastRev = -1;
         STATE.recSelectedIdx = null;
         $("recTypeBar").hidden = true;
         $("recAssertBar").hidden = true;
         try {
+          const plat = $("recPlatform").value;
+          const resolvedDev = await resolveSelectedDeviceForAction(plat, $("recDeviceSelect").value);
           await apiJson("/api/recorder/start", {
-            platform: $("recPlatform").value,
-            device_profile: $("recDeviceSelect").value,
+            platform: plat,
+            device_profile: resolvedDev,
             env_name: $("recEnvSelect").value,
             app_path: $("recAppSelect").value,
             screen_name: $("recScreenName").value.trim() || "login",
@@ -4205,9 +4530,14 @@
       async function launchRunFromModal(dryRun) {
         $("openFinishedReportLink").hidden = true;
         try {
+          const plat = $("runPlatformSelect").value;
+          const rawDev = $("runDeviceSelect").value;
+          const resolvedDev = dryRun
+            ? (rawDev.startsWith("sim:ios:") ? "ios_simulator" : (rawDev.startsWith("avd:") ? "android_emulator" : (rawDev || (plat === "ios" ? "ios_simulator" : "android_emulator"))))
+            : await resolveSelectedDeviceForAction(plat, rawDev);
           const res = await apiJson("/api/runs/start", {
-            platform: $("runPlatformSelect").value,
-            device_profile: $("runDeviceSelect").value,
+            platform: plat,
+            device_profile: resolvedDev,
             env_name: $("runEnvSelect").value,
             suite: $("runSuiteSelect").value,
             spec_id: $("runSpecFilter").value,
@@ -4275,9 +4605,11 @@
         e.preventDefault();
         $("captureProgressBox").hidden = false;
         try {
+          const plat = $("inspectPlatform").value;
+          const resolvedDev = await resolveSelectedDeviceForAction(plat, $("inspectDeviceSelect").value);
           const res = await apiJson("/api/inspect/live", {
-            platform: $("inspectPlatform").value,
-            device_profile: $("inspectDeviceSelect").value,
+            platform: plat,
+            device_profile: resolvedDev,
             env_name: $("inspectEnvSelect").value,
             app_path: $("inspectAppSelect").value,
             screen_name: $("inspectScreenName").value.trim() || "screen"

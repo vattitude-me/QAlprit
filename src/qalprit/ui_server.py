@@ -599,11 +599,13 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
                 return
 
             if req_path == "/api/inspect/live":
+                plat = str(body.get("platform") or "android").lower()
+                default_dev = "ios_simulator" if plat == "ios" else "android_emulator"
                 self._send_json(
                     inspect_live_screen(
                         self.project_root,
-                        platform=str(body.get("platform") or "android"),
-                        device_profile=str(body.get("device_profile") or "android_emulator"),
+                        platform=plat,
+                        device_profile=str(body.get("device_profile") or default_dev),
                         env_name=str(body.get("env_name") or "qa"),
                         app_path_str=str(body.get("app_path") or ""),
                         screen_name=str(body.get("screen_name") or "screen"),
@@ -797,13 +799,24 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
                 self._send_json(self.emulator_manager.stop())
                 return
 
+            if req_path == "/api/emulator/shutdown":
+                self._send_json(
+                    self.emulator_manager.shutdown(
+                        target=str(body.get("target") or "all"),
+                        identifier=str(body.get("identifier") or ""),
+                    )
+                )
+                return
+
             if req_path == "/api/recorder/start":
                 raw_redact = body.get("redact_sensitive")
+                plat = str(body.get("platform") or "android").lower()
+                default_dev = "ios_simulator" if plat == "ios" else "android_emulator"
                 self._send_json(
                     self.recorder_manager.start(
                         self.project_root,
-                        platform=str(body.get("platform") or "android"),
-                        device_profile=str(body.get("device_profile") or "android_emulator"),
+                        platform=plat,
+                        device_profile=str(body.get("device_profile") or default_dev),
                         env_name=str(body.get("env_name") or "qa"),
                         app_path_str=str(body.get("app_path") or ""),
                         screen_name=str(body.get("screen_name") or "login"),

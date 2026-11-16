@@ -349,39 +349,147 @@ def test_inspector_includes_redacted_xml_snippet() -> None:
 def test_ui_redesign_layout_ios_boot_and_api_contracts() -> None:
     ui_html = (Path(__file__).resolve().parents[1] / "src" / "qalprit" / "ui" / "index.html").read_text(encoding="utf-8")
 
-    # 1. Topbar overflow menu positioned via JS/CSS (no duplicate Workflows library)
+    # 1. Topbar overflow & device popover menus positioned via JS/CSS (no duplicate Workflows library)
     menu_start = ui_html.index('<div id="topMoreMenu"')
     menu_end = ui_html.index("<!-- LEFT SIDEBAR -->")
     top_more_block = ui_html[menu_start:menu_end]
     assert "Workflows library" not in top_more_block
+    assert 'id="devicePopoverMenu"' in ui_html
+    assert 'id="btnTopBootDevice"' in ui_html
+    assert 'id="btnTopShutdownDevice"' in ui_html
     assert 'id="btnOpenFlowsModal" data-nav="workflows"' in ui_html
-    assert "positionTopMoreMenu" in ui_html
+    assert "anchorPopover" in ui_html
 
-    # 2. Environment & Package Config lives inside Settings, leaving Setup focused
-    setup_start = ui_html.index('id="view-setup"')
-    screens_start = ui_html.index('id="view-screens"')
+    # 2. Workflows is default Workbench landing view; 1-time Setup & Devices is nested inside Settings
+    assert 'data-nav="workflows" aria-current="step"' in ui_html
     settings_start = ui_html.index('id="view-settings"')
-    setup_block = ui_html[setup_start:screens_start]
     settings_block = ui_html[settings_start:]
-    assert 'id="envSaveForm"' not in setup_block
-    assert 'id="setupEnvSummary"' in setup_block
-    assert 'id="btnGoEnvSettings"' in setup_block
+    assert 'data-settings-tab="env"' in settings_block
+    assert 'data-settings-tab="devices"' in settings_block
+    assert 'data-settings-tab="storage"' in settings_block
     assert 'id="envSaveForm"' in settings_block
+    assert 'id="view-setup"' in settings_block
+    assert 'id="storagePreflightCard"' in settings_block
 
-    # 3. iOS Simulator + Android AVD boot controls unwrap EmulatorJobManager env_status/running
+    # 3. Record bar exposes explicit Platform, Device, Boot, Shutdown, and App launcher
+    rec_start = ui_html.index('id="recStartForm"')
+    rec_end = ui_html.index("</form>", rec_start)
+    rec_toolbar = ui_html[rec_start:rec_end]
+    assert 'id="recPlatform"' in rec_toolbar
+    assert 'id="recDeviceSelect"' in rec_toolbar
+    assert 'id="btnRecBootDevice"' in rec_toolbar
+    assert 'id="btnRecShutdownDevice"' in rec_toolbar
+    assert 'id="recAppSelect"' in rec_toolbar
+    assert "resolveSelectedDeviceForAction" in ui_html
+
+    # 4. iOS Simulator + Android AVD boot & shutdown controls unwrap env_status/running
     assert "const env = st.env_status || st;" in ui_html
     assert "st.running ?? st.busy" in ui_html
     assert "data-boot-avd=" in ui_html
     assert "data-boot-ios=" in ui_html
+    assert "data-shutdown-ios=" in ui_html
+    assert "data-shutdown-android=" in ui_html
 
-    # 4. Settings preflight, cleanup, and recorder save keys align with backend schemas
+    # 5. Settings preflight, cleanup, and recorder save keys align with backend schemas
     assert "pf.paths || pf" in ui_html
     assert "sw.label || sw.name" in ui_html
     assert "it.existing_paths" in ui_html
     assert "res.removed_ids || res.deleted" in ui_html
     assert "res.flow && res.flow.name" in ui_html
 
-    # 5. Grid tracks constrain 1fr with minmax(0, 1fr) so Workflows/Journeys never clip horizontally
+    # 6. Grid tracks constrain 1fr with minmax(0, 1fr) so Workflows/Journeys never clip horizontally
     assert "grid-template-columns: 212px minmax(0, 1fr);" in ui_html
     assert "grid-template-columns: minmax(0, 1fr) 292px;" in ui_html
+
+
+def test_ios_default_device_profile_and_emulator_shutdown(tmp_path: Path, monkeypatch) -> None:
+    import json
+    import threading
+    import urllib.request
+    from qalprit.desktop import ensure_workspace
+    from qalprit.devices import DiscoveredDevice
+    from qalprit.emulator_manager import EmulatorJobManager
+    from qalprit.ui_server import create_ui_server
+    from qalprit.workbench_api import _resolve_device_profile, list_workspace_configs, save_screen_locators, save_test_journey
+
+    # Default ios profile resolution avoids falling back to android_emulator when devices.yaml lacks ios_simulator
+    _, profiles = list_workspace_configs(ensure_workspace(tmp_path / "ws"))
+    stripped = {k: v for k, v in profiles.items() if k != "ios_simulator"}
+    ios_prof = _resolve_device_profile(stripped, "ios_simulator", "ios")
+    assert ios_prof.platform == "ios"
+
+    ws = (tmp_path / "srv").resolve()
+    ensure_workspace(ws)
+    save_screen_locators(
+        ws,
+        screen_name="login",
+        platform="ios",
+        entries=[{"key": "btn", "strategy": "id", "value": "loginBtn"}],
+    )
+    save_test_journey(
+        ws,
+        {"id": "SMK-001", "title": "iOS Dry", "suite": "smoke", "platforms": ["ios"], "steps": [{"tap": "login.btn"}]},
+    )
+
+    # Mock simctl shutdown + adb emu kill cleanly
+    calls: list[list[str]] = []
+
+    def fake_run(cmd, **_kwargs):
+        calls.append([str(c) for c in cmd])
+
+        class _R:
+            returncode = 0
+            stdout = ""
+            stderr = ""
+
+        return _R()
+
+    monkeypatch.setattr("qalprit.emulator_manager.platform.system", lambda: "Darwin")
+    monkeypatch.setattr("qalprit.emulator_manager.find_android_tool", lambda name: "/fake/adb" if name == "adb" else "")
+    monkeypatch.setattr(
+        "qalprit.emulator_manager.list_android_devices",
+        lambda: ([DiscoveredDevice(platform="android", identifier="emulator-5554", name="Pixel", state="device", kind="emulator")], ""),
+    )
+    monkeypatch.setattr(
+        "qalprit.emulator_manager.list_ios_simulators",
+        lambda: ([DiscoveredDevice(platform="ios", identifier="UUID-1234", name="iPhone 17 Pro", state="Booted", kind="simulator")], ""),
+    )
+    monkeypatch.setattr("qalprit.emulator_manager.subprocess.run", fake_run)
+
+    mgr = EmulatorJobManager()
+    shut_res = mgr.shutdown("all")
+    assert shut_res["killed_android"] == ["emulator-5554"]
+    assert shut_res["shutdown_ios"] == ["UUID-1234"]
+    assert ["/fake/adb", "-s", "emulator-5554", "emu", "kill"] in calls
+    assert ["xcrun", "simctl", "shutdown", "UUID-1234"] in calls
+
+    # HTTP /api/runs/start with platform=ios and omitted device_profile defaults to ios_simulator (never android_emulator!)
+    server = create_ui_server(ws, host="127.0.0.1", port=0)
+    port = server.server_address[1]
+    t = threading.Thread(target=server.serve_forever, daemon=True)
+    t.start()
+    try:
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{port}/api/runs/start",
+            data=json.dumps({"platform": "ios", "env_name": "qa", "suite": "smoke", "dry_run": True}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req) as resp:
+            run_res = json.loads(resp.read().decode("utf-8"))
+        assert run_res["platform"] == "ios"
+
+        shut_req = urllib.request.Request(
+            f"http://127.0.0.1:{port}/api/emulator/shutdown",
+            data=json.dumps({"target": "ios", "identifier": "UUID-1234"}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(shut_req) as resp:
+            http_shut = json.loads(resp.read().decode("utf-8"))
+        assert http_shut["ok"] is True
+        assert http_shut["shutdown_ios"] == ["UUID-1234"]
+    finally:
+        server.shutdown()
+        server.server_close()
 

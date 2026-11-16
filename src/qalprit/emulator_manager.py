@@ -642,3 +642,53 @@ class EmulatorJobManager:
                     )
                     killed.append(d.identifier)
         return {"ok": True, "stopping": was_running, "killed_emulators": killed}
+
+    def shutdown(self, target: str = "all", identifier: str = "") -> dict[str, Any]:
+        """Shut down running Android emulators and/or booted macOS iOS simulators."""
+        norm = (target or "all").strip().lower()
+        clean_id = (identifier or "").strip()
+        killed_android: list[str] = []
+        shutdown_ios: list[str] = []
+
+        if norm in {"android", "all"}:
+            with self._lock:
+                self._cancel_event.set()
+            adb_bin = find_android_tool("adb")
+            if adb_bin:
+                devs, _ = list_android_devices()
+                for d in devs:
+                    if d.kind == "emulator" and not d.identifier.startswith("avd:"):
+                        if clean_id and d.identifier != clean_id and d.name != clean_id:
+                            continue
+                        subprocess.run(
+                            [adb_bin, "-s", d.identifier, "emu", "kill"],
+                            capture_output=True,
+                            text=True,
+                            timeout=8,
+                            **win_subprocess_kwargs(),
+                        )
+                        killed_android.append(d.identifier)
+
+        if norm in {"ios", "all"} and platform.system() == "Darwin":
+            xc_env = _macos_xcode_env()
+            sims, _ = list_ios_simulators()
+            booted = [s for s in sims if str(s.state or "").lower() == "booted"]
+            for s in booted:
+                if clean_id and s.identifier != clean_id and s.name != clean_id:
+                    continue
+                proc = subprocess.run(
+                    ["xcrun", "simctl", "shutdown", s.identifier],
+                    capture_output=True,
+                    text=True,
+                    env=xc_env,
+                    timeout=20,
+                )
+                if proc.returncode == 0 or "current state: Shutdown" in (proc.stderr or ""):
+                    shutdown_ios.append(s.identifier)
+
+        return {
+            "ok": True,
+            "target": norm,
+            "killed_android": killed_android,
+            "shutdown_ios": shutdown_ios,
+        }
