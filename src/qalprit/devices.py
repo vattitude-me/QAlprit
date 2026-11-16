@@ -9,7 +9,7 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
-from qalprit.doctor import find_android_tool, win_subprocess_kwargs
+from qalprit.doctor import _macos_xcode_env, find_android_tool, win_subprocess_kwargs
 
 
 @dataclass
@@ -93,12 +93,7 @@ def list_ios_simulators() -> tuple[list[DiscoveredDevice], str | None]:
     if platform.system() != "Darwin":
         return [], "iOS simulators require macOS + Xcode"
 
-    env = dict(os.environ)
-    xcode_dev = Path("/Applications/Xcode.app/Contents/Developer")
-    if xcode_dev.exists():
-        sel = subprocess.run(["xcode-select", "-p"], capture_output=True, text=True)
-        if sel.returncode != 0 or "CommandLineTools" in (sel.stdout or ""):
-            env["DEVELOPER_DIR"] = str(xcode_dev)
+    env = _macos_xcode_env()
 
     try:
         proc = subprocess.run(

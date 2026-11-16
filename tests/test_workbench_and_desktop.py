@@ -292,6 +292,45 @@ def test_desktop_main_browser_flag_disables_native_window(monkeypatch: pytest.Mo
     assert recorded == [{"native_window": False}]
 
 
+def test_desktop_main_check_desktop_verifies_webview(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import sys
+    import types
+    import qalprit.desktop as desktop_mod
+
+    fake_webview = types.ModuleType("webview")
+    fake_webview.__version__ = "6.2.1"  # type: ignore[attr-defined]
+    fake_platforms = types.ModuleType("webview.platforms")
+    fake_cocoa = types.ModuleType("webview.platforms.cocoa")
+    fake_edge = types.ModuleType("webview.platforms.edgechromium")
+    monkeypatch.setitem(sys.modules, "webview", fake_webview)
+    monkeypatch.setitem(sys.modules, "webview.platforms", fake_platforms)
+    monkeypatch.setitem(sys.modules, "webview.platforms.cocoa", fake_cocoa)
+    monkeypatch.setitem(sys.modules, "webview.platforms.edgechromium", fake_edge)
+    if sys.platform == "darwin":
+        monkeypatch.setitem(sys.modules, "Cocoa", types.ModuleType("Cocoa"))
+        monkeypatch.setitem(sys.modules, "WebKit", types.ModuleType("WebKit"))
+
+    desktop_mod.main(["--check-desktop"])
+    out = capsys.readouterr().out
+    assert "Desktop WebView OK" in out
+
+
+def test_build_appium_env_sets_xcode_developer_dir_on_darwin(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from qalprit.appium_manager import build_appium_env
+
+    fake_dev = tmp_path / "Xcode.app" / "Contents" / "Developer"
+    fake_dev.mkdir(parents=True)
+    monkeypatch.setattr("qalprit.appium_manager.platform.system", lambda: "Darwin")
+    monkeypatch.setattr("qalprit.appium_manager.find_xcode_developer_dir", lambda _env=None: fake_dev)
+
+    env = build_appium_env({"PATH": "/usr/bin:/bin", "DEVELOPER_DIR": "/Library/Developer/CommandLineTools"})
+    assert env["DEVELOPER_DIR"] == str(fake_dev)
+
+
 def test_launch_workbench_native_window_serves_and_stops_cleanly(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

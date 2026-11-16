@@ -206,9 +206,9 @@ for folder in node appium appium_home jdk android-sdk; do
   ditto "${BUILD_WORK}/${folder}" "${RUNTIME_TARGET}/${folder}"
 done
 
-# 7. Ensure user-writable permissions on JRE legal/classes files (0444 breaks xattr -dr) and ad-hoc sign
+# 7. Ensure user-writable permissions on bundled runtime files (0444 breaks xattr -dr) and ad-hoc sign
 echo "==> Ad-hoc code-signing QAlprit.app..."
-chmod -R u+w "${RUNTIME_TARGET}/jdk"
+chmod -R u+w "${RUNTIME_TARGET}"
 codesign --force --sign - "${RUNTIME_TARGET}/node/bin/node" || true
 codesign --force --sign - "${RUNTIME_TARGET}/android-sdk/platform-tools/adb" || true
 codesign --force --sign - "${RUNTIME_TARGET}/android-sdk/build-tools/${BUILD_TOOLS_VER}/aapt2" || true
@@ -236,11 +236,12 @@ for req in ("Python", "Appium Python client", "Node.js", "Appium", "Appium drive
 print("All bundled runtime checks OK")
 '
 
-echo "==> Verifying bundled pywebview native window frameworks..."
+echo "==> Verifying bundled pywebview native window runtime..."
 if [ ! -d "${DIST_APP}/Contents/Frameworks/webview" ] || [ ! -d "${DIST_APP}/Contents/Frameworks/objc" ]; then
   echo "ERROR: Expected bundled webview/objc frameworks inside ${DIST_APP}/Contents/Frameworks" >&2
   exit 1
 fi
+env -i HOME="${HOME}" PATH="/usr/bin:/bin" "${QALPRIT_APP_BIN}" --check-desktop
 
 echo "==> Verifying QAlprit.app code signature seal..."
 codesign --verify --deep --strict --verbose=2 "${DIST_APP}"

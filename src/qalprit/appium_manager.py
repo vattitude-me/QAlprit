@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import platform
 import shutil
 import socket
 import subprocess
@@ -20,6 +21,7 @@ from qalprit.doctor import (
     find_appium_home,
     find_java_bin,
     find_node_bin,
+    find_xcode_developer_dir,
     get_android_user_home,
     get_qalprit_avd_home,
     win_subprocess_kwargs,
@@ -103,6 +105,13 @@ def build_appium_env(base_env: dict[str, str] | None = None) -> dict[str, str]:
     if extra_path_dirs:
         cur_path = env.get("PATH", "")
         env["PATH"] = os.pathsep.join(extra_path_dirs + ([cur_path] if cur_path else []))
+
+    if platform.system() == "Darwin":
+        xcode_dev = find_xcode_developer_dir(env)
+        if xcode_dev is not None:
+            cur_dev = str(env.get("DEVELOPER_DIR") or "").strip()
+            if not cur_dev or "CommandLineTools" in cur_dev:
+                env["DEVELOPER_DIR"] = str(xcode_dev)
     return env
 
 

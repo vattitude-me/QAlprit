@@ -219,3 +219,44 @@ def test_xcode_has_legacy_simulator_app_checks_developer_dir(tmp_path, monkeypat
 
     (dev_dir / "Applications" / "Simulator.app").mkdir(parents=True)
     assert _xcode_has_legacy_simulator_app() is True
+
+
+def test_create_appium_driver_rejects_device_ipa_and_apk_for_ios_simulator(tmp_path, monkeypatch) -> None:
+    import plistlib
+    import zipfile
+    import pytest
+
+    monkeypatch.setattr("appium.webdriver.Remote", lambda url, *, options: SimpleNamespace())
+
+    profile = DeviceProfile(
+        name="ios_simulator",
+        platform="ios",
+        target_type="simulator",
+        device_name="iPhone 17 Pro",
+        automation_name="XCUITest",
+    )
+    env_cfg = EnvironmentConfig(name="mda", ios_bundle_id="com.saucelabs.mydemo.app.ios")
+
+    ipa = tmp_path / "DeviceBuild.ipa"
+    with zipfile.ZipFile(ipa, "w") as zf:
+        zf.writestr(
+            "Payload/DeviceBuild.app/Info.plist",
+            plistlib.dumps({"CFBundleIdentifier": "com.example.dev", "DTPlatformName": "iphoneos", "CFBundleSupportedPlatforms": ["iPhoneOS"]}),
+        )
+
+    with pytest.raises(ValueError, match="physical-device iOS build"):
+        create_appium_driver("http://127.0.0.1:4723", profile, env_cfg, app_path=ipa)
+
+    apk = tmp_path / "android.apk"
+    apk.write_bytes(b"PK\x03\x04")
+    with pytest.raises(ValueError, match="Android .apk"):
+        create_appium_driver("http://127.0.0.1:4723", profile, env_cfg, app_path=apk)
+
+    sim_zip = tmp_path / "SimulatorBuild.app.zip"
+    with zipfile.ZipFile(sim_zip, "w") as zf:
+        zf.writestr(
+            "My Demo App.app/Info.plist",
+            plistlib.dumps({"CFBundleIdentifier": "com.example.sim", "DTPlatformName": "iphonesimulator", "CFBundleSupportedPlatforms": ["iPhoneSimulator"]}),
+        )
+    adapter = create_appium_driver("http://127.0.0.1:4723", profile, env_cfg, app_path=sim_zip)
+    assert adapter.platform == "ios"

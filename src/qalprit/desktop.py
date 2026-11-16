@@ -244,6 +244,23 @@ def launch_workbench(
         server.server_close()
 
 
+def check_desktop_webview_runtime() -> str:
+    """Verify native WebView runtime modules are importable without creating a window."""
+    import webview  # type: ignore[import-not-found]
+
+    if sys.platform == "darwin":
+        import Cocoa  # type: ignore[import-not-found]  # noqa: F401
+        import WebKit  # type: ignore[import-not-found]  # noqa: F401
+        import webview.platforms.cocoa  # type: ignore[import-not-found]  # noqa: F401
+
+        return f"Desktop WebView OK (macOS Cocoa/WebKit, pywebview={getattr(webview, '__version__', 'installed')})"
+    if sys.platform == "win32":
+        import webview.platforms.edgechromium  # type: ignore[import-not-found]  # noqa: F401
+
+        return f"Desktop WebView OK (Windows EdgeChromium, pywebview={getattr(webview, '__version__', 'installed')})"
+    return f"Desktop WebView OK ({sys.platform})"
+
+
 def main(argv: list[str] | None = None) -> None:
     """Entry point for desktop bundles (`QAlprit.exe` / `QAlprit.app`) and `qalprit-desktop`."""
     raw_args = sys.argv[1:] if argv is None else list(argv)
@@ -257,6 +274,10 @@ def main(argv: list[str] | None = None) -> None:
             sys.stdout = log_file
         if sys.stderr is None:
             sys.stderr = log_file
+
+    if args == ["--check-desktop"]:
+        print(check_desktop_webview_runtime())
+        return
 
     if args == ["--browser"]:
         launch_workbench(native_window=False)
