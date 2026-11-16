@@ -221,15 +221,25 @@ def _unlink_reparse_or_symlink(path: Path) -> None:
             os.rmdir(path)
 
 
-def _link_or_copy_dir(src: Path, dst: Path, *, force_refresh: bool = False) -> None:
+def _link_or_copy_dir(
+    src: Path,
+    dst: Path,
+    *,
+    force_refresh: bool = False,
+    copy_real: bool = False,
+) -> None:
     """Expose bundled read-only SDK subfolders inside user-writable Android SDK."""
     if not src.exists():
         return
 
-    # Heal any NTFS directory junctions (which raise WinError 448 on Windows traversal)
+    must_copy = platform.system() == "Windows" or copy_real
+
+    # Heal any NTFS directory junctions (which raise WinError 448 on Windows traversal),
+    # replace POSIX symlinks when a real directory copy is required (e.g. cmdline-tools, whose
+    # `pwd -P` / `Path.toRealPath()` resolves symlinks back into the read-only app bundle),
     # and refresh stale/dangling POSIX symlinks when bundled app paths change on upgrade.
     if _is_reparse_or_symlink(dst):
-        if platform.system() != "Windows":
+        if not must_copy:
             try:
                 if dst.resolve() == src.resolve():
                     return
@@ -240,9 +250,9 @@ def _link_or_copy_dir(src: Path, dst: Path, *, force_refresh: bool = False) -> N
         return
 
     dst.parent.mkdir(parents=True, exist_ok=True)
-    if platform.system() == "Windows":
+    if must_copy:
         # Ensure locked adb.exe daemon does not block refreshing platform-tools DLLs.
-        if force_refresh and dst.name == "platform-tools":
+        if platform.system() == "Windows" and force_refresh and dst.name == "platform-tools":
             try:
                 subprocess.run(
                     ["taskkill", "/F", "/IM", "adb.exe"],
@@ -252,8 +262,8 @@ def _link_or_copy_dir(src: Path, dst: Path, *, force_refresh: bool = False) -> N
                 )
             except Exception:
                 pass
-        # Copy real directories on Windows so Python & Java tools never hit
-        # WinError 448 ("untrusted mount point") on NTFS junctions.
+        # Copy real directories so Windows avoids WinError 448 on junctions and POSIX
+        # cmdline-tools (`avdmanager`) does not resolve `../../` into a read-only bundle.
         shutil.copytree(src, dst, dirs_exist_ok=True)
     else:
         try:
@@ -287,10 +297,16 @@ def _sync_bundled_sdk_into(user_sdk: Path) -> None:
         for sub in ("platform-tools", "build-tools", "cmdline-tools"):
             src_sub = cand_root / sub
             if src_sub.exists():
+                sub_dst = user_sdk / sub
                 _link_or_copy_dir(
                     src_sub,
-                    user_sdk / sub,
-                    force_refresh=source_changed or (sub == "platform-tools" and pt_broken),
+                    sub_dst,
+                    copy_real=(sub == "cmdline-tools"),
+                    force_refresh=(
+                        source_changed
+                        or (sub == "platform-tools" and pt_broken)
+                        or (sub == "cmdline-tools" and _is_reparse_or_symlink(sub_dst))
+                    ),
                 )
         try:
             marker_file.write_text(resolved_src, encoding="utf-8")
