@@ -10,6 +10,23 @@ All notable backend, UI, packaging, and documentation changes to **QAlprit** are
 
 ---
 
+## [v0.1.29] — 2026-11-16
+
+### Backend & Live Mirror Fixes (iOS Scrolling & Bottom Tab Bar Controls)
+- **Fix iOS Retina Scaling on Scrollable Screens (`src/qalprit/recorder.py`)**: Never set `already_pixel_space = True` when `self._platform == "ios"` (and require both `x` and `y` dimensions beyond `1.15×` on non-iOS). Previously, any iOS `ScrollView` / catalog screen with off-screen items below `win_h * 1.15` (e.g., `y2 = 1170 > 874 * 1.15` on `iPhone 17 Pro`) falsely skipped `3x` Retina scaling, shrinking all overlays into the top-left `1/3` corner and making bottom controls (`Catalog`, `Cart`, `More`) unclickable.
+- **Prioritize Visible On-Screen Elements & Raise Mirror Element Cap (`src/qalprit/recorder.py`)**: Raised `RecorderManager.status()["elements"]` cap from `80` to `250`, sorted visible on-screen elements ahead of scrolled off-screen items, and skipped `visible=False` items in `hit_test_element()`.
+
+### UI Improvements
+- **Interactive-First Overlay Z-Order & Offscreen Clamping (`src/qalprit/ui/index.html`)**: Updated `renderRecorderElements()` to clamp partially off-screen boxes cleanly to `[0..100%]`, skip invisible/zero-area/oversized (`>75%`) wrappers, and sort static labels below clickable/editable controls so buttons and bottom tab bars always sit cleanly on top with accurate hover tooltips.
+
+### Tests
+- Extended `test_recorder_scales_ios_retina_rects_redacts_and_swipes_in_points` (`tests/test_workbench_and_desktop.py`) with an offscreen scrolled card (`y2 = 1170 > 874 * 1.15`) and bottom `TabBar` `Cart` button to prove `3x` Retina scaling and on-screen priority hold on scrolling iOS pages.
+
+### Root Cause & Lesson Learned
+- Checking `max_y2 > win_h * 1.15 or max_x2 > win_w * 1.15` confused scrollable logical-point content extending past the viewport with raw pixel coordinates — passing single-screen pages (e.g., Product Details) while breaking scrollable Catalog/Feed screens. XCUITest XML always reports logical points regardless of scroll depth, and visible viewport controls must never be crowded out by an arbitrary `[:80]` slice before rendering overlays.
+
+---
+
 ## [v0.1.28] — 2026-11-15
 
 ### Backend & macOS Android Emulator Setup Fix

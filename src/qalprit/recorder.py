@@ -60,6 +60,8 @@ def hit_test_element(elements: list[dict[str, Any]], x: float, y: float) -> tupl
     """Return index and dict of the smallest-area visible element containing point (x, y)."""
     best: tuple[int, int, dict[str, Any]] | None = None
     for idx, el in enumerate(elements):
+        if el.get("visible") is False:
+            continue
         rect = el.get("rect")
         if not isinstance(rect, list) or len(rect) != 4:
             continue
@@ -189,7 +191,7 @@ class RecorderManager:
                 "has_screenshot": bool(self._screenshot_png),
                 "direct_tap_watch": self._direct_tap_watch,
                 "redact_sensitive": self._redact_sensitive,
-                "elements": list(self._elements[:80]),
+                "elements": list(self._elements[:250]),
                 "locators": list(self._locators.values()),
                 "steps": [dict(s, yaml_step=_step_to_yaml_dict(s)) for s in self._steps],
                 "logs": list(self._logs[-40:]),
@@ -234,8 +236,14 @@ class RecorderManager:
             ]
             max_x2 = max((r[2] for r in rects), default=0)
             max_y2 = max((r[3] for r in rects), default=0)
-            already_pixel_space = (max_x2 > win_w * 1.15 or max_y2 > win_h * 1.15) and (
-                max_x2 <= px_w * 1.05 and max_y2 <= px_h * 1.05
+            # XCUITest (iOS) XML always reports logical UIKit points even when scrollable
+            # containers extend past win_h/win_w; never skip scaling iOS Retina rects.
+            already_pixel_space = (
+                self._platform != "ios"
+                and max_x2 > win_w * 1.15
+                and max_y2 > win_h * 1.15
+                and max_x2 <= px_w * 1.05
+                and max_y2 <= px_h * 1.05
             )
             if not already_pixel_space:
                 for r_el in ranked:
@@ -247,6 +255,19 @@ class RecorderManager:
                             int(round(rect[2] * scale_x)),
                             int(round(rect[3] * scale_y)),
                         ]
+
+        # Prioritize visible on-screen elements ahead of scrolled off-screen items so dense
+        # scroll views never crowd out bottom tab bars or fixed controls from status()[:250].
+        def _on_screen_rank(el: dict[str, Any]) -> int:
+            rect = el.get("rect")
+            if el.get("visible") is False or not isinstance(rect, list) or len(rect) != 4:
+                return 2
+            x1, y1, x2, y2 = rect
+            if x2 > 0 and y2 > 0 and x1 < px_w and y1 < px_h and x2 > x1 and y2 > y1:
+                return 0
+            return 1
+
+        ranked.sort(key=_on_screen_rank)
 
         with self._lock:
             redact_enabled = self._redact_sensitive

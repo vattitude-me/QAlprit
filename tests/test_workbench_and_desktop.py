@@ -1028,6 +1028,10 @@ def test_recorder_scales_ios_retina_rects_redacts_and_swipes_in_points(
         '<XCUIElementTypeApplication name="My Demo App" x="0" y="0" width="402" height="874">'
         '<XCUIElementTypeSecureTextField name="Password" x="20" y="300" width="362" height="44" enabled="true" visible="true" />'
         '<XCUIElementTypeButton name="Add To Cart" label="Add To Cart" x="60" y="750" width="282" height="50" enabled="true" visible="true" />'
+        '<XCUIElementTypeButton name="Offscreen Card" label="Offscreen Card" x="20" y="950" width="180" height="220" enabled="true" visible="true" />'
+        '<XCUIElementTypeTabBar name="Tab Bar" x="0" y="810" width="402" height="64" enabled="true" visible="true">'
+        '<XCUIElementTypeButton name="Cart" label="Cart" x="150" y="820" width="100" height="44" enabled="true" visible="true" />'
+        '</XCUIElementTypeTabBar>'
         '</XCUIElementTypeApplication>'
         '</AppiumAUT>'
     )
@@ -1092,6 +1096,13 @@ def test_recorder_scales_ios_retina_rects_redacts_and_swipes_in_points(
         by_val = {el["recommended_value"]: el for el in st["elements"]}
         assert by_val["Add To Cart"]["rect"] == [180, 2250, 1026, 2400]
         assert by_val["Password"]["rect"] == [60, 900, 1146, 1032]
+        assert by_val["Cart"]["rect"] == [450, 2460, 750, 2592]
+        # Offscreen scroll item (y2=1170 > 874*1.15) must NOT suppress 3x scaling!
+        assert by_val["Offscreen Card"]["rect"] == [60, 2850, 600, 3510]
+        # Visible on-screen controls must appear before off-screen items
+        idx_cart = next(i for i, e in enumerate(st["elements"]) if e["recommended_value"] == "Cart")
+        idx_off = next(i for i, e in enumerate(st["elements"]) if e["recommended_value"] == "Offscreen Card")
+        assert idx_cart < idx_off
 
         # Live mirror PNG redaction must cover Retina pixels (600, 960), not 1x corner (200, 320)
         with Image.open(io.BytesIO(mgr.screenshot_bytes())) as im:
