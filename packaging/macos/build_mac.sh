@@ -270,7 +270,7 @@ QAlprit for macOS (Ad-hoc Signed, Un-notarized Build)
 Your QAlprit workspace lives in: ~/Documents/QAlpritWorkspace (or ~/QAlpritWorkspace if upgraded)
 TXT
 
-hdiutil create -volname "QAlprit" -srcfolder "${DMG_STAGING}" -ov -format UDZO "${DMG_PATH}"
+hdiutil create -volname "QAlprit-${VERSION}" -srcfolder "${DMG_STAGING}" -ov -format UDZO "${DMG_PATH}"
 ditto "${DIST_APP}" "${DIST_MAC}/QAlprit.app"
 (
   cd "${DIST_MAC}"

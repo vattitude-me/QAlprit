@@ -371,16 +371,19 @@ def test_ui_redesign_layout_ios_boot_and_api_contracts() -> None:
     assert 'id="view-setup"' in settings_block
     assert 'id="storagePreflightCard"' in settings_block
 
-    # 3. Record bar exposes explicit Platform, Device, Boot, Shutdown, and App launcher
+    # 3. Record bar exposes Platform, Device, Shutdown, App launcher, and Flow name (auto-boots on Start Recording)
     rec_start = ui_html.index('id="recStartForm"')
     rec_end = ui_html.index("</form>", rec_start)
     rec_toolbar = ui_html[rec_start:rec_end]
     assert 'id="recPlatform"' in rec_toolbar
     assert 'id="recDeviceSelect"' in rec_toolbar
-    assert 'id="btnRecBootDevice"' in rec_toolbar
     assert 'id="btnRecShutdownDevice"' in rec_toolbar
     assert 'id="recAppSelect"' in rec_toolbar
+    assert 'id="recFlowNameInput"' in rec_toolbar
+    assert 'id="btnRecHideKeyboard"' in ui_html
+    assert 'id="btnRecTypeHideKb"' in ui_html
     assert "resolveSelectedDeviceForAction" in ui_html
+    assert "else if (!starting)" in ui_html
 
     # 4. iOS Simulator + Android AVD boot & shutdown controls unwrap env_status/running
     assert "const env = st.env_status || st;" in ui_html
@@ -492,4 +495,56 @@ def test_ios_default_device_profile_and_emulator_shutdown(tmp_path: Path, monkey
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_ios_auto_boot_in_driver_factory_and_recorder_stop_clears_preview(monkeypatch) -> None:
+    from qalprit.config_loader import DeviceProfile
+    from qalprit.devices import DiscoveredDevice
+    from qalprit.driver_factory import _ensure_ios_simulator_ready, _extract_ios_version_from_name
+    from qalprit.recorder import RecorderManager
+
+    assert _extract_ios_version_from_name("iPhone 17 Pro (iOS 26 5)") == "26.5"
+
+    cmds: list[list[str]] = []
+
+    def fake_run(cmd, **_kwargs):
+        cmds.append([str(c) for c in cmd])
+
+        class _R:
+            returncode = 0
+            stdout = ""
+            stderr = ""
+
+        return _R()
+
+    monkeypatch.setattr("qalprit.driver_factory.platform.system", lambda: "Darwin")
+    monkeypatch.setattr("qalprit.driver_factory._xcode_has_legacy_simulator_app", lambda: True)
+    monkeypatch.setattr(
+        "qalprit.driver_factory.list_ios_simulators",
+        lambda: (
+            [DiscoveredDevice(platform="ios", identifier="SIM-UUID-1", name="iPhone 17 Pro (iOS 26 5)", state="Shutdown", kind="simulator")],
+            None,
+        ),
+    )
+    monkeypatch.setattr("qalprit.driver_factory.subprocess.run", fake_run)
+
+    prof = DeviceProfile(platform="ios", target_type="simulator", device_name="iPhone 17 Pro", automation_name="XCUITest")
+    udid, ver, dev_name = _ensure_ios_simulator_ready(prof)
+    assert udid == "SIM-UUID-1"
+    assert ver == "26.5"
+    assert dev_name == "iPhone 17 Pro"
+    assert ["xcrun", "simctl", "boot", "SIM-UUID-1"] in cmds
+
+    # RecorderManager.stop() clears live preview screenshot & overlays while keeping steps for saving
+    rm = RecorderManager()
+    rm._active = True
+    rm._screenshot_png = b"fake-png"
+    rm._elements = [{"key": "btn"}]
+    rm._steps = [{"action": "tap", "target": "flow.btn", "value": "", "secret": False, "label": "Tap"}]
+    rm.stop()
+    st = rm.status()
+    assert st["active"] is False
+    assert st["has_screenshot"] is False
+    assert st["elements"] == []
+    assert len(st["steps"]) == 1
 

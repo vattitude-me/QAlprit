@@ -616,6 +616,7 @@ class RecorderManager:
                         driver.hide_keyboard()
                     except Exception:
                         pass
+                    time.sleep(0.5)
                     step = {"action": "hide_keyboard", "target": "", "value": "", "secret": False, "label": "Hide Keyboard"}
                 elif act == "wait":
                     sec_val = str(value or "2").strip()
@@ -894,5 +895,7 @@ class RecorderManager:
             self._starting = False
             self._status = "idle"
             self._phase = "Recorder stopped."
+            self._screenshot_png = b""
+            self._elements = []
             self._rev += 1
         return {"ok": True, "stopped": was_active}

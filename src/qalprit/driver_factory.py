@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import platform
 import plistlib
+import re
+import subprocess
+import time
 import zipfile
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
 from qalprit.config_loader import DeviceProfile, EnvironmentConfig
-from qalprit.devices import list_android_devices
+from qalprit.devices import _macos_xcode_env, list_android_devices, list_ios_simulators
 from qalprit.doctor import find_xcode_developer_dir
 
 
@@ -171,24 +174,50 @@ class AppiumDriverAdapter:
         except Exception:
             pass
 
-        # On iOS Simulator with AutomaticMinimizationEnabled=true, tapping a text field
-        # minimizes the software keyboard when WDA's hideKeyboard finds no 'Done' button.
-        if self.platform == "ios":
-            try:
-                from appium.webdriver.common.appiumby import AppiumBy
+        if self.platform != "ios":
+            return
 
-                if self._driver.find_elements(AppiumBy.CLASS_NAME, "XCUIElementTypeKeyboard"):
-                    for field in self._driver.find_elements(
-                        AppiumBy.CLASS_NAME, "XCUIElementTypeTextField"
-                    ):
-                        try:
-                            if field.is_displayed():
-                                field.click()
-                                return
-                        except Exception:
-                            continue
-            except Exception:
-                pass
+        # On iOS Simulator, try explicit keyboard dismissal keys first, then AutomaticMinimizationEnabled
+        # (tapping the visible text field), then WDA mobile: hideKeyboard / safe top chrome tap.
+        try:
+            from appium.webdriver.common.appiumby import AppiumBy
+
+            if not self._driver.find_elements(AppiumBy.CLASS_NAME, "XCUIElementTypeKeyboard"):
+                return
+            for key_name in ("Hide keyboard", "Done", "Return", "Go", "Search", "Next", "done", "return"):
+                for b in self._driver.find_elements(AppiumBy.ACCESSIBILITY_ID, key_name):
+                    try:
+                        if b.is_displayed():
+                            b.click()
+                            return
+                    except Exception:
+                        continue
+            for field in self._driver.find_elements(AppiumBy.CLASS_NAME, "XCUIElementTypeTextField"):
+                try:
+                    if field.is_displayed():
+                        field.click()
+                        return
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
+        try:
+            self._driver.execute_script(
+                "mobile: hideKeyboard",
+                {"keys": ["Hide keyboard", "Done", "Return", "Go", "Search"]},
+            )
+            return
+        except Exception:
+            pass
+
+        try:
+            win = self.get_window_size()
+            w = int(win.get("width") or 390)
+            h = int(win.get("height") or 844)
+            self._driver.execute_script("mobile: tap", {"x": w // 2, "y": max(64, int(h * 0.14))})
+        except Exception:
+            pass
 
     def swipe(self, start_x: int, start_y: int, end_x: int, end_y: int, duration: int = 300) -> None:
         self._driver.swipe(start_x, start_y, end_x, end_y, duration)
@@ -272,6 +301,79 @@ def _validate_ios_simulator_app_binary(app_path: Path | None) -> None:
         )
 
 
+def _extract_ios_version_from_name(name: str) -> str:
+    """Parse runtime version like '26.5' from 'iPhone 17 Pro (iOS 26 5)'."""
+    m = re.search(r"\(iOS\s+(\d+(?:[\s._-]\d+)+)\)", name or "", re.IGNORECASE)
+    if not m:
+        return ""
+    return re.sub(r"[\s_-]+", ".", m.group(1).strip())
+
+
+def _ensure_ios_simulator_ready(profile: DeviceProfile) -> tuple[str, str, str]:
+    """Ensure a macOS iOS Simulator is booted and return `(udid, platform_version, device_name)`."""
+    udid = profile.udid or ""
+    plat_ver = profile.platform_version or ""
+    dev_name = profile.device_name or "iPhone Simulator"
+
+    if platform.system() != "Darwin" or profile.target_type != "simulator":
+        return udid, plat_ver, dev_name
+
+    sims, _ = list_ios_simulators()
+    if not sims:
+        return udid, plat_ver, dev_name
+
+    target = None
+    if udid:
+        target = next((s for s in sims if s.identifier == udid), None)
+    if target is None:
+        booted = [s for s in sims if str(s.state or "").lower() == "booted"]
+        if dev_name:
+            target = next((s for s in booted if dev_name.lower() in s.name.lower()), None)
+        if target is None and booted:
+            target = booted[0]
+        if target is None and dev_name:
+            target = next((s for s in sims if dev_name.lower() in s.name.lower()), None)
+        if target is None:
+            target = sims[0]
+
+    udid = target.identifier
+    if not plat_ver:
+        plat_ver = _extract_ios_version_from_name(target.name)
+    base_name = re.sub(r"\s*\(iOS[^)]*\)\s*$", "", target.name).strip()
+    if base_name:
+        dev_name = base_name
+
+    if str(target.state or "").lower() != "booted":
+        xc_env = _macos_xcode_env()
+        boot_proc = subprocess.run(
+            ["xcrun", "simctl", "boot", udid],
+            capture_output=True,
+            text=True,
+            env=xc_env,
+            timeout=30,
+        )
+        if boot_proc.returncode != 0 and "Unable to boot device in current state: Booted" not in (boot_proc.stderr or ""):
+            raise RuntimeError((boot_proc.stderr or boot_proc.stdout).strip() or f"Failed to boot iOS Simulator {target.name}.")
+        try:
+            subprocess.run(["xcrun", "simctl", "bootstatus", udid, "-b"], capture_output=True, text=True, env=xc_env, timeout=45)
+        except Exception:
+            for _ in range(15):
+                cur, _ = list_ios_simulators()
+                if any(s.identifier == udid and str(s.state or "").lower() == "booted" for s in cur):
+                    break
+                time.sleep(1.0)
+        if _xcode_has_legacy_simulator_app():
+            subprocess.run(["open", "-a", "Simulator"], capture_output=True, text=True, env=xc_env, timeout=10)
+        else:
+            xcode_dev = find_xcode_developer_dir(xc_env)
+            if xcode_dev is not None:
+                device_hub = xcode_dev.parent / "Applications" / "DeviceHub.app"
+                if device_hub.exists():
+                    subprocess.run(["open", "-a", str(device_hub)], capture_output=True, text=True, timeout=10)
+
+    return udid, plat_ver, dev_name
+
+
 def create_appium_driver(
     appium_url: str,
     profile: DeviceProfile,
@@ -312,14 +414,15 @@ def create_appium_driver(
         for k, v in profile.capabilities.items():
             opts.set_capability(k, v)
     else:
+        resolved_udid, resolved_ver, resolved_dev_name = _ensure_ios_simulator_ready(profile)
         opts = XCUITestOptions()
         opts.platform_name = "iOS"
         opts.automation_name = profile.automation_name or "XCUITest"
-        opts.device_name = profile.device_name
-        if profile.platform_version:
-            opts.platform_version = profile.platform_version
-        if profile.udid:
-            opts.udid = profile.udid
+        opts.device_name = resolved_dev_name
+        if resolved_ver:
+            opts.platform_version = resolved_ver
+        if resolved_udid:
+            opts.udid = resolved_udid
         if app_path is not None:
             opts.app = str(app_path.resolve())
         if env_cfg.ios_bundle_id:

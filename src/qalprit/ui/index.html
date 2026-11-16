@@ -1355,7 +1355,6 @@
               <label for="recDeviceSelect">Target Device / Emulator</label>
               <div class="dev-combo">
                 <select id="recDeviceSelect" aria-label="Record device"></select>
-                <button type="button" class="btn btn-sm btn-primary" id="btnRecBootDevice" title="Boot selected virtual device">Boot</button>
                 <button type="button" class="btn btn-sm btn-danger" id="btnRecShutdownDevice" hidden title="Shut down booted virtual device">Shutdown</button>
               </div>
             </div>
@@ -1371,9 +1370,10 @@
               <label for="recEnvSelect">Env</label>
               <select id="recEnvSelect" aria-label="Record environment"></select>
             </div>
-            <div class="rec-field-md" style="max-width:165px;">
-              <label for="recScreenName">Screen tag</label>
-              <input id="recScreenName" type="text" value="login" placeholder="login" />
+            <div class="rec-field-md" style="max-width:190px;">
+              <label for="recFlowNameInput">Flow name</label>
+              <input id="recFlowNameInput" type="text" value="auth/recorded_flow" placeholder="auth/iphone-login-logout" />
+              <input id="recScreenName" type="hidden" value="recorded_flow" />
             </div>
           </div>
 
@@ -1438,6 +1438,7 @@
                   <label class="chk-inline"><input type="checkbox" id="recTypeSecret" /> Secret</label>
                   <button type="button" class="btn btn-primary btn-sm" id="btnRecSendType">Send &amp; Type</button>
                   <button type="button" class="btn btn-sm" id="btnRecTapSelected">Tap</button>
+                  <button type="button" class="btn btn-sm" id="btnRecTypeHideKb" title="Dismiss device keyboard &amp; record hide_keyboard">Hide KB</button>
                 </div>
               </div>
 
@@ -1459,6 +1460,7 @@
                   <button type="button" class="btn btn-sm" id="btnRecSwipeUp">Swipe &uarr;</button>
                   <button type="button" class="btn btn-sm" id="btnRecSwipeDown">Swipe &darr;</button>
                   <button type="button" class="btn btn-sm" id="btnRecBack">Back</button>
+                  <button type="button" class="btn btn-sm" id="btnRecHideKeyboard" title="Lower on-screen keyboard &amp; add hide_keyboard step">Hide keyboard</button>
                   <button type="button" class="btn btn-sm" id="btnRecWait">Wait 2s</button>
                 </div>
                 <label class="switch-inline" for="recRedactMirrorChk" style="font-size:11.5px;">
@@ -3831,17 +3833,10 @@
       async function resolveSelectedDeviceForAction(plat, rawVal) {
         const val = String(rawVal || "").trim();
         if (val.startsWith("sim:ios:")) {
-          const udid = val.slice("sim:ios:".length);
-          const res = await apiJson("/api/emulator/boot", { target: "ios", udid });
-          await runPreflightChecks({ devices: true, doctor: false });
-          return `live:ios:${res.identifier || udid}`;
+          return `live:ios:${val.slice("sim:ios:".length)}`;
         }
         if (val.startsWith("avd:")) {
-          const avdName = val.slice("avd:".length);
-          const res = await apiJson("/api/emulator/boot", { target: "android", avd_name: avdName });
-          if (res.already_running && res.serial) return `live:android:${res.serial}`;
-          startEmulatorPolling();
-          throw new Error(`Booting Android Emulator '${avdName}' — wait until Booted before starting.`);
+          return "android_emulator";
         }
         if (val) return val;
         return plat === "ios" ? "ios_simulator" : "android_emulator";
@@ -3888,17 +3883,23 @@
         }
       }
 
-      async function shutdownDeviceTarget(target, identifier) {
+      async function shutdownDeviceTarget(target, identifier, opts) {
+        const o = opts || {};
         const msgBanner = STATE.activeNav === "record" ? "recStatusBanner" : "emuStatusBanner";
         try {
-          if (STATE.recState && STATE.recState.active) await apiJson("/api/recorder/stop", {});
+          if (STATE.recState && (STATE.recState.active || STATE.recState.starting)) {
+            await apiJson("/api/recorder/stop", {});
+          }
           const res = await apiJson("/api/emulator/shutdown", { target: target || "all", identifier: identifier || "" });
-          const count = (res.killed_android || []).length + (res.shutdown_ios || []).length;
-          showBanner(msgBanner, count ? `Shut down ${count} virtual device(s).` : "No running virtual devices to shut down.", "ok");
+          applyRecorderState(Object.assign({}, STATE.recState || {}, { active: false, starting: false, status: "idle", has_screenshot: false, elements: [] }));
+          if (!o.quiet) {
+            const count = (res.killed_android || []).length + (res.shutdown_ios || []).length;
+            showBanner(msgBanner, count ? `Shut down ${count} virtual device(s).` : "No running virtual devices to shut down.", "ok");
+          }
           await pollEmulatorStatus();
           await runPreflightChecks({ devices: true, doctor: false });
         } catch (err) {
-          showBanner(msgBanner, err.message, "error");
+          if (!o.quiet) showBanner(msgBanner, err.message, "error");
         }
       }
 
@@ -4206,9 +4207,22 @@
           if (st.has_screenshot && st.rev !== STATE.recLastRev) {
             STATE.recLastRev = st.rev;
             $("recPhoneImg").src = "/api/recorder/screenshot?rev=" + encodeURIComponent(st.rev);
+          } else if (!st.has_screenshot) {
+            $("recPhoneImg").removeAttribute("src");
+            $("recOverlays").innerHTML = "";
           }
           renderRecorderElements(st.elements || [], $("recElFilter").value);
           renderRecorderSteps(st.steps || []);
+        } else if (!starting) {
+          $("recPhoneImg").hidden = true;
+          $("recPhoneImg").removeAttribute("src");
+          $("recOverlays").innerHTML = "";
+          $("recPhoneEmpty").hidden = false;
+          $("recTypeBar").hidden = true;
+          $("recAssertBar").hidden = true;
+          STATE.recSelectedIdx = null;
+          STATE.recLastRev = -1;
+          renderRecorderElements([], "");
         }
       }
 
@@ -4231,21 +4245,27 @@
         } catch (err) { showBanner("recStatusBanner", err.message, "error"); }
       }
 
-      if ($("btnRecBootDevice")) {
-        $("btnRecBootDevice").addEventListener("click", async () => {
-          const plat = $("recPlatform").value;
-          const val = $("recDeviceSelect").value;
-          if (plat === "ios") {
-            const udid = val.startsWith("sim:ios:") ? val.slice(8) : (val.startsWith("live:ios:") ? val.slice(9) : "");
-            const booted = ((STATE.devicesData && STATE.devicesData.ios) || []).some((s) => String(s.state || "").toLowerCase() === "booted");
-            await bootIosTarget(udid, booted && !val.startsWith("live:"));
-          } else {
-            const avd = val.startsWith("avd:") ? val.slice(4) : "";
-            const booted = ((STATE.emuStatus && STATE.emuStatus.running_android_emulators) || []).length > 0;
-            await bootAndroidTarget(avd, booted && !val.startsWith("live:"));
-          }
-        });
+      function flowToScreenPrefix(flowName) {
+        const clean = String(flowName || "").trim().split("/").pop() || "recorded_flow";
+        const slug = clean.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+        return slug || "recorded_flow";
       }
+      function syncFlowNameFields(rawVal, sourceId) {
+        const val = String(rawVal || "").trim() || "recorded_flow";
+        if (sourceId !== "recFlowNameInput" && $("recFlowNameInput")) $("recFlowNameInput").value = val;
+        if (sourceId !== "recSaveFlowName" && $("recSaveFlowName")) $("recSaveFlowName").value = val;
+        if ($("recScreenName")) $("recScreenName").value = flowToScreenPrefix(val);
+      }
+      if ($("recFlowNameInput")) {
+        $("recFlowNameInput").addEventListener("input", () => syncFlowNameFields($("recFlowNameInput").value, "recFlowNameInput"));
+      }
+      if ($("recSaveFlowName")) {
+        $("recSaveFlowName").addEventListener("input", () => syncFlowNameFields($("recSaveFlowName").value, "recSaveFlowName"));
+      }
+      if ($("recScreenName")) {
+        $("recScreenName").value = flowToScreenPrefix(($("recFlowNameInput") && $("recFlowNameInput").value) || "recorded_flow");
+      }
+
       if ($("btnRecShutdownDevice")) {
         $("btnRecShutdownDevice").addEventListener("click", () => shutdownDeviceTarget($("recPlatform").value, ""));
       }
@@ -4280,6 +4300,11 @@
         STATE.recSelectedIdx = null;
         $("recTypeBar").hidden = true;
         $("recAssertBar").hidden = true;
+        const flowName = ($("recFlowNameInput") ? $("recFlowNameInput").value.trim() : "") || $("recSaveFlowName").value.trim() || "recorded_flow";
+        syncFlowNameFields(flowName);
+        showBanner("recStatusBanner", "", "");
+        $("recProgressBox").hidden = false;
+        $("recProgressText").textContent = "Booting device & starting Appium session...";
         try {
           const plat = $("recPlatform").value;
           const resolvedDev = await resolveSelectedDeviceForAction(plat, $("recDeviceSelect").value);
@@ -4288,17 +4313,24 @@
             device_profile: resolvedDev,
             env_name: $("recEnvSelect").value,
             app_path: $("recAppSelect").value,
-            screen_name: $("recScreenName").value.trim() || "login",
-            flow_name: $("recSaveFlowName").value.trim() || "recorded_flow",
+            screen_name: $("recScreenName").value.trim() || flowToScreenPrefix(flowName),
+            flow_name: flowName,
             redact_sensitive: $("recRedactChk").checked
           });
           startRecorderPolling();
           await pollRecorderStatus();
-        } catch (err) { showBanner("recStatusBanner", err.message, "error"); }
+          runPreflightChecks({ devices: true, doctor: false });
+          pollEmulatorStatus();
+        } catch (err) {
+          $("recProgressBox").hidden = true;
+          showBanner("recStatusBanner", err.message, "error");
+        }
       });
       $("btnRecStop").addEventListener("click", async () => {
         await apiJson("/api/recorder/stop", {});
+        await shutdownDeviceTarget($("recPlatform").value, "", { quiet: true });
         pollRecorderStatus();
+        showBanner("recStatusBanner", "Recording stopped and virtual device shut down.", "ok");
       });
       $("btnRecSync").addEventListener("click", async () => {
         const st = await apiJson("/api/recorder/sync", { screen_name: $("recScreenName").value.trim() || "login" });
@@ -4394,6 +4426,8 @@
       $("btnRecSwipeUp").addEventListener("click", () => runRecorderAction({ action: "swipe", direction: "up" }));
       $("btnRecSwipeDown").addEventListener("click", () => runRecorderAction({ action: "swipe", direction: "down" }));
       $("btnRecBack").addEventListener("click", () => runRecorderAction({ action: "back" }));
+      if ($("btnRecHideKeyboard")) $("btnRecHideKeyboard").addEventListener("click", () => runRecorderAction({ action: "hide_keyboard" }));
+      if ($("btnRecTypeHideKb")) $("btnRecTypeHideKb").addEventListener("click", () => { $("recTypeBar").hidden = true; runRecorderAction({ action: "hide_keyboard" }); });
       $("btnRecWait").addEventListener("click", () => runRecorderAction({ action: "wait", value: "2" }));
       $("btnRecUndo").addEventListener("click", async () => { applyRecorderState(await apiJson("/api/recorder/undo", {})); });
 
