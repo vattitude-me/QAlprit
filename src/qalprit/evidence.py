@@ -178,6 +178,7 @@ class EvidenceCollector:
         extra_env_vars: dict[str, str],
         masker: SecretMasker,
         *,
+        redact_screenshots: bool = True,
         secure_evidence: bool = True,
         save_page_source_on_failure: bool = True,
     ) -> None:
@@ -191,6 +192,7 @@ class EvidenceCollector:
         self.env_ctx = env_ctx
         self.extra_env_vars = extra_env_vars
         self.masker = masker
+        self.redact_screenshots = redact_screenshots
         self.secure_evidence = secure_evidence
         self.save_page_source_on_failure = save_page_source_on_failure
 
@@ -279,6 +281,17 @@ class EvidenceCollector:
                 redacted_count=0,
                 redaction_status="failed",
                 warning=f"Driver screenshot capture failed: {exc}",
+            )
+
+        if not self.redact_screenshots:
+            out_path = self.screenshots_dir / f"{rel_stem}.png"
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_bytes(raw_png)
+            return ScreenshotCaptureResult(
+                rel_path=out_path.relative_to(self.run_dir).as_posix(),
+                redacted_count=0,
+                redaction_status="disabled",
+                warning="",
             )
 
         try:

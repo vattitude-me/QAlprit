@@ -23,6 +23,7 @@ from qalprit.appium_manager import AppiumManager
 from qalprit.config_loader import (
     DeviceProfile,
     ScreensCatalog,
+    default_redact_for_env,
     load_devices,
     load_environments,
 )
@@ -248,6 +249,7 @@ def list_workspace_configs(project_root: Path) -> tuple[dict[str, Any], dict[str
                     "android_package": cfg.android_package,
                     "ios_bundle_id": cfg.ios_bundle_id,
                     "default_timeout": cfg.default_timeout,
+                    "redact_screenshots": cfg.redact_screenshots,
                 }
         except Exception:
             pass
@@ -308,6 +310,8 @@ def save_environment_entry(
     android_package: str = "",
     ios_bundle_id: str = "",
     default_timeout: float = 12.0,
+    redact_screenshots: bool | None = None,
+    sync_placeholders: bool = False,
 ) -> dict[str, Any]:
     """Update or add an environment entry in config/environments.yaml safely."""
     clean_name = _safe_slug(env_name, default="qa")
@@ -331,9 +335,24 @@ def save_environment_entry(
         prev["ios_bundle_id"] = ios_bundle_id.strip()
     prev["default_timeout"] = max(1.0, float(default_timeout))
     prev.setdefault("poll_interval", 0.25)
+    if redact_screenshots is not None:
+        prev["redact_screenshots"] = bool(redact_screenshots)
+    else:
+        prev.setdefault("redact_screenshots", default_redact_for_env(clean_name))
     prev.setdefault("secure_evidence", True)
     prev.setdefault("save_page_source_on_failure", True)
     envs_block[clean_name] = prev
+
+    if sync_placeholders and (android_package.strip() or ios_bundle_id.strip()):
+        for other_name, other_cfg in list(envs_block.items()):
+            if other_name == clean_name or not isinstance(other_cfg, dict):
+                continue
+            updated_other = dict(other_cfg)
+            if android_package.strip() and updated_other.get("android_package") in (None, "", "com.example.app"):
+                updated_other["android_package"] = android_package.strip()
+            if ios_bundle_id.strip() and updated_other.get("ios_bundle_id") in (None, "", "com.example.app"):
+                updated_other["ios_bundle_id"] = ios_bundle_id.strip()
+            envs_block[other_name] = updated_other
 
     tmp_text = yaml.safe_dump(raw, sort_keys=False, allow_unicode=True)
     env_path.write_text(tmp_text, encoding="utf-8")
@@ -972,6 +991,8 @@ class RunJobManager:
         spec_id = str(payload.get("spec_id") or "").strip() or None
         retries = max(0, int(payload.get("retries") or 0))
         dry_run = bool(payload.get("dry_run", False))
+        raw_redact = payload.get("redact_screenshots")
+        redact_override: bool | None = None if raw_redact is None else bool(raw_redact)
         app_raw = str(payload.get("app_path") or "").strip()
 
         resolved_app: Path | None = None
@@ -1074,6 +1095,7 @@ class RunJobManager:
                         suite=suite or "all",
                         tags=[],
                         retries=retries,
+                        redact_screenshots=redact_override,
                     )
                     run_result = runner.run(
                         specs,

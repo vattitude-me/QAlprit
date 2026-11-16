@@ -25,13 +25,24 @@ _TEMPLATE_PARAM_RE = re.compile(r"(?<!\$)\{([A-Za-z_][A-Za-z0-9_]*)\}")
 _ENV_VAR_RE = re.compile(r"\$\{([A-Za-z0-9_:.]+)\}")
 
 
+def default_redact_for_env(env_name: str) -> bool:
+    """Default screenshot black-marker redaction policy by environment name.
+
+    Disabled by default for ``dev`` / ``development`` / ``local``; enabled for
+    ``qa``, ``pre-prod``, ``staging``, ``prod``, and all other environments.
+    """
+    normalized = (env_name or "").strip().lower().replace("_", "-")
+    return normalized not in {"dev", "development", "local"}
+
+
 class EnvironmentConfig(BaseModel):
-    """Per-environment app identifiers and timeouts."""
+    """Per-environment app identifiers, timeouts, and evidence redaction policy."""
 
     android_package: str = ""
     ios_bundle_id: str = ""
     default_timeout: float = Field(default=10.0, gt=0)
     poll_interval: float = Field(default=0.25, gt=0)
+    redact_screenshots: bool = True
     secure_evidence: bool = True
     save_page_source_on_failure: bool = True
     variables: dict[str, str] = Field(default_factory=dict)
@@ -228,7 +239,13 @@ def load_environments(path: Path) -> dict[str, EnvironmentConfig]:
     env_block = raw.get("environments", raw)
     if not isinstance(env_block, dict):
         raise ValueError(f"Invalid environments block in {path}")
-    return {name: EnvironmentConfig(**(cfg or {})) for name, cfg in env_block.items()}
+    out: dict[str, EnvironmentConfig] = {}
+    for name, cfg in env_block.items():
+        parsed = dict(cfg or {})
+        if parsed.get("redact_screenshots") is None:
+            parsed["redact_screenshots"] = default_redact_for_env(str(name))
+        out[name] = EnvironmentConfig(**parsed)
+    return out
 
 
 def load_devices(path: Path) -> dict[str, DeviceProfile]:

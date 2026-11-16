@@ -36,10 +36,11 @@
       <nav aria-label="Primary">
         <ul class="nav-links">
           <li><a href="#evidence">Evidence</a></li>
-          <li><a href="#procedure">Procedure</a></li>
+          <li><a href="#workbench">Workbench</a></li>
           <li><a href="#proof-viewer">Case Files</a></li>
           <li><a href="#spec-studio">Spec Studio</a></li>
           <li><a href="#architecture">Architecture</a></li>
+          <li><a href="https://github.com/vattitude-me/QAlprit/releases/latest" target="_blank" rel="noopener">Releases</a></li>
           <li><a href="https://github.com/vattitude-me/QAlprit" target="_blank" rel="noopener">GitHub</a></li>
         </ul>
       </nav>
@@ -60,6 +61,7 @@
           </p>
           <div class="hero-actions">
             <a class="btn-primary" href="#proof-viewer">Inspect Case Files</a>
+            <a class="btn-secondary" href="https://github.com/vattitude-me/QAlprit/releases/latest" target="_blank" rel="noopener">Download Desktop App</a>
             <a class="btn-secondary" href="https://github.com/vattitude-me/QAlprit" target="_blank" rel="noopener">View Source</a>
           </div>
           <div class="hero-utility">
@@ -67,11 +69,13 @@
               <code><span class="t-dim">$</span> pip install qalprit</code>
               <button type="button" class="copy-btn" data-copy="pip install qalprit" aria-label="Copy pip install command">Copy</button>
             </div>
-            <div class="hero-report-links" aria-label="Sample HTML reports">
+            <div class="hero-report-links" aria-label="Installers and sample HTML reports">
               <span class="hero-report-label">Reports:</span>
               <a class="utility-link" href="sample-report.html">Android (5/5)</a>
               <span class="t-dim" aria-hidden="true">·</span>
               <a class="utility-link" href="sample-report-ios.html">iOS (3/3)</a>
+              <span class="t-dim" aria-hidden="true">·</span>
+              <a class="utility-link" href="https://github.com/vattitude-me/QAlprit/releases/latest" target="_blank" rel="noopener">Win .exe / Mac .dmg</a>
             </div>
           </div>
         </div>
@@ -116,11 +120,11 @@
       <div class="container ledger-items">
         <span>Zero Runtime LLMs</span>
         <span class="ledger-dot" aria-hidden="true">·</span>
-        <span>In-Memory Pillow Redaction</span>
+        <span>Environment-Aware Redaction</span>
+        <span class="ledger-dot" aria-hidden="true">·</span>
+        <span>Desktop Workbench &amp; Live Recorder</span>
         <span class="ledger-dot" aria-hidden="true">·</span>
         <span>Android &amp; iOS Deterministic Proof</span>
-        <span class="ledger-dot" aria-hidden="true">·</span>
-        <span>AI-Maintained Specs &amp; Locators</span>
       </div>
     </div>
 
@@ -146,7 +150,7 @@
               <span class="exhibit-num">Exhibit B</span>
               <h3>Secrets stay hidden</h3>
             </header>
-            <p>Fields marked <code>secret: true</code> or <code>sensitive: true</code> are blacked out via Pillow in memory before saving any screenshot.</p>
+            <p>Fields marked <code>secret: true</code> or <code>sensitive: true</code> are blacked out via Pillow in memory—enabled for <code>qa</code>, <code>pre-prod</code> &amp; <code>prod</code>, or toggled off in <code>dev</code>.</p>
           </article>
 
           <article class="exhibit-card">
@@ -258,6 +262,54 @@ Starting QAlprit run 20261113_183328_ios_mda (3 spec(s))...
 Report HTML : results/20261113_183328_ios_mda/report.html</code></pre>
             </div>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="workbench" class="section-band">
+      <div class="container">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Desktop App &amp; Visual Workbench</p>
+            <h2>Record, toggle redaction, and ship proof—no setup friction.</h2>
+            <p class="section-desc">
+              Run QAlprit from the CLI, or launch the native Desktop Workbench on Windows (<code>.exe</code>) and macOS (<code>.dmg</code>) with a bundled Appium 2 runtime and interactive 4-step workflow.
+            </p>
+          </div>
+          <a class="btn-secondary" href="https://github.com/vattitude-me/QAlprit/releases/latest" target="_blank" rel="noopener">Get Desktop Installers</a>
+        </div>
+        <div class="exhibits-grid">
+          <article class="exhibit-card">
+            <header>
+              <span class="exhibit-num">01 · Installers</span>
+              <h3>Zero-Config Virtual Emulator</h3>
+            </header>
+            <p>Pre-install software scanner detects existing Python, Node, JRE &amp; Android SDKs cleanly, and provisions <code>QAlprit_Pixel</code> (Android 34) or Xcode iOS Simulator in one click.</p>
+          </article>
+
+          <article class="exhibit-card">
+            <header>
+              <span class="exhibit-num">02 · Live Mirror</span>
+              <h3>Interactive Flow Recorder</h3>
+            </header>
+            <p>Stream your booted emulator straight into QAlprit, capture taps, inputs, and <strong>Error / Text Assertions</strong>, and auto-generate clean <code>screens.yaml</code>, <code>flows/</code>, and <code>specs/</code>.</p>
+          </article>
+
+          <article class="exhibit-card">
+            <header>
+              <span class="exhibit-num">03 · Privacy Toggle</span>
+              <h3>Dev Clarity, Prod Safety</h3>
+            </header>
+            <p>Black-marker PII redaction defaults <strong>OFF in <code>dev</code></strong> for faster debugging and <strong>ON in <code>pre-prod</code> / <code>prod</code></strong>—toggleable live on the mirror, in the runner, or via <code>--no-redact</code>.</p>
+          </article>
+
+          <article class="exhibit-card">
+            <header>
+              <span class="exhibit-num">04 · Clean Layout</span>
+              <h3>OS-Standard Storage &amp; Cleanup</h3>
+            </header>
+            <p>Keeps journeys in <code>Documents/QAlpritWorkspace</code> and SDK runtimes in AppData / Application Support, with selective post-uninstall &amp; <code>qalprit cleanup</code> controls.</p>
+          </article>
         </div>
       </div>
     </section>
@@ -455,16 +507,32 @@ mda_payment:
             <div role="tabpanel" id="panel-env" aria-labelledby="tab-env" hidden="until-found">
               <div class="code-panel">
                 <pre><code>environments:
-  qa:
-    android_package: com.example.qalprit.qa
-    ios_bundle_id: com.example.qalprit.qa
+  dev:
+    android_package: com.example.qalprit.dev
+    ios_bundle_id: com.example.qalprit.dev
     default_timeout: 12
+    redact_screenshots: false   # Clear screenshots &amp; live mirror for local debugging
     variables:
-      ENV_LABEL: QA
+      ENV_LABEL: DEV
+  pre-prod:
+    android_package: com.example.qalprit.preprod
+    ios_bundle_id: com.example.qalprit.preprod
+    default_timeout: 12
+    redact_screenshots: true    # Mask sensitive boxes &amp; credentials in memory
+    variables:
+      ENV_LABEL: PRE-PROD
+  prod:
+    android_package: com.example.qalprit.prod
+    ios_bundle_id: com.example.qalprit.prod
+    default_timeout: 15
+    redact_screenshots: true
+    variables:
+      ENV_LABEL: PROD
   mda:
     android_package: com.saucelabs.mydemoapp.android
     ios_bundle_id: com.saucelabs.mydemo.app.ios
     default_timeout: 12
+    redact_screenshots: true
     variables:
       ENV_LABEL: DEMO</code></pre>
               </div>

@@ -25,7 +25,7 @@ def _run_visual_comparison(
     except Exception:
         window_size = None
 
-    boxes = ctx.evidence._collect_sensitive_boxes(ctx.driver)
+    boxes = ctx.evidence._collect_sensitive_boxes(ctx.driver) if ctx.evidence.redact_screenshots else []
     for target in mask_targets or []:
         try:
             elem, _ = wait_for_element(ctx, target, timeout=0.2)

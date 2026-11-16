@@ -161,6 +161,7 @@ class RecorderManager:
         self._steps: list[dict[str, Any]] = []
         self._logs: list[str] = []
         self._direct_tap_watch = False
+        self._redact_sensitive = True
 
     def _log(self, msg: str) -> None:
         with self._lock:
@@ -185,6 +186,7 @@ class RecorderManager:
                 "screen_height": self._screen_height,
                 "has_screenshot": bool(self._screenshot_png),
                 "direct_tap_watch": self._direct_tap_watch,
+                "redact_sensitive": self._redact_sensitive,
                 "elements": list(self._elements[:80]),
                 "locators": list(self._locators.values()),
                 "steps": [dict(s, yaml_step=_step_to_yaml_dict(s)) for s in self._steps],
@@ -203,7 +205,9 @@ class RecorderManager:
         xml_text = driver.page_source
         ranked = extract_interactive_elements(xml_text, platform=self._platform, masker=self._masker)
         png_raw = driver.get_screenshot_as_png()
-        png_safe = _redact_sensitive_png(png_raw, ranked)
+        with self._lock:
+            redact_enabled = self._redact_sensitive
+        png_safe = _redact_sensitive_png(png_raw, ranked) if redact_enabled else png_raw
         w, h = self._screen_width, self._screen_height
         try:
             with Image.open(io.BytesIO(png_raw)) as im:
@@ -425,6 +429,7 @@ class RecorderManager:
         screen_name: str = "screen_1",
         flow_name: str = "recorded_flow",
         settle_seconds: float = 0.8,
+        redact_sensitive: bool | None = None,
     ) -> dict[str, Any]:
         """Attach persistent Appium session to emulator and begin recording."""
         if self._active or self._starting:
@@ -463,7 +468,12 @@ class RecorderManager:
             self._steps = []
             self._screenshot_png = b""
             self._direct_tap_watch = False
-            self._logs = [f"Starting live recorder session on {platform} ({device_profile})..."]
+            self._redact_sensitive = (
+                env_cfg.redact_screenshots if redact_sensitive is None else bool(redact_sensitive)
+            )
+            self._logs = [
+                f"Starting live recorder session on {platform} ({device_profile}, env={env_name}, redact={'on' if self._redact_sensitive else 'off'})..."
+            ]
             self._masker = val.env_ctx.masker if val.env_ctx else SecretMasker([])
 
         def _boot_worker() -> None:
@@ -780,6 +790,19 @@ class RecorderManager:
             "flow": flow_res,
             "spec": spec_res,
         }
+
+    def set_redaction(self, enabled: bool) -> dict[str, Any]:
+        """Toggle black-marker PII redaction on the live emulator mirror."""
+        clean = bool(enabled)
+        with self._lock:
+            self._redact_sensitive = clean
+            is_active = self._active and self._driver is not None
+        self._log(f"Live emulator black-marker redaction {'enabled' if clean else 'disabled'}.")
+        if is_active:
+            with self._driver_lock:
+                if self._driver is not None:
+                    self._capture_snapshot_locked()
+        return self.status()
 
     def stop(self) -> dict[str, Any]:
         """Close persistent Appium recorder session & Android tap listener cleanly."""

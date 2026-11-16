@@ -73,6 +73,7 @@ class TestRunner:
         retries: int = 0,
         poll_interval: float | None = None,
         update_baselines: bool = False,
+        redact_screenshots: bool | None = None,
     ) -> None:
         self.driver_factory = driver_factory
         self.profile = profile
@@ -90,6 +91,7 @@ class TestRunner:
         self.retries = max(0, retries)
         self.poll_interval = env_cfg.poll_interval if poll_interval is None else poll_interval
         self.update_baselines = update_baselines
+        effective_redact = env_cfg.redact_screenshots if redact_screenshots is None else bool(redact_screenshots)
         self.app_id = (
             env_cfg.android_package if profile.platform == "android" else env_cfg.ios_bundle_id
         )
@@ -100,6 +102,7 @@ class TestRunner:
             env_ctx=env_ctx,
             extra_env_vars=env_cfg.as_env_vars(),
             masker=env_ctx.masker,
+            redact_screenshots=effective_redact,
             secure_evidence=env_cfg.secure_evidence,
             save_page_source_on_failure=env_cfg.save_page_source_on_failure,
         )

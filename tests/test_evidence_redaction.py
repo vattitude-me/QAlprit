@@ -90,3 +90,63 @@ def test_detect_webviews_flags_android_and_ios() -> None:
 
     detected_native, _ = detect_webviews("<hierarchy><android.widget.Button /></hierarchy>")
     assert detected_native is False
+
+
+def test_evidence_collector_can_disable_redaction_and_env_defaults(tmp_path: Path) -> None:
+    from qalprit.config_loader import load_environments
+
+    screens = ScreensCatalog(
+        {
+            "login": {
+                "password_field": {"accessibility_id": "pw_id", "sensitive": True},
+            }
+        }
+    )
+    driver = FakeDriver(window_size={"width": 390, "height": 844}, screenshot_scale=2)
+    box = {"x": 30, "y": 200, "width": 120, "height": 40}
+    driver.add_element("accessibility_id", "pw_id", rect=box, displayed=True)
+    driver.secret_paint_boxes.append(box)
+
+    collector = EvidenceCollector(
+        run_dir=tmp_path,
+        screens=screens,
+        platform="android",
+        env_ctx=EnvContext(),
+        extra_env_vars={},
+        masker=SecretMasker(),
+        redact_screenshots=False,
+    )
+    res = collector.capture_screenshot_detailed(driver, "step_dev_01")
+    assert res.rel_path == "screenshots/step_dev_01.png"
+    assert res.redacted_count == 0
+    assert res.redaction_status == "disabled"
+    with Image.open(tmp_path / res.rel_path) as img:
+        assert img.getpixel((180, 440)) == (255, 0, 0)
+
+    env_file = tmp_path / "environments.yaml"
+    env_file.write_text(
+        """environments:
+  dev:
+    android_package: com.demo.dev
+  qa:
+    android_package: com.demo.qa
+  pre-prod:
+    android_package: com.demo.preprod
+  prod:
+    android_package: com.demo.prod
+  dev_masked:
+    android_package: com.demo.dev2
+    redact_screenshots: true
+  staging_clear:
+    android_package: com.demo.stg
+    redact_screenshots: false
+""",
+        encoding="utf-8",
+    )
+    envs = load_environments(env_file)
+    assert envs["dev"].redact_screenshots is False
+    assert envs["qa"].redact_screenshots is True
+    assert envs["pre-prod"].redact_screenshots is True
+    assert envs["prod"].redact_screenshots is True
+    assert envs["dev_masked"].redact_screenshots is True
+    assert envs["staging_clear"].redact_screenshots is False

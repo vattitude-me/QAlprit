@@ -495,6 +495,7 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
 
             body = self._read_json_body()
             if req_path == "/api/environments/save":
+                raw_redact = body.get("redact_screenshots")
                 self._send_json(
                     save_environment_entry(
                         self.project_root,
@@ -502,6 +503,8 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
                         android_package=str(body.get("android_package") or ""),
                         ios_bundle_id=str(body.get("ios_bundle_id") or ""),
                         default_timeout=float(body.get("default_timeout") or 12.0),
+                        redact_screenshots=None if raw_redact is None else bool(raw_redact),
+                        sync_placeholders=bool(body.get("sync_placeholders", False)),
                     )
                 )
                 return
@@ -698,6 +701,7 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
                 return
 
             if req_path == "/api/recorder/start":
+                raw_redact = body.get("redact_sensitive")
                 self._send_json(
                     self.recorder_manager.start(
                         self.project_root,
@@ -707,6 +711,15 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
                         app_path_str=str(body.get("app_path") or ""),
                         screen_name=str(body.get("screen_name") or "login"),
                         flow_name=str(body.get("flow_name") or "recorded_flow"),
+                        redact_sensitive=None if raw_redact is None else bool(raw_redact),
+                    )
+                )
+                return
+
+            if req_path == "/api/recorder/redaction":
+                self._send_json(
+                    self.recorder_manager.set_redaction(
+                        enabled=bool(body.get("enabled", True)),
                     )
                 )
                 return
