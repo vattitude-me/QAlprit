@@ -68,8 +68,17 @@ def find_node_bin() -> str | None:
     return shutil.which("node")
 
 
+def _is_inside_macos_app_bundle(path: Path) -> bool:
+    """Return True if path resides inside a macOS *.app/Contents bundle."""
+    parts = path.parts
+    return any(
+        part.endswith(".app") and idx + 1 < len(parts) and parts[idx + 1] == "Contents"
+        for idx, part in enumerate(parts)
+    )
+
+
 def ensure_portable_appium_home(appium_home: Path) -> Path:
-    """Rewrite bundled Appium extensions.yaml installPath entries to match local runtime path."""
+    """Rewrite bundled Appium extensions.yaml installPath entries without breaking .app seals."""
     ext_rel = Path("node_modules") / ".cache" / "appium" / "extensions.yaml"
     ext_file = appium_home / ext_rel
     if not ext_file.is_file():
@@ -103,30 +112,42 @@ def ensure_portable_appium_home(appium_home: Path) -> Path:
                 entry["installPath"] = expected
                 changed = True
 
-    if not changed:
+    in_app_bundle = _is_inside_macos_app_bundle(appium_home)
+    if not changed and not in_app_bundle:
         return appium_home
 
     rendered = yaml.safe_dump(data, sort_keys=False)
-    try:
-        ext_file.write_text(rendered, encoding="utf-8")
-        return appium_home
-    except OSError:
-        fallback_home = get_qalprit_data_dir() / "appium_home"
-        fallback_mods = fallback_home / "node_modules"
-        fallback_ext = fallback_home / ext_rel
+    if not in_app_bundle:
         try:
-            fallback_mods.mkdir(parents=True, exist_ok=True)
-            for item in resolved_mods.iterdir():
-                if item.name == ".cache":
-                    continue
-                target = fallback_mods / item.name
-                if not target.exists():
-                    target.symlink_to(item, target_is_directory=item.is_dir())
+            ext_file.write_text(rendered, encoding="utf-8")
+            return appium_home
+        except OSError:
+            pass
+
+    fallback_home = get_qalprit_data_dir() / "appium_home"
+    fallback_mods = fallback_home / "node_modules"
+    fallback_ext = fallback_home / ext_rel
+    try:
+        fallback_mods.mkdir(parents=True, exist_ok=True)
+        for item in resolved_mods.iterdir():
+            if item.name == ".cache":
+                continue
+            target = fallback_mods / item.name
+            resolved_item = item.resolve()
+            if target.is_symlink():
+                try:
+                    if target.resolve() != resolved_item:
+                        target.unlink()
+                except OSError:
+                    target.unlink()
+            if not target.exists() and not target.is_symlink():
+                target.symlink_to(resolved_item, target_is_directory=item.is_dir())
+        if not fallback_ext.is_file() or fallback_ext.read_text(encoding="utf-8") != rendered:
             fallback_ext.parent.mkdir(parents=True, exist_ok=True)
             fallback_ext.write_text(rendered, encoding="utf-8")
-            return fallback_home
-        except Exception:
-            return appium_home
+        return fallback_home
+    except Exception:
+        return appium_home
 
 
 def find_appium_home() -> Path | None:

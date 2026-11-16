@@ -387,6 +387,61 @@ def test_ensure_portable_appium_home_rewrites_stale_runner_paths(tmp_path: Path)
     assert updated["drivers"]["uiautomator2"]["installPath"] == str(driver_dir.resolve())
 
 
+def test_ensure_portable_appium_home_preserves_macos_app_bundle_seal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import yaml
+    from qalprit.doctor import ensure_portable_appium_home
+
+    data_dir = tmp_path / "app_data"
+    monkeypatch.setenv("QALPRIT_DATA_DIR", str(data_dir))
+
+    app_v1_home = tmp_path / "QAlprit.app" / "Contents" / "Resources" / "runtime" / "appium_home"
+    driver_v1 = app_v1_home / "node_modules" / "appium-xcuitest-driver"
+    driver_v1.mkdir(parents=True)
+    ext_v1 = app_v1_home / "node_modules" / ".cache" / "appium" / "extensions.yaml"
+    ext_v1.parent.mkdir(parents=True)
+    original_yaml = yaml.safe_dump(
+        {
+            "drivers": {
+                "xcuitest": {
+                    "pkgName": "appium-xcuitest-driver",
+                    "installPath": "/Users/runner/work/QAlprit/QAlprit/build/mac-runtime-arm64/appium_home/node_modules/appium-xcuitest-driver",
+                }
+            },
+            "plugins": {},
+        },
+        sort_keys=False,
+    )
+    ext_v1.write_text(original_yaml, encoding="utf-8")
+
+    resolved_v1 = ensure_portable_appium_home(app_v1_home)
+    assert resolved_v1 == (data_dir / "appium_home").resolve()
+    assert ext_v1.read_text(encoding="utf-8") == original_yaml
+    assert (resolved_v1 / "node_modules" / "appium-xcuitest-driver").resolve() == driver_v1.resolve()
+    fallback_yaml_v1 = yaml.safe_load(
+        (resolved_v1 / "node_modules" / ".cache" / "appium" / "extensions.yaml").read_text(encoding="utf-8")
+    )
+    assert fallback_yaml_v1["drivers"]["xcuitest"]["installPath"] == str(driver_v1.resolve())
+
+    # Simulate upgrading QAlprit.app to a different location; stale symlinks must refresh cleanly
+    app_v2_home = tmp_path / "Upgraded" / "QAlprit.app" / "Contents" / "Resources" / "runtime" / "appium_home"
+    driver_v2 = app_v2_home / "node_modules" / "appium-xcuitest-driver"
+    driver_v2.mkdir(parents=True)
+    ext_v2 = app_v2_home / "node_modules" / ".cache" / "appium" / "extensions.yaml"
+    ext_v2.parent.mkdir(parents=True)
+    ext_v2.write_text(original_yaml, encoding="utf-8")
+
+    resolved_v2 = ensure_portable_appium_home(app_v2_home)
+    assert resolved_v2 == (data_dir / "appium_home").resolve()
+    assert ext_v2.read_text(encoding="utf-8") == original_yaml
+    assert (resolved_v2 / "node_modules" / "appium-xcuitest-driver").resolve() == driver_v2.resolve()
+    fallback_yaml_v2 = yaml.safe_load(
+        (resolved_v2 / "node_modules" / ".cache" / "appium" / "extensions.yaml").read_text(encoding="utf-8")
+    )
+    assert fallback_yaml_v2["drivers"]["xcuitest"]["installPath"] == str(driver_v2.resolve())
+
+
 def test_save_uploaded_app_extracts_package_from_binary_android_manifest(tmp_path: Path) -> None:
     import io
     import struct
