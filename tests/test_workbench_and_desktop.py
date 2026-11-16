@@ -71,6 +71,9 @@ def test_bundled_runtime_resolution_precedence(tmp_path: Path, monkeypatch: pyte
         target.write_text("#!/bin/sh\necho ok\n", encoding="utf-8")
     (rt / "appium_home").mkdir(parents=True, exist_ok=True)
 
+    monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
+    monkeypatch.setenv("QALPRIT_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.delenv("QALPRIT_SDK_DIR", raising=False)
     monkeypatch.setenv("QALPRIT_RUNTIME_DIR", str(rt))
 
     assert find_node_bin() == str(rt / node_rel)
@@ -625,6 +628,18 @@ def test_prepare_writable_android_sdk_and_find_sdkmanager(
     user_sdk = doctor_mod.prepare_writable_android_sdk()
     assert user_sdk == (doctor_mod.get_os_app_data_root() / "android-sdk").resolve()
     assert (user_sdk / "cmdline-tools" / "latest" / "bin" / "sdkmanager").exists()
+    assert not (user_sdk / "cmdline-tools").is_symlink()
+
+    # Regression: stale POSIX symlink on cmdline-tools (e.g. from older macOS builds)
+    # must be unlinked and replaced with a real directory so avdmanager doesn't resolve `../../` into .app.
+    if os.name != "nt":
+        import shutil
+        shutil.rmtree(user_sdk / "cmdline-tools")
+        (user_sdk / "cmdline-tools").symlink_to(rt / "android-sdk" / "cmdline-tools")
+        assert (user_sdk / "cmdline-tools").is_symlink()
+        doctor_mod.prepare_writable_android_sdk()
+        assert not (user_sdk / "cmdline-tools").is_symlink()
+        assert (user_sdk / "cmdline-tools" / "latest" / "bin" / "sdkmanager").is_file()
 
     # Once emulator dir exists under standard app data android-sdk, find_android_sdk prefers it cleanly
     (user_sdk / "emulator").mkdir(parents=True)

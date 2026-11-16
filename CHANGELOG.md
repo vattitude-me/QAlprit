@@ -10,6 +10,19 @@ All notable backend, UI, packaging, and documentation changes to **QAlprit** are
 
 ---
 
+## [v0.1.28] — 2026-11-15
+
+### Backend & macOS Android Emulator Setup Fix
+- **Copy Real `cmdline-tools` Directory in Writable SDK (`src/qalprit/doctor.py`)**: Updated `_link_or_copy_dir()` and `_sync_bundled_sdk_into()` to always copy `cmdline-tools` as a real directory (`copy_real=True`) instead of symlinking it on macOS/Linux, and to automatically heal any pre-existing POSIX symlink left by earlier builds into a real directory while preserving already-downloaded `system-images/` and `emulator/`.
+
+### Tests
+- Updated `test_prepare_writable_android_sdk_and_find_sdkmanager` (`tests/test_workbench_and_desktop.py`) to verify `cmdline-tools` is never a symlink and that stale POSIX symlinks at `cmdline-tools` are healed into real directories.
+
+### Root Cause & Lesson Learned
+- On macOS `.dmg`, `_sync_bundled_sdk_into()` symlinked `cmdline-tools -> /Applications/QAlprit.app/Contents/Resources/runtime/android-sdk/cmdline-tools`. Although `sdkmanager --sdk_root=...` downloaded `system-images;android-34;google_apis;arm64-v8a` into the writable user SDK, `avdmanager` computes its SDK root via shell `APP_HOME="$(pwd -P)"` and Java `AvdManagerCli` `Path.toRealPath()` (`../../`), resolving symlinks back into the read-only `.app` bundle where zero system images exist (`Error: Package path is not valid. Valid system image paths are: null`). Always materialize `cmdline-tools` as a real directory inside the writable SDK across all OSes.
+
+---
+
 ## [v0.1.27] — 2026-11-15
 
 ### Backend Fixes
