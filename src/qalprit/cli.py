@@ -13,11 +13,12 @@ import click
 from qalprit import __version__
 from qalprit.appium_manager import AppiumManager
 from qalprit.config_loader import load_screens
+from qalprit.datasets import parse_csv_datasets, resolve_dataset_vars
 from qalprit.devices import list_android_devices, list_ios_simulators
 from qalprit.doctor import run_doctor
 from qalprit.driver_factory import create_appium_driver
 from qalprit.inspector import extract_interactive_elements, format_inspect_output
-from qalprit.report.generator import generate_reports
+from qalprit.report.generator import generate_batch_report, generate_reports
 from qalprit.results import load_results_json, write_results_json
 from qalprit.runner import TestRunner
 from qalprit.spec_loader import TestSpec, load_flows, load_specs
@@ -289,6 +290,7 @@ def list_items(
 @click.option("--platform", type=click.Choice(["android", "ios"]), default=None)
 @click.option("--tag", "tags", multiple=True, help="Filter specs by tag (repeatable).")
 @click.option("--app", "app_path", type=click.Path(path_type=Path), default=None, help="Optional app binary to verify.")
+@click.option("--data", "data_csv", type=click.Path(exists=True, path_type=Path), default=None, help="Optional CSV file of dynamic variable datasets.")
 @click.option("--project-root", type=click.Path(path_type=Path), default=None, hidden=True)
 def validate(
     suite: str | None,
@@ -296,6 +298,7 @@ def validate(
     platform: str | None,
     tags: tuple[str, ...],
     app_path: Path | None,
+    data_csv: Path | None,
     project_root: Path | None,
 ) -> None:
     """Validate specs, flows, locators, and environment variables (no device needed)."""
@@ -307,6 +310,7 @@ def validate(
         tags=list(tags) if tags else None,
         platform=platform,
         app_path=app_path,
+        data_csv_path=data_csv,
     )
     for issue in res.issues:
         click.echo(issue.format(), err=(issue.level == "error"))
@@ -341,6 +345,8 @@ def validate(
 @click.option("--appium-url", default=None, help="Attach to existing Appium 2 server instead of spawning.")
 @click.option("--external-assets", is_flag=True, help="Link screenshots externally in report.html instead of embedding.")
 @click.option("--redact/--no-redact", "redact_screenshots", default=None, help="Enable or disable black-marker PII redaction on screenshots (defaults to environment setting: off for dev, on for pre-prod/prod/qa).")
+@click.option("--data", "data_csv", type=click.Path(exists=True, path_type=Path), default=None, help="CSV file of dynamic variable datasets to execute sequentially.")
+@click.option("--dataset", "dataset_filter", multiple=True, help="Run specific dataset row name(s) from --data CSV.")
 @click.option("--project-root", type=click.Path(path_type=Path), default=None, hidden=True)
 def run(
     platform: str,
@@ -359,6 +365,8 @@ def run(
     appium_url: str | None,
     external_assets: bool,
     redact_screenshots: bool | None,
+    data_csv: Path | None,
+    dataset_filter: tuple[str, ...],
     project_root: Path | None,
 ) -> None:
     """Execute automated UI tests and generate report.html, summary.md, results.json, and junit.xml."""
@@ -378,6 +386,7 @@ def run(
         tags=tag_list,
         platform=platform,
         app_path=app_path if not dry_run else None,
+        data_csv_path=data_csv,
     )
     for issue in val.issues:
         click.echo(issue.format(), err=(issue.level == "error"))
@@ -414,9 +423,28 @@ def run(
             return
         raise click.ClickException("No matching specs found to execute.")
 
+    dataset_bundle = None
+    selected_rows = []
+    if data_csv is not None:
+        dataset_bundle = parse_csv_datasets(
+            data_csv.read_text(encoding="utf-8"),
+            target_kind="spec",
+            target_name=suite or "csv",
+        )
+        wanted_ds = set()
+        for raw_ds in dataset_filter:
+            wanted_ds.update(_parse_csv_set(raw_ds))
+        if wanted_ds:
+            selected_rows = [r for r in dataset_bundle.rows if r.name in wanted_ds]
+        else:
+            selected_rows = [r for r in dataset_bundle.rows if r.selected]
+        if not selected_rows:
+            raise click.ClickException("No matching dataset rows selected in CSV.")
+
     if dry_run:
+        ds_note = f" | datasets={len(selected_rows)}" if selected_rows else ""
         click.echo(
-            f"DRY RUN: {len(selected_specs)} spec(s) | platform={platform} | "
+            f"DRY RUN: {len(selected_specs)} spec(s){ds_note} | platform={platform} | "
             f"device={device_profile} ({profile.device_name}) | env={env_name} | retries={retries}"
         )
         for s in selected_specs:
@@ -424,6 +452,125 @@ def run(
                 f"  - {s.id}: {s.title} (reset={s.reset}, setup={len(s.setup)}, "
                 f"steps={len(s.steps)}, teardown={len(s.teardown)}, retriable={s.retriable})"
             )
+        for r in selected_rows:
+            click.echo(f"  * dataset={r.name} expected={r.expected or '-'}")
+        return
+
+    if selected_rows:
+        import re as _re
+        import time as _time
+
+        batch_id = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S") + "_batch"
+        batch_dir = root / "results" / batch_id
+        batch_dir.mkdir(parents=True, exist_ok=True)
+        appium_log_path = batch_dir / "appium.log"
+        masker = val.env_ctx.masker if val.env_ctx else None
+        secret_cols = dataset_bundle.secret_columns if dataset_bundle else []
+        click.echo(f"Starting QAlprit dataset batch {batch_id} ({len(selected_rows)} dataset(s))...")
+        batch_t0 = _time.monotonic()
+        child_entries = []
+        total_passed = 0
+        total_failed = 0
+        total_skipped = 0
+        shared_driver = None
+        with AppiumManager(log_path=appium_log_path, appium_url=appium_url, masker=masker) as mgr:
+            try:
+                for idx, row in enumerate(selected_rows, start=1):
+                    slug_row = _re.sub(r"[^a-zA-Z0-9._-]+", "_", row.name).strip("._-") or f"row_{idx}"
+                    sub_id = f"{batch_id}_{idx:02d}_{slug_row}"
+                    sub_dir = root / "results" / sub_id
+                    sub_dir.mkdir(parents=True, exist_ok=True)
+                    resolved_vars = resolve_dataset_vars(
+                        row,
+                        val.env_ctx,  # type: ignore[arg-type]
+                        secret_cols,
+                        extra_env_vars=env_cfg.as_env_vars(),
+                    )
+                    runner = TestRunner(
+                        driver_factory=lambda auto_accept: create_appium_driver(
+                            mgr.url,
+                            profile,
+                            env_cfg,
+                            app_path=app_path,
+                            auto_accept_alerts=auto_accept,
+                        ),
+                        profile=profile,
+                        profile_name=device_profile,
+                        env_name=env_name,
+                        env_cfg=env_cfg,
+                        env_ctx=val.env_ctx,  # type: ignore[arg-type]
+                        screens=val.screens,  # type: ignore[arg-type]
+                        flows=val.flows,
+                        run_dir=sub_dir,
+                        run_id=sub_id,
+                        app_path=app_path,
+                        suite=suite or "all",
+                        tags=tag_list or [],
+                        retries=retries,
+                        update_baselines=update_baselines,
+                        redact_screenshots=redact_screenshots,
+                        dataset_vars=resolved_vars,
+                        batch_id=batch_id,
+                        dataset_name=row.name,
+                        dataset_expected=row.expected,
+                    )
+                    sub_res = runner.run(
+                        selected_specs,
+                        appium_log_rel=None,
+                        existing_driver=shared_driver,
+                        close_driver=False,
+                    )
+                    shared_driver = runner._last_driver
+                    write_results_json(sub_res, sub_dir / "results.json", masker=masker)
+                    generate_reports(sub_res, sub_dir, external_assets=external_assets, masker=masker)
+                    sub_status = "failed" if sub_res.summary.failed > 0 else ("skipped" if sub_res.summary.skipped == sub_res.summary.total else "passed")
+                    if sub_status == "passed":
+                        total_passed += 1
+                    elif sub_status == "failed":
+                        total_failed += 1
+                    else:
+                        total_skipped += 1
+                    first_err = next((t.failure_reason for t in sub_res.tests if t.failure_reason), "")
+                    child_entries.append({
+                        "run_id": sub_id,
+                        "dir_name": sub_id,
+                        "dataset_name": row.name,
+                        "dataset_expected": row.expected,
+                        "status": sub_status,
+                        "duration_ms": sub_res.summary.duration_ms,
+                        "error": first_err or "",
+                    })
+            finally:
+                if shared_driver is not None:
+                    try:
+                        shared_driver.quit()
+                    except Exception:
+                        pass
+        batch_summary = {
+            "total": len(selected_rows),
+            "passed": total_passed,
+            "failed": total_failed,
+            "skipped": total_skipped,
+            "duration_ms": int((_time.monotonic() - batch_t0) * 1000),
+        }
+        batch_html = generate_batch_report(
+            {
+                "batch_id": batch_id,
+                "target_label": suite or "csv_batch",
+                "environment": env_name,
+                "platform": platform,
+                "device_name": profile.device_name,
+                "started_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "summary": batch_summary,
+                "runs": child_entries,
+            },
+            batch_dir,
+            masker=masker,
+        )
+        click.echo(f"Batch complete: {total_passed} passed, {total_failed} failed, {total_skipped} skipped")
+        click.echo(f"Batch HTML  : {batch_html}")
+        if total_failed > 0:
+            sys.exit(1)
         return
 
     run_id = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S") + f"_{platform}_{env_name}"

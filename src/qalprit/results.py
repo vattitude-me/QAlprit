@@ -238,6 +238,9 @@ class RunResult(BaseModel):
     python_version: str = ""
     suite: str = "all"
     tags: list[str] = Field(default_factory=list)
+    batch_id: str = ""
+    dataset_name: str = ""
+    dataset_expected: str = ""
     interrupted: bool = False
     summary: RunSummary
     tests: list[TestResult] = Field(default_factory=list)

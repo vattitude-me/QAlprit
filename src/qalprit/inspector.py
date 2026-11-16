@@ -101,6 +101,7 @@ class InspectedElement:
     editable: bool = False
     checkable: bool = False
     rect: list[int] | None = None
+    xml_snippet: str = ""
 
     @property
     def role_slug(self) -> str:
@@ -268,6 +269,20 @@ def parse_page_source_elements(xml_text: str) -> tuple[list[InspectedElement], b
                         context_label = sib_txt
 
         if acc_id or res_id or text or hint or clickable or editable or checkable or password:
+            snip_lines = [f"<{node.tag}"]
+            if res_id:
+                snip_lines.append(f'  resource-id="{res_id}"')
+            if acc_id:
+                snip_lines.append(f'  name="{acc_id}"')
+            if text and not password and not (editable and _SENSITIVE_FIELD_RE.search(f"{acc_id} {res_id} {text} {hint}")):
+                snip_lines.append(f'  text="{text}"')
+            elif password or (editable and _SENSITIVE_FIELD_RE.search(f"{acc_id} {res_id} {text} {hint}")):
+                snip_lines.append('  password="true"')
+            if hint:
+                snip_lines.append(f'  hint="{hint}"')
+            if bounds:
+                snip_lines.append(f'  bounds="{bounds}"')
+            snip_lines.append("/>")
             elements.append(
                 InspectedElement(
                     tag=node.tag,
@@ -285,6 +300,7 @@ def parse_page_source_elements(xml_text: str) -> tuple[list[InspectedElement], b
                     editable=editable,
                     checkable=checkable,
                     rect=rect,
+                    xml_snippet="\n".join(snip_lines),
                 )
             )
     return elements, webview_detected, webview_details
@@ -397,6 +413,7 @@ def extract_interactive_elements(
                 "visible": el.visible,
                 "bounds": el.bounds,
                 "text": display_text,
+                "xml_snippet": masker.mask(el.xml_snippet) if masker and el.xml_snippet else el.xml_snippet,
                 "alternatives": candidates[1:],
                 "warnings": warnings,
             }

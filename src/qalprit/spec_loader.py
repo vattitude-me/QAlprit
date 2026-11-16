@@ -76,6 +76,7 @@ class TestSpec(BaseModel):
         default_factory=lambda: ["simulator", "device"]
     )
     priority: str = "medium"
+    params: list[str] = Field(default_factory=list)
     preconditions: list[str] = Field(default_factory=list)
     reset: Literal["reinstall", "clear_data", "none"] = "clear_data"
     auto_accept_alerts: bool | None = None
@@ -247,6 +248,7 @@ def load_specs(specs_dir: Path) -> tuple[list[TestSpec], list[str]]:
                 "platforms": meta.get("platforms") or ["android", "ios"],
                 "targets": meta.get("targets") or ["simulator", "device"],
                 "priority": str(meta.get("priority") or "medium"),
+                "params": [str(p).strip() for p in (meta.get("params") or []) if str(p).strip()],
                 "preconditions": [str(p) for p in (meta.get("preconditions") or [])],
                 "reset": meta.get("reset") or "clear_data",
                 "auto_accept_alerts": meta.get("auto_accept_alerts"),

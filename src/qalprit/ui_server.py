@@ -17,6 +17,14 @@ from urllib.parse import parse_qs, unquote, urlparse
 from qalprit import __version__
 from qalprit.cleanup import execute_selective_cleanup, inspect_cleanup_targets
 from qalprit.config_loader import load_screens
+from qalprit.datasets import (
+    export_csv_datasets,
+    extract_variables_from_steps,
+    import_csv_to_datasets,
+    load_datasets,
+    mask_bundle_for_ui,
+    save_datasets,
+)
 from qalprit.devices import list_android_devices, list_ios_simulators
 from qalprit.doctor import discover_system_software, run_doctor
 from qalprit.emulator_manager import DEFAULT_AVD_NAME, EmulatorJobManager
@@ -60,11 +68,22 @@ def collect_workspace_overview(
     res_dir = (results_dir or (root / "results")).resolve()
 
     runs: list[dict[str, Any]] = []
+    batches: list[dict[str, Any]] = []
     corrupt_runs: list[dict[str, str]] = []
     if res_dir.exists() and res_dir.is_dir():
         for entry in sorted(res_dir.iterdir(), key=lambda p: p.name, reverse=True):
             if not entry.is_dir():
                 continue
+            batch_json = entry / "batch.json"
+            if batch_json.is_file():
+                try:
+                    b_data = json.loads(batch_json.read_text(encoding="utf-8"))
+                    if isinstance(b_data, dict):
+                        b_data["dir_name"] = entry.name
+                        b_data["has_html"] = (entry / "batch_report.html").exists()
+                        batches.append(b_data)
+                except Exception:
+                    pass
             json_path = entry / "results.json"
             if not json_path.exists():
                 continue
@@ -84,6 +103,9 @@ def collect_workspace_overview(
                         "app_version": run.app_version,
                         "suite": run.suite,
                         "tags": run.tags,
+                        "batch_id": run.batch_id,
+                        "dataset_name": run.dataset_name,
+                        "dataset_expected": run.dataset_expected,
                         "interrupted": run.interrupted,
                         "summary": run.summary.model_dump(),
                         "tests": [
@@ -93,7 +115,23 @@ def collect_workspace_overview(
                                 "status": t.status,
                                 "flaky": t.flaky,
                                 "failure_category": t.failure_category,
+                                "failure_reason": t.failure_reason or "",
+                                "failed_step_index": t.failed_step_index,
+                                "failed_step_action": t.failed_step_action,
                                 "duration_ms": t.duration_ms,
+                                "steps": [
+                                    {
+                                        "index": st.index,
+                                        "phase": st.phase,
+                                        "action": st.action,
+                                        "target": st.target or "",
+                                        "description": st.description,
+                                        "status": st.status,
+                                        "error": st.error or "",
+                                        "screenshot_path": st.screenshot_path or "",
+                                    }
+                                    for st in t.steps
+                                ],
                             }
                             for t in run.tests
                         ],
@@ -140,6 +178,57 @@ def collect_workspace_overview(
     apps = list_workspace_apps(root)
     environments, device_profiles = list_workspace_configs(root)
 
+    specs_payload: list[dict[str, Any]] = []
+    for s in specs:
+        ds_bundle = load_datasets(root, "spec", s.id)
+        detected_vars = extract_variables_from_steps(s.setup + s.steps + s.teardown, flows=flows)
+        merged_params = list(dict.fromkeys([*s.params, *ds_bundle.variables, *detected_vars]))
+        specs_payload.append(
+            {
+                "id": s.id,
+                "title": s.title,
+                "suite": s.suite,
+                "tags": s.tags,
+                "platforms": s.platforms,
+                "targets": s.targets,
+                "priority": s.priority,
+                "params": merged_params,
+                "reset": s.reset,
+                "retries": s.retries,
+                "expected": s.expected,
+                "body": s.body,
+                "setup": [st.model_dump() for st in s.setup],
+                "steps": [st.model_dump() for st in s.steps],
+                "teardown": [st.model_dump() for st in s.teardown],
+                "step_count": len(s.steps),
+                "teardown_count": len(s.teardown),
+                "datasets": mask_bundle_for_ui(ds_bundle),
+                "source_path": s.source_path.relative_to(root).as_posix()
+                if s.source_path.is_relative_to(root)
+                else str(s.source_path),
+            }
+        )
+
+    flows_payload: list[dict[str, Any]] = []
+    for f in sorted(flows.values(), key=lambda x: x.name):
+        ds_bundle = load_datasets(root, "flow", f.name)
+        detected_vars = extract_variables_from_steps(f.steps)
+        merged_params = list(dict.fromkeys([*f.params, *ds_bundle.variables, *detected_vars]))
+        flows_payload.append(
+            {
+                "name": f.name,
+                "params": merged_params,
+                "declared_params": f.params,
+                "body": f.body,
+                "step_count": len(f.steps),
+                "steps": [st.model_dump() for st in f.steps],
+                "datasets": mask_bundle_for_ui(ds_bundle),
+                "source_path": f.source_path.relative_to(root).as_posix()
+                if f.source_path.is_relative_to(root)
+                else str(f.source_path),
+            }
+        )
+
     return {
         "tool": "QAlprit",
         "version": __version__,
@@ -151,45 +240,11 @@ def collect_workspace_overview(
         "device_profiles": device_profiles,
         "step_vocabulary": sorted(STEP_VOCABULARY),
         "runs": runs,
+        "batches": batches,
         "corrupt_runs": corrupt_runs,
         "parse_warnings": parse_warnings,
-        "specs": [
-            {
-                "id": s.id,
-                "title": s.title,
-                "suite": s.suite,
-                "tags": s.tags,
-                "platforms": s.platforms,
-                "targets": s.targets,
-                "priority": s.priority,
-                "reset": s.reset,
-                "retries": s.retries,
-                "expected": s.expected,
-                "body": s.body,
-                "setup": [st.model_dump() for st in s.setup],
-                "steps": [st.model_dump() for st in s.steps],
-                "teardown": [st.model_dump() for st in s.teardown],
-                "step_count": len(s.steps),
-                "teardown_count": len(s.teardown),
-                "source_path": s.source_path.relative_to(root).as_posix()
-                if s.source_path.is_relative_to(root)
-                else str(s.source_path),
-            }
-            for s in specs
-        ],
-        "flows": [
-            {
-                "name": f.name,
-                "params": f.params,
-                "body": f.body,
-                "step_count": len(f.steps),
-                "steps": [st.model_dump() for st in f.steps],
-                "source_path": f.source_path.relative_to(root).as_posix()
-                if f.source_path.is_relative_to(root)
-                else str(f.source_path),
-            }
-            for f in sorted(flows.values(), key=lambda x: x.name)
-        ],
+        "specs": specs_payload,
+        "flows": flows_payload,
         "screens": screens_list,
     }
 
@@ -426,6 +481,29 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
             self._send_bytes(png, "image/png")
             return
 
+        if req_path == "/api/datasets":
+            qs = parse_qs(parsed.query)
+            kind = (qs.get("kind") or ["flow"])[0]
+            name = (qs.get("name") or [""])[0]
+            if kind not in {"flow", "spec"} or not name:
+                self._send_json({"error": "Valid 'kind' (flow|spec) and 'name' are required."}, HTTPStatus.BAD_REQUEST)
+                return
+            bundle = load_datasets(self.project_root, kind, name)  # type: ignore[arg-type]
+            self._send_json(mask_bundle_for_ui(bundle))
+            return
+
+        if req_path == "/api/datasets/export":
+            qs = parse_qs(parsed.query)
+            kind = (qs.get("kind") or ["flow"])[0]
+            name = (qs.get("name") or [""])[0]
+            if kind not in {"flow", "spec"} or not name:
+                self._send_json({"error": "Valid 'kind' (flow|spec) and 'name' are required."}, HTTPStatus.BAD_REQUEST)
+                return
+            bundle = load_datasets(self.project_root, kind, name)  # type: ignore[arg-type]
+            csv_text = export_csv_datasets(bundle)
+            self._send_bytes(csv_text.encode("utf-8"), "text/csv; charset=utf-8")
+            return
+
         if req_path == "/api/compare":
             qs = parse_qs(parsed.query)
             base_id = (qs.get("base") or [""])[0]
@@ -648,6 +726,25 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
                     self.workspace_state["project_root"] = recreated
                     self.workspace_state["results_dir"] = (recreated / "results").resolve()
                 self._send_json(res)
+                return
+
+            if req_path == "/api/datasets/save":
+                kind = str(body.get("kind") or "flow")
+                name = str(body.get("name") or "").strip()
+                if kind not in {"flow", "spec"} or not name:
+                    raise ValueError("Valid 'kind' (flow|spec) and 'name' are required.")
+                bundle = save_datasets(self.project_root, kind, name, body)  # type: ignore[arg-type]
+                self._send_json({"ok": True, "bundle": mask_bundle_for_ui(bundle)})
+                return
+
+            if req_path == "/api/datasets/import-csv":
+                kind = str(body.get("kind") or "flow")
+                name = str(body.get("name") or "").strip()
+                csv_text = str(body.get("csv_text") or "")
+                if kind not in {"flow", "spec"} or not name:
+                    raise ValueError("Valid 'kind' (flow|spec) and 'name' are required.")
+                bundle = import_csv_to_datasets(self.project_root, kind, name, csv_text)  # type: ignore[arg-type]
+                self._send_json({"ok": True, "bundle": mask_bundle_for_ui(bundle)})
                 return
 
             if req_path == "/api/validate":

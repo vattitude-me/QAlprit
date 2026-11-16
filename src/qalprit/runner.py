@@ -74,6 +74,11 @@ class TestRunner:
         poll_interval: float | None = None,
         update_baselines: bool = False,
         redact_screenshots: bool | None = None,
+        dataset_vars: dict[str, str] | None = None,
+        batch_id: str = "",
+        dataset_name: str = "",
+        dataset_expected: str = "",
+        reset_override: str | None = None,
     ) -> None:
         self.driver_factory = driver_factory
         self.profile = profile
@@ -91,16 +96,23 @@ class TestRunner:
         self.retries = max(0, retries)
         self.poll_interval = env_cfg.poll_interval if poll_interval is None else poll_interval
         self.update_baselines = update_baselines
+        self.dataset_vars = dict(dataset_vars or {})
+        self.batch_id = batch_id
+        self.dataset_name = dataset_name
+        self.dataset_expected = dataset_expected
+        self.reset_override = reset_override
+        self._last_driver: Any = None
         effective_redact = env_cfg.redact_screenshots if redact_screenshots is None else bool(redact_screenshots)
         self.app_id = (
             env_cfg.android_package if profile.platform == "android" else env_cfg.ios_bundle_id
         )
+        merged_extra_env = {**env_cfg.as_env_vars(), **self.dataset_vars}
         self.evidence = EvidenceCollector(
             run_dir=run_dir,
             screens=screens,
             platform=profile.platform,
             env_ctx=env_ctx,
-            extra_env_vars=env_cfg.as_env_vars(),
+            extra_env_vars=merged_extra_env,
             masker=env_ctx.masker,
             redact_screenshots=effective_redact,
             secure_evidence=env_cfg.secure_evidence,
@@ -351,12 +363,18 @@ class TestRunner:
             interrupted,
         )
 
-    def run(self, specs: list[TestSpec], appium_log_rel: str | None = None) -> RunResult:
+    def run(
+        self,
+        specs: list[TestSpec],
+        appium_log_rel: str | None = None,
+        existing_driver: Any = None,
+        close_driver: bool = True,
+    ) -> RunResult:
         """Execute all selected specs, reusing one Appium session when compatible."""
         started_at = _utc_now_iso()
         run_t0 = time.monotonic()
 
-        driver: Any = None
+        driver: Any = existing_driver
         current_alert_override: bool | None = None
         os_version = str(self.profile.platform_version or "")
         app_version = ""
@@ -427,10 +445,11 @@ class TestRunner:
                     att_t0 = time.monotonic()
                     reset_status = "ok"
                     reset_error = ""
+                    effective_reset = self.reset_override or spec.reset
                     try:
                         active_driver = _ensure_session(spec.auto_accept_alerts)
-                        if spec.reset != "none" or len(test_results) > 0 or attempt_num > 1:
-                            reset_ok, reset_error = self._apply_reset(active_driver, spec.reset)
+                        if effective_reset != "none" or len(test_results) > 0 or attempt_num > 1:
+                            reset_ok, reset_error = self._apply_reset(active_driver, effective_reset)
                             if not reset_ok:
                                 reset_status = "failed"
                         else:
@@ -459,7 +478,7 @@ class TestRunner:
                                 attempt=attempt_num,
                                 status="failed",
                                 duration_ms=int((time.monotonic() - att_t0) * 1000),
-                                error=f"Pre-test reset ({spec.reset}) failed: {reset_error}",
+                                error=f"Pre-test reset ({effective_reset}) failed: {reset_error}",
                                 failure_category="app_launch_failure",
                                 exception_type="RuntimeError",
                                 reset_status="failed",
@@ -490,11 +509,12 @@ class TestRunner:
                         masker=self.env_ctx.masker,
                         app_id=self.app_id,
                         app_path=self.app_path,
-                        reset_mode=spec.reset,
+                        reset_mode=effective_reset,  # type: ignore[arg-type]
                         reset_fn=lambda mode, d=active_driver: self._apply_reset(d, mode),
                         poll_interval=self.poll_interval,
                         run_dir=self.run_dir,
                         update_baselines=self.update_baselines,
+                        dataset_vars=self.dataset_vars,
                     )
 
                     setup_results: list[StepResult] = []
@@ -659,7 +679,7 @@ class TestRunner:
                         failed_step_index=final_attempt.failed_step_index,
                         failed_step_action=final_attempt.failed_step_action,
                         retriable=spec.retriable,
-                        reset_mode=spec.reset,
+                        reset_mode=effective_reset,
                         redaction_warnings=redaction_warn_count,
                         duration_ms=int((time.monotonic() - test_t0) * 1000),
                         webview_detected=webview_hit,
@@ -670,7 +690,8 @@ class TestRunner:
         except KeyboardInterrupt:
             run_interrupted = True
         finally:
-            if driver is not None:
+            self._last_driver = None if close_driver else driver
+            if close_driver and driver is not None:
                 try:
                     driver.quit()
                 except Exception:
@@ -716,6 +737,9 @@ class TestRunner:
             python_version=py_platform.python_version(),
             suite=self.suite,
             tags=self.tags,
+            batch_id=self.batch_id,
+            dataset_name=self.dataset_name,
+            dataset_expected=self.dataset_expected,
             interrupted=run_interrupted,
             summary=summary,
             tests=test_results,

@@ -83,10 +83,14 @@ class StepContext:
     poll_interval: float = 0.25
     run_dir: Path | None = None
     update_baselines: bool = False
+    dataset_vars: dict[str, str] = field(default_factory=dict)
 
     @property
     def extra_env_vars(self) -> dict[str, str]:
-        return self.env_cfg.as_env_vars()
+        merged = self.env_cfg.as_env_vars()
+        if self.dataset_vars:
+            merged.update(self.dataset_vars)
+        return merged
 
     def resolve_locator(self, target: str, params: dict[str, Any] | None = None) -> ResolvedLocator:
         return self.screens.resolve(
