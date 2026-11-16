@@ -989,6 +989,7 @@ class RunJobManager:
         env_name = str(payload.get("env_name") or "qa")
         suite = str(payload.get("suite") or "").strip() or None
         spec_id = str(payload.get("spec_id") or "").strip() or None
+        flow_name = str(payload.get("flow_name") or "").strip() or None
         retries = max(0, int(payload.get("retries") or 0))
         dry_run = bool(payload.get("dry_run", False))
         raw_redact = payload.get("redact_screenshots")
@@ -1001,15 +1002,16 @@ class RunJobManager:
             resolved_app = cand if cand.is_absolute() else (project_root / cand)
             resolved_app = resolved_app.resolve()
         elif not dry_run:
-            raise ValueError("Select or upload an app (.apk/.app/.ipa) before starting a live run.")
+            raise ValueError("Select or upload an app (.apk/.app/.ipa/.zip) before starting a live run.")
 
         val = validate_project(
             project_root,
             env_name=env_name,
-            suite=suite,
+            suite=None if flow_name else suite,
             platform=platform,
             app_path=resolved_app if not dry_run else None,
-            spec_id=spec_id,
+            spec_id=None if flow_name else spec_id,
+            flow_name=flow_name,
         )
         if not val.ok:
             raise ValueError("; ".join(e.message for e in val.errors[:5]))
@@ -1019,7 +1021,38 @@ class RunJobManager:
         if not specs:
             if spec_id:
                 raise ValueError(f"Journey '{spec_id}' did not match platform '{platform}' or suite '{suite or 'all'}'.")
-            raise ValueError("No matching test journeys found to run.")
+            all_specs, _ = load_specs(project_root / "specs")
+            flows_map, _ = load_flows(project_root / "flows")
+            if all_specs:
+                other_plat = [
+                    f"{s.id} [{','.join(s.platforms)}]"
+                    for s in all_specs
+                    if (not suite or s.suite == suite) and platform not in s.platforms
+                ]
+                if other_plat:
+                    sample = ", ".join(other_plat[:4])
+                    flow_hint = (
+                        f" Or pick a saved Workflow ({len(flows_map)} in flows/)."
+                        if flows_map
+                        else ""
+                    )
+                    raise ValueError(
+                        f"No matching test journeys found for platform '{platform}' in suite '{suite or 'all'}'. "
+                        f"Found {len(other_plat)} journey(s) targeting other platforms: {sample}. "
+                        f"Enable '{platform}' in Step 3 Target Platforms or switch Platform above.{flow_hint}"
+                    )
+                other_suites = sorted({s.suite for s in all_specs if suite and s.suite != suite})
+                if other_suites:
+                    raise ValueError(
+                        f"No matching test journeys found in suite '{suite}' for platform '{platform}'. "
+                        f"Found journeys in suite(s): {', '.join(other_suites)}. Clear Suite Filter to run all suites."
+                    )
+            if flows_map:
+                raise ValueError(
+                    f"No test journeys found in specs/. Select a saved Workflow ({len(flows_map)} available in Step 4) "
+                    "or create a Test Journey in Step 3."
+                )
+            raise ValueError("No matching test journeys found to run. Record a Workflow in Step 2 or create a Test Journey in Step 3.")
 
         if dry_run:
             return {
@@ -1028,6 +1061,7 @@ class RunJobManager:
                 "device_profile": device_profile,
                 "env_name": env_name,
                 "spec_id": spec_id or "",
+                "flow_name": flow_name or "",
                 "specs": [
                     {
                         "id": s.id,
@@ -1092,7 +1126,7 @@ class RunJobManager:
                         run_dir=run_dir,
                         run_id=run_id,
                         app_path=resolved_app,
-                        suite=suite or "all",
+                        suite=f"workflow:{flow_name}" if flow_name else (suite or "all"),
                         tags=[],
                         retries=retries,
                         redact_screenshots=redact_override,

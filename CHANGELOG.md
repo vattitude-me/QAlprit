@@ -10,6 +10,26 @@ All notable backend, UI, packaging, and documentation changes to **QAlprit** are
 
 ---
 
+## [v0.1.27] — 2026-11-15
+
+### Backend Fixes
+- **Direct Workflow Execution & Dry-Run Mode (`src/qalprit/validator.py`, `src/qalprit/workbench_api.py`)**: Added `flow_name: str | None = None` support to `validate_project()` and `RunJobManager.start()`, allowing any saved workflow under `flows/` to be validated, previewed via Dry Run, and executed directly in Step 4 as a synthetic `FLOW-<SLUG>` test spec even before wrapping it into `specs/*.md`.
+- **iOS `.zip` Binary Validation (`src/qalprit/validator.py`)**: Accepted `.zip` alongside `.app` and `.ipa` in `valid_exts["ios"]` so compressed iOS Simulator app bundles no longer trigger misleading extension warnings.
+- **Actionable Mismatch Errors (`src/qalprit/workbench_api.py`)**: Replaced the generic `"No matching test journeys found to run."` error with specific diagnostics naming existing journeys on other platforms (e.g., `SMK-001 [android]`), other suites, or available `flows/`.
+
+### UI Improvements (Windows `.exe` & macOS `.dmg` Parity)
+- **Step 4 Direct Workflow Selector & Live Match Diagnostics (`src/qalprit/ui/index.html`)**: Added a `Workflow (Optional)` picker (`#runFlowFilter`), live `#runMatchHint` diagnostics explaining platform/suite matches or mismatches before running, and a `Run ->` button on saved workflows in Step 3 (`#flowsTable`), plus Step 2 `btnRecGoRun` support even when saving only a workflow.
+- **Step 3 iOS Target Platform Auto-Default (`src/qalprit/ui/index.html`)**: Defaulted `#specPlatIos` to checked on macOS hosts (`Darwin`) and whenever an iOS binary/platform is active (`!STATE.specPlatUserTouched`), matching `resetJourneyBuilderToNew()` so newly authored journeys on Mac aren't accidentally saved as `[android]`-only.
+- **Accurate Redaction Label (`src/qalprit/ui/index.html`)**: Updated `syncRunRedactToEnv()` copy from `"off by default for '...'"` to `"enabled/off in '...' config (editable in Step 1C)"` so it reflects the configured `environments.yaml` flag unambiguously.
+
+### Tests
+- Added `test_validate_project_accepts_ios_zip_and_single_flow_mode` (`tests/test_validator.py`) and `test_run_job_manager_supports_direct_flow_and_helpful_mismatch_error` (`tests/test_workbench_and_desktop.py`).
+
+### Root Cause & Lesson Learned
+- Step 3's `#specPlatIos` HTML checkbox started unchecked on initial load (only `resetJourneyBuilderToNew()` checked `hostOs === "Darwin"`), causing journeys created on Mac to save with `platforms: [android]` while Step 4 defaulted to `ios` (`All Journeys (0)`), and Step 4 lacked any selector to run standalone `flows/*.md` directly. Keep initial HTML/overview defaults aligned with `reset*()` helpers, validate `.zip` as a first-class iOS simulator binary extension, and surface platform/suite mismatches immediately in both the UI hint and backend error messages.
+
+---
+
 ## [v0.1.26] — 2026-11-15
 
 ### Backend & Live Recorder Fixes
