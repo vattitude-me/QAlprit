@@ -215,12 +215,15 @@ codesign --force --sign - "${RUNTIME_TARGET}/android-sdk/build-tools/${BUILD_TOO
 codesign --force --sign - "${RUNTIME_TARGET}/android-sdk/build-tools/${BUILD_TOOLS_VER}/zipalign" || true
 codesign --force --deep --sign - "${DIST_APP}"
 
-# 8. Smoke-test QAlprit.app strictly using its bundled runtime/
+# 8. Smoke-test QAlprit.app strictly using its bundled runtime/ without mutating the .app seal
 echo "==> Smoke-testing bundled QAlprit.app..."
 QALPRIT_APP_BIN="${DIST_APP}/Contents/MacOS/QAlprit"
+SMOKE_DATA_DIR="${BUILD_WORK}/smoke-data"
+rm -rf "${SMOKE_DATA_DIR}"
+mkdir -p "${SMOKE_DATA_DIR}"
 VER_OUT="$("${QALPRIT_APP_BIN}" --version)"
 echo "Version output: ${VER_OUT}"
-DOC_JSON="$(env -i HOME="${HOME}" PATH="/usr/bin:/bin" "${QALPRIT_APP_BIN}" doctor --json-output || true)"
+DOC_JSON="$(env -i HOME="${HOME}" PATH="/usr/bin:/bin" QALPRIT_DATA_DIR="${SMOKE_DATA_DIR}" "${QALPRIT_APP_BIN}" doctor --json-output || true)"
 echo "${DOC_JSON}"
 echo "${DOC_JSON}" | "${PYTHON_BIN}" -c '
 import json, sys
@@ -232,23 +235,29 @@ for req in ("Python", "Appium Python client", "Node.js", "Appium", "Appium drive
 print("All bundled runtime checks OK")
 '
 
+echo "==> Verifying QAlprit.app code signature seal..."
+codesign --verify --deep --strict --verbose=2 "${DIST_APP}"
+
 # 9. Package DMG with Applications symlink + first-launch note
 rm -rf "${DMG_STAGING}" "${DIST_MAC}/QAlprit.app" "${DMG_PATH}"
 mkdir -p "${DMG_STAGING}"
 ditto "${DIST_APP}" "${DMG_STAGING}/QAlprit.app"
+codesign --verify --deep --strict "${DMG_STAGING}/QAlprit.app"
 ln -s /Applications "${DMG_STAGING}/Applications"
 cat > "${DMG_STAGING}/HOW-TO-OPEN.txt" <<'TXT'
-QAlprit for macOS (Unsigned / Ad-hoc Build)
-==========================================
+QAlprit for macOS (Ad-hoc Signed, Un-notarized Build)
+=====================================================
 
 1. Drag "QAlprit.app" into the "Applications" folder shortcut.
-2. Because this build is not yet Apple-notarized:
-   - First time opening QAlprit: Control-click (right-click) QAlprit.app
-     in Applications and choose "Open", then click "Open" in the dialog.
-   - Or if macOS Sequoia/Tahoe blocks it: go to System Settings ->
-     Privacy & Security -> scroll down to "QAlprit" -> click "Open Anyway".
-   - Terminal alternative:
+2. First time opening QAlprit on macOS Sequoia (15+) / Tahoe (26+):
+   - Recommended (Terminal, 1 command):
        xattr -dr com.apple.quarantine /Applications/QAlprit.app
+     Then double-click QAlprit in /Applications.
+   - Or via System Settings:
+     Double-click QAlprit in /Applications -> click "Done" ->
+     open System Settings -> Privacy & Security -> scroll to Security ->
+     click "Open Anyway".
+   (Note: Apple removed Control-click -> Open in macOS 15+.)
 
 Your QAlprit workspace lives in: ~/Documents/QAlpritWorkspace (or ~/QAlpritWorkspace if upgraded)
 TXT
