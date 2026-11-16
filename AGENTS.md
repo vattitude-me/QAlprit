@@ -14,9 +14,13 @@ These project rules govern git workflow, versioning, PyPI publishing, website/Ve
 
 ## 2. Versioning & Releases
 
-- **Bump both version files together**: Every release must update the exact same `X.Y.Z` version in both:
+- **Bump all version surfaces together**: Every release must update the exact same `X.Y.Z` version across:
   - `pyproject.toml` (`version = "X.Y.Z"`)
   - `src/qalprit/__init__.py` (`__version__ = "X.Y.Z"`)
+  - `packaging/windows/installer.iss` (`#define QAlpritVersion "X.Y.Z"`)
+  - `web/index.html` (synced release badge `vX.Y.Z`)
+  - `CHANGELOG.md` (release section documenting backend, UI, packaging changes, and bug lessons learned)
+- **Backend + UI Version Parity**: Desktop Workbench UI (`src/qalprit/ui/index.html` `#verPill`) reads `version` dynamically from `/api/overview` (`__version__`), and `web/index.html` must stay synced with the latest released `vX.Y.Z`. Report both `CHANGELOG.md` update status and backend + UI versions after every code/UI response.
 - **Tagging**: Tag merged commits on `main` as `vX.Y.Z` before creating a GitHub Release.
 - **Immutable PyPI versions**: Never re-upload to an already-published PyPI version number — bump at least the patch version (`X.Y.Z+1`) for any new PyPI release or `README.md` update on PyPI.
 
