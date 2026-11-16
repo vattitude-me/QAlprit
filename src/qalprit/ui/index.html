@@ -1861,7 +1861,7 @@
         <span class="sb-item" id="sbToolchainText">Toolchain checking...</span>
       </div>
       <div class="sb-group">
-        <span id="verPill">v0.1.29</span>
+        <span id="verPill">v0.1.30</span>
         <span>&middot; all data stays on this machine &middot;</span>
         <span>Managed by <a href="https://vattitude.ca" target="_blank" rel="noopener">vattitude.ca</a></span>
       </div>
@@ -3389,7 +3389,7 @@
         applyHostOsUi(STATE.hostOs);
         if (Array.isArray(data.step_vocabulary) && data.step_vocabulary.length) STATE.stepVocab = data.step_vocabulary;
 
-        $("verPill").textContent = "v" + (data.version || "0.1.29");
+        $("verPill").textContent = "v" + (data.version || "0.1.30");
         $("badgeApps").textContent = (data.apps || []).length + " apps";
         $("badgeScreens").textContent = String((data.screens || []).length);
         $("badgeFlows").textContent = String((data.flows || []).length);

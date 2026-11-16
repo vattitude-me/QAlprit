@@ -22,6 +22,7 @@ These project rules govern git workflow, versioning, PyPI publishing, website/Ve
   - `CHANGELOG.md` (release section documenting backend, UI, packaging changes, and bug lessons learned)
 - **Backend + UI Version Parity**: Desktop Workbench UI (`src/qalprit/ui/index.html` `#verPill`) reads `version` dynamically from `/api/overview` (`__version__`), and `web/index.html` must stay synced with the latest released `vX.Y.Z`. Report both `CHANGELOG.md` update status and backend + UI versions after every code/UI response.
 - **Tagging**: Tag merged commits on `main` as `vX.Y.Z` before creating a GitHub Release.
+- **Always cut a new release after merging**: After merging any user-approved code, UI, or packaging change to `main`, always bump the version (`X.Y.Z+1`) across all version surfaces, tag `vX.Y.Z` on `main`, and create a GitHub Release so `.github/workflows/publish.yml` builds and publishes updated PyPI packages, Windows `.exe` installer, and macOS `.dmg` artifacts.
 - **Immutable PyPI versions**: Never re-upload to an already-published PyPI version number — bump at least the patch version (`X.Y.Z+1`) for any new PyPI release or `README.md` update on PyPI.
 
 ## 3. PyPI Publishing (`qalprit`)
