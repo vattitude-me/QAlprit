@@ -169,3 +169,53 @@ def test_create_appium_driver_autopicks_first_avd_when_none_booted(monkeypatch) 
 
     caps = captured["options"].to_capabilities()
     assert caps["appium:avd"] == "mbtest"
+
+
+def test_create_appium_driver_enables_headless_when_xcode_lacks_simulator_app(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(
+        "appium.webdriver.Remote",
+        lambda url, *, options: captured.update({"url": url, "options": options}) or SimpleNamespace(),
+    )
+    monkeypatch.setattr("qalprit.driver_factory._xcode_has_legacy_simulator_app", lambda: False)
+
+    profile = DeviceProfile(
+        name="ios_simulator",
+        platform="ios",
+        target_type="simulator",
+        device_name="iPhone 17 Pro",
+        platform_version="26.5",
+        automation_name="XCUITest",
+    )
+    env_cfg = EnvironmentConfig(name="mda", ios_bundle_id="com.saucelabs.mydemo.app.ios")
+
+    create_appium_driver("http://127.0.0.1:4723", profile, env_cfg)
+    caps = captured["options"].to_capabilities()
+    assert caps["appium:isHeadless"] is True
+
+    # Explicit user capability overrides auto-detection cleanly
+    override_profile = DeviceProfile(
+        name="ios_simulator",
+        platform="ios",
+        target_type="simulator",
+        device_name="iPhone 17 Pro",
+        platform_version="26.5",
+        automation_name="XCUITest",
+        capabilities={"appium:isHeadless": False},
+    )
+    create_appium_driver("http://127.0.0.1:4723", override_profile, env_cfg)
+    override_caps = captured["options"].to_capabilities()
+    assert override_caps["appium:isHeadless"] is False
+
+
+def test_xcode_has_legacy_simulator_app_checks_developer_dir(tmp_path, monkeypatch) -> None:
+    from qalprit.driver_factory import _xcode_has_legacy_simulator_app
+
+    dev_dir = tmp_path / "Xcode.app" / "Contents" / "Developer"
+    dev_dir.mkdir(parents=True)
+    monkeypatch.setattr("qalprit.driver_factory.platform.system", lambda: "Darwin")
+    monkeypatch.setenv("DEVELOPER_DIR", str(dev_dir))
+    assert _xcode_has_legacy_simulator_app() is False
+
+    (dev_dir / "Applications" / "Simulator.app").mkdir(parents=True)
+    assert _xcode_has_legacy_simulator_app() is True

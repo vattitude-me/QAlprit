@@ -34,6 +34,20 @@ _DEFAULT_DEVICES_YAML = """profiles:
     device_name: Android Device
     automation_name: UiAutomator2
     auto_accept_alerts: true
+
+  ios_simulator:
+    platform: ios
+    target_type: simulator
+    device_name: iPhone 17 Pro
+    automation_name: XCUITest
+    auto_accept_alerts: true
+
+  ios_device:
+    platform: ios
+    target_type: device
+    device_name: iPhone Device
+    automation_name: XCUITest
+    auto_accept_alerts: true
 """
 
 _DEFAULT_ENVIRONMENTS_YAML = """environments:

@@ -586,7 +586,11 @@ class EmulatorJobManager:
             proc = subprocess.run(["xcrun", "simctl", "boot", target.identifier], capture_output=True, text=True, timeout=30)
             if proc.returncode != 0 and "Unable to boot device in current state: Booted" not in (proc.stderr or ""):
                 raise RuntimeError((proc.stderr or proc.stdout).strip() or "Failed to boot iOS Simulator.")
-        subprocess.run(["open", "-a", "Simulator"], capture_output=True, text=True, timeout=10)
+        ui_proc = subprocess.run(["open", "-a", "Simulator"], capture_output=True, text=True, timeout=10)
+        if ui_proc.returncode != 0:
+            device_hub = Path("/Applications/Xcode.app/Contents/Applications/DeviceHub.app")
+            if device_hub.exists():
+                subprocess.run(["open", "-a", str(device_hub)], capture_output=True, text=True, timeout=10)
         return {"ok": True, "name": target.name, "identifier": target.identifier}
 
     def stop(self) -> dict[str, Any]:
