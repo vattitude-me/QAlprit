@@ -6,8 +6,14 @@ All notable backend, UI, packaging, and documentation changes to **QAlprit** are
 
 ## [Unreleased]
 
+- _No unreleased changes yet._
+
+---
+
+## [v0.1.30] — 2026-11-16
+
 ### Desktop Workbench Redesign (`src/qalprit/ui/index.html`)
-- **Modern Dark IDE Workbench Shell**: Replaced the 4-step wizard with a sleek dark-slate + teal (`#2dd4bf`) desktop shell shared across both `QAlprit.exe` and `QAlprit.app` (`.dmg`), featuring a compact top context bar (`Env`, live device status dot, active app binary), left Workbench & Library sidebar (`Setup & Devices`, `Record`, `Journeys`, `Runs & Reports`, `Workflows`, `Screens & locators`, `Settings`), and live bottom status bar (`Appium 2`, `Emulator`, `Toolchain`, `v0.1.29`).
+- **Modern Dark IDE Workbench Shell**: Replaced the 4-step wizard with a sleek dark-slate + teal (`#2dd4bf`) desktop shell shared across both `QAlprit.exe` and `QAlprit.app` (`.dmg`), featuring a compact top context bar (`Env`, live device status dot, active app binary), left Workbench & Library sidebar (`Setup & Devices`, `Record`, `Journeys`, `Runs & Reports`, `Workflows`, `Screens & locators`, `Settings`), and live bottom status bar (`Appium 2`, `Emulator`, `Toolchain`, `v0.1.30`).
 - **Redesigned Record Workspace (`Record`)**: Clean single-line toolbar (`Screen tag`, `Session target`, `Redact secrets`, `Import workflow`, `Start/Stop recording`), phone bezel live mirror with `Tap / Type / Assert text / Wait` modes, editable `STEPS` sequence, and `INSPECTOR` pane showing live locator + redacted XML snippet (`src/qalprit/inspector.py`).
 - **Variables & CSV Datasets Workspace (`Workflows` & `Journeys`)**: Added tabbed detail views (`Steps`, `Variables & datasets`, `Settings`) with CSV import/export, row selection checkboxes, `${ENV_VAR}` badges, masked secret cells (`•••••• secret`), live `Step 1 preview`, and right-side `Run Configuration` (`Dry run` & sequential `Run N datasets`).
 - **Batch Runs & Proof Inspector (`Runs & Reports`)**: Added grouped batch rows (`batch_report.html`) with expandable dataset child rows (`HTML · MD · JUnit`) and a right-side failure inspector showing step error details, clickable screenshot thumbnail + lightbox, step timeline, and `Re-run dataset`.
