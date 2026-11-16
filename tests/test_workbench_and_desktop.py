@@ -994,6 +994,107 @@ def test_recorder_hit_test_diff_and_save_flow_and_spec(
     assert len(changed) == 1 and changed[0][1] == "alice@demo.com"
 
 
+def test_recorder_scales_ios_retina_rects_redacts_and_swipes_in_points(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import io
+    import time
+    from PIL import Image
+    import qalprit.recorder as rec_mod
+
+    ws = ensure_workspace(tmp_path / "ios_ret_ws")
+    # 3x Retina iPhone screenshot (1206x2622 px) vs XCUITest logical points (402x874 pt)
+    buf = io.BytesIO()
+    Image.new("RGB", (1206, 2622), color=(240, 240, 240)).save(buf, format="PNG")
+    retina_png = buf.getvalue()
+
+    ios_xml = (
+        '<AppiumAUT>'
+        '<XCUIElementTypeApplication name="My Demo App" x="0" y="0" width="402" height="874">'
+        '<XCUIElementTypeSecureTextField name="Password" x="20" y="300" width="362" height="44" enabled="true" visible="true" />'
+        '<XCUIElementTypeButton name="Add To Cart" label="Add To Cart" x="60" y="750" width="282" height="50" enabled="true" visible="true" />'
+        '</XCUIElementTypeApplication>'
+        '</AppiumAUT>'
+    )
+    swipes: list[tuple[int, int, int, int]] = []
+    clicks: list[str] = []
+
+    class _FakeEl:
+        def __init__(self, val: str) -> None:
+            self.val = val
+
+        def click(self) -> None:
+            clicks.append(self.val)
+
+    class _FakeDriver:
+        capabilities = {"udid": "B8AF4FAF-1864-4D6D-B67F-D17F7822F4A8"}
+
+        @property
+        def page_source(self) -> str:
+            return ios_xml
+
+        def find_element(self, _strat: str, val: str) -> _FakeEl:
+            return _FakeEl(val)
+
+        def get_screenshot_as_png(self) -> bytes:
+            return retina_png
+
+        def get_window_size(self) -> dict[str, int]:
+            return {"width": 402, "height": 874}
+
+        def swipe(self, sx: int, sy: int, ex: int, ey: int, _dur: int = 300) -> None:
+            swipes.append((sx, sy, ex, ey))
+
+        def quit(self) -> None:
+            return
+
+    class _FakeAppiumMgr:
+        url = "http://127.0.0.1:4723"
+
+        def __init__(self, **_kwargs: object) -> None:
+            pass
+
+        def __enter__(self) -> "_FakeAppiumMgr":
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return
+
+    monkeypatch.setattr(rec_mod, "AppiumManager", _FakeAppiumMgr)
+    monkeypatch.setattr(rec_mod, "create_appium_driver", lambda *_a, **_kw: _FakeDriver())
+
+    mgr = rec_mod.RecorderManager()
+    mgr.start(ws, platform="ios", device_profile="ios_simulator", env_name="qa", redact_sensitive=True)
+    try:
+        deadline = time.monotonic() + 5.0
+        while not mgr.status()["active"] and time.monotonic() < deadline:
+            time.sleep(0.05)
+        st = mgr.status()
+        assert st["active"] is True
+        assert st["screen_width"] == 1206
+        assert st["screen_height"] == 2622
+
+        by_val = {el["recommended_value"]: el for el in st["elements"]}
+        assert by_val["Add To Cart"]["rect"] == [180, 2250, 1026, 2400]
+        assert by_val["Password"]["rect"] == [60, 900, 1146, 1032]
+
+        # Live mirror PNG redaction must cover Retina pixels (600, 960), not 1x corner (200, 320)
+        with Image.open(io.BytesIO(mgr.screenshot_bytes())) as im:
+            assert im.getpixel((600, 960))[:3] == (15, 23, 42)
+            assert im.getpixel((200, 320))[:3] == (240, 240, 240)
+
+        # Clicking button pixel coordinates (600, 2325) must hit-test & tap Add To Cart
+        st_tap = mgr.perform_action(action="tap", x=600, y=2325, screen_name="product")
+        assert clicks == ["Add To Cart"]
+        assert st_tap["steps"][-1]["action"] == "tap"
+
+        # Swipes must use logical iOS window points (402x874), never raw Retina pixels
+        mgr.perform_action(action="swipe", direction="up")
+        assert swipes == [(201, int(874 * 0.72), 201, int(874 * 0.28))]
+    finally:
+        mgr.stop()
+
+
 def test_overview_reflects_external_flow_md_edits_and_parse_warnings(tmp_path: Path) -> None:
     import json
     import threading

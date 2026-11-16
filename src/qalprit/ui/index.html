@@ -657,7 +657,7 @@
     .rec-box:hover, .rec-box.is-selected {
       border-color: var(--accent);
       background: rgba(15, 118, 110, 0.22);
-      z-index: 4;
+      z-index: 999;
     }
     .rec-box.is-label {
       border: 1px dashed rgba(217, 119, 6, 0.72);
@@ -3049,17 +3049,32 @@
         const items = (elements || []).map((el, idx) => ({ el, idx }));
 
         if (overlays) {
-          overlays.innerHTML = items
-            .filter(({ el }) => Array.isArray(el.rect) && el.rect.length === 4 && (el.clickable || el.editable || el.text || el.hint))
+          const totalArea = Math.max(1, w * h);
+          const overlayItems = items
+            .filter(({ el }) => (
+              el.visible !== false
+              && Array.isArray(el.rect)
+              && el.rect.length === 4
+              && (el.clickable || el.editable || el.text || el.hint)
+            ))
             .map(({ el, idx }) => {
               const [x1, y1, x2, y2] = el.rect;
+              const area = Math.max(1, (x2 - x1) * (y2 - y1));
+              return { el, idx, x1, y1, x2, y2, area };
+            })
+            .filter(({ area }) => (area / totalArea) <= 0.85)
+            // Render largest boxes first and smallest controls on top so small buttons stay clickable.
+            .sort((a, b) => b.area - a.area);
+
+          overlays.innerHTML = overlayItems
+            .map(({ el, idx, x1, y1, x2, y2 }, orderIdx) => {
               const left = Math.max(0, (x1 / w) * 100).toFixed(2);
               const top = Math.max(0, (y1 / h) * 100).toFixed(2);
               const width = Math.min(100, ((x2 - x1) / w) * 100).toFixed(2);
               const height = Math.min(100, ((y2 - y1) / h) * 100).toFixed(2);
               const isStaticLabel = !el.clickable && !el.editable;
               const lbl = el.display_label || el.key || "Element";
-              return `<div class="rec-box${isStaticLabel ? " is-label" : ""}${STATE.recSelectedIdx === idx ? " is-selected" : ""}" data-rec-box="${idx}" title="${esc(lbl)}" style="left:${left}%;top:${top}%;width:${width}%;height:${height}%;"></div>`;
+              return `<div class="rec-box${isStaticLabel ? " is-label" : ""}${STATE.recSelectedIdx === idx ? " is-selected" : ""}" data-rec-box="${idx}" title="${esc(lbl)}" style="left:${left}%;top:${top}%;width:${width}%;height:${height}%;z-index:${orderIdx + 1};"></div>`;
             }).join("");
         }
 

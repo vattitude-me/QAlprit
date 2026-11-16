@@ -74,3 +74,34 @@ def test_inspector_human_readable_names_hints_and_sibling_labels() -> None:
     btn2 = by_val["com.bank:id/btn2"]
     assert btn1["key"] == "continue_btn"
     assert btn2["key"] == "continue_btn_2"
+
+
+def test_inspector_detects_ios_clickable_buttons_and_skips_app_shell() -> None:
+    from qalprit.inspector import extract_interactive_elements
+
+    ios_xml = """
+    <AppiumAUT>
+      <XCUIElementTypeApplication name="My Demo App" label="My Demo App" x="0" y="0" width="402" height="874">
+        <XCUIElementTypeWindow x="0" y="0" width="402" height="874">
+          <XCUIElementTypeButton name="BackButton Icons" label="Products" x="12" y="64" width="90" height="32" enabled="true" visible="true" />
+          <XCUIElementTypeStaticText name="Sauce Labs Backpack - Black" label="Sauce Labs Backpack - Black" x="20" y="130" width="320" height="28" enabled="true" visible="true" />
+          <XCUIElementTypeSecureTextField name="Password" placeholderValue="Enter password" x="20" y="250" width="362" height="44" enabled="true" visible="true" />
+          <XCUIElementTypeButton name="Add To Cart" label="Add To Cart" x="60" y="750" width="282" height="50" enabled="true" visible="true" />
+        </XCUIElementTypeWindow>
+      </XCUIElementTypeApplication>
+    </AppiumAUT>
+    """
+    items = extract_interactive_elements(ios_xml, platform="ios")
+    tags = {item["tag"] for item in items}
+    assert "XCUIElementTypeApplication" not in tags
+    assert "XCUIElementTypeWindow" not in tags
+
+    by_val = {item["recommended_value"]: item for item in items}
+    assert by_val["BackButton Icons"]["clickable"] is True
+    assert by_val["BackButton Icons"]["role"] == "button"
+    assert by_val["Add To Cart"]["clickable"] is True
+    assert by_val["Add To Cart"]["role"] == "button"
+    assert by_val["Sauce Labs Backpack - Black"]["clickable"] is False
+    assert by_val["Sauce Labs Backpack - Black"]["role"] == "label"
+    assert by_val["Password"]["editable"] is True
+    assert by_val["Password"]["suggested_sensitive"] is True

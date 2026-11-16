@@ -155,6 +155,8 @@ class RecorderManager:
         self._flow_name = "recorded_flow"
         self._screen_width = 1080
         self._screen_height = 2400
+        self._gesture_width = 1080
+        self._gesture_height = 2400
         self._screenshot_png: bytes = b""
         self._elements: list[dict[str, Any]] = []
         self._locators: dict[str, dict[str, Any]] = {}
@@ -198,32 +200,64 @@ class RecorderManager:
             return self._screenshot_png
 
     def _capture_snapshot_locked(self) -> None:
-        """Read current XML + PNG while holding `_driver_lock` (never blocks waiting on driver)."""
+        """Read current XML + PNG while holding `_driver_lock` and scale rects to screenshot pixels."""
         driver = self._driver
         if driver is None:
             return
         xml_text = driver.page_source
         ranked = extract_interactive_elements(xml_text, platform=self._platform, masker=self._masker)
         png_raw = driver.get_screenshot_as_png()
+        px_w, px_h = self._screen_width, self._screen_height
+        try:
+            with Image.open(io.BytesIO(png_raw)) as im:
+                px_w, px_h = im.size
+        except Exception:
+            pass
+
+        win_w, win_h = px_w, px_h
+        try:
+            ws = driver.get_window_size()
+            rw = int(ws.get("width") or 0)
+            rh = int(ws.get("height") or 0)
+            if rw > 0 and rh > 0:
+                win_w, win_h = rw, rh
+        except Exception:
+            pass
+
+        scale_x = (px_w / win_w) if (win_w > 0 and px_w > 0) else 1.0
+        scale_y = (px_h / win_h) if (win_h > 0 and px_h > 0) else 1.0
+        if abs(scale_x - 1.0) > 0.01 or abs(scale_y - 1.0) > 0.01:
+            rects = [
+                el["rect"]
+                for el in ranked
+                if isinstance(el.get("rect"), list) and len(el["rect"]) == 4
+            ]
+            max_x2 = max((r[2] for r in rects), default=0)
+            max_y2 = max((r[3] for r in rects), default=0)
+            already_pixel_space = (max_x2 > win_w * 1.15 or max_y2 > win_h * 1.15) and (
+                max_x2 <= px_w * 1.05 and max_y2 <= px_h * 1.05
+            )
+            if not already_pixel_space:
+                for r_el in ranked:
+                    rect = r_el.get("rect")
+                    if isinstance(rect, list) and len(rect) == 4:
+                        r_el["rect"] = [
+                            int(round(rect[0] * scale_x)),
+                            int(round(rect[1] * scale_y)),
+                            int(round(rect[2] * scale_x)),
+                            int(round(rect[3] * scale_y)),
+                        ]
+
         with self._lock:
             redact_enabled = self._redact_sensitive
         png_safe = _redact_sensitive_png(png_raw, ranked) if redact_enabled else png_raw
-        w, h = self._screen_width, self._screen_height
-        try:
-            with Image.open(io.BytesIO(png_raw)) as im:
-                w, h = im.size
-        except Exception:
-            try:
-                ws = driver.get_window_size()
-                w = int(ws.get("width") or w)
-                h = int(ws.get("height") or h)
-            except Exception:
-                pass
         with self._lock:
             self._elements = ranked
             self._screenshot_png = png_safe
-            self._screen_width = w
-            self._screen_height = h
+            self._screen_width = px_w
+            self._screen_height = px_h
+            self._gesture_width = win_w
+            self._gesture_height = win_h
             self._rev += 1
 
     def _register_locator_locked(self, el: dict[str, Any], screen_name: str, key_override: str = "") -> dict[str, Any]:
@@ -567,7 +601,7 @@ class RecorderManager:
                     step = {"action": "wait", "target": "", "value": sec_val, "secret": False, "label": f"Wait {sec_val}s"}
                 else:
                     dir_clean = (direction or value or "up").strip().lower()
-                    w, h = self._screen_width, self._screen_height
+                    w, h = self._gesture_width, self._gesture_height
                     if dir_clean == "up":
                         driver.swipe(w // 2, int(h * 0.72), w // 2, int(h * 0.28), 350)
                     elif dir_clean == "down":
