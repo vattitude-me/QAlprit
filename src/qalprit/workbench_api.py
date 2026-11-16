@@ -390,6 +390,22 @@ def _resolve_device_profile(
     platform: str,
 ) -> DeviceProfile:
     """Resolve a named YAML device profile or a live USB/emulator identifier (`live:<plat>:<serial>`)."""
+    if device_profile.startswith("avd:"):
+        avd_name = device_profile.split(":", 1)[1].strip()
+        if not avd_name:
+            raise ValueError(f"Invalid AVD identifier '{device_profile}'.")
+        if platform != "android":
+            raise ValueError(f"AVD '{avd_name}' is for 'android', not '{platform}'.")
+        return DeviceProfile(
+            platform="android",
+            target_type="simulator",
+            device_name=avd_name,
+            avd=avd_name,
+            automation_name="UiAutomator2",
+            auto_accept_alerts=True,
+            capabilities={"appWaitActivity": "*"},
+        )
+
     if device_profile.startswith("live:"):
         parts = device_profile.split(":", 2)
         if len(parts) == 3 and parts[1] in {"android", "ios"} and parts[2].strip():

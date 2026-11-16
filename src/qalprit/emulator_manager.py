@@ -653,6 +653,9 @@ class EmulatorJobManager:
         if norm in {"android", "all"}:
             with self._lock:
                 self._cancel_event.set()
+                emu_proc = self._emulator_proc if not clean_id else None
+                if not clean_id:
+                    self._emulator_proc = None
             adb_bin = find_android_tool("adb")
             if adb_bin:
                 devs, _ = list_android_devices()
@@ -664,10 +667,19 @@ class EmulatorJobManager:
                             [adb_bin, "-s", d.identifier, "emu", "kill"],
                             capture_output=True,
                             text=True,
-                            timeout=8,
+                            timeout=10,
                             **win_subprocess_kwargs(),
                         )
                         killed_android.append(d.identifier)
+            if emu_proc is not None and emu_proc.poll() is None:
+                try:
+                    emu_proc.terminate()
+                    emu_proc.wait(timeout=3)
+                except Exception:
+                    try:
+                        emu_proc.kill()
+                    except Exception:
+                        pass
 
         if norm in {"ios", "all"} and platform.system() == "Darwin":
             xc_env = _macos_xcode_env()
@@ -685,6 +697,20 @@ class EmulatorJobManager:
                 )
                 if proc.returncode == 0 or "current state: Shutdown" in (proc.stderr or ""):
                     shutdown_ios.append(s.identifier)
+            if not clean_id:
+                subprocess.run(
+                    ["xcrun", "simctl", "shutdown", "all"],
+                    capture_output=True,
+                    text=True,
+                    env=xc_env,
+                    timeout=20,
+                )
+                subprocess.run(
+                    ["osascript", "-e", 'if application "Simulator" is running then tell application "Simulator" to quit'],
+                    capture_output=True,
+                    text=True,
+                    timeout=8,
+                )
 
         return {
             "ok": True,

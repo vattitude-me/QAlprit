@@ -1312,16 +1312,16 @@
       </div>
 
       <div class="topbar-right">
-        <label class="ctx-chip" title="Active test environment">
+        <label class="ctx-chip hide-on-record" id="topEnvChip" title="Active test environment">
           <span class="muted">Env:</span>
           <select id="topEnvSelect" aria-label="Active environment"></select>
         </label>
-        <button type="button" class="ctx-chip" id="topDevicePill" popovertarget="devicePopoverMenu" title="Boot, switch, or shut down virtual device">
+        <button type="button" class="ctx-chip hide-on-record" id="topDevicePill" popovertarget="devicePopoverMenu" title="Boot, switch, or shut down virtual device">
           <span class="dot" id="topDeviceDot"></span>
           <span id="topDeviceLabel">No device booted</span>
           <span class="muted" style="font-size:10px;">&#9662;</span>
         </button>
-        <button type="button" class="ctx-chip" id="topAppPill" title="Active app binary (click to switch or upload)">
+        <button type="button" class="ctx-chip hide-on-record" id="topAppPill" title="Active app binary (click to switch or upload)">
           <span id="topAppLabel">No app selected</span>
         </button>
         <button type="button" class="ctx-chip" id="btnTopMore" popovertarget="topMoreMenu" aria-label="Workspace actions">&hellip;</button>
@@ -1571,10 +1571,13 @@
               <!-- Optional inline step editor when clicking a recorded step -->
               <div id="recStepEditBar" class="mirror-footer" hidden>
                 <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-                  <span class="muted mono" id="recStepEditLabel" style="font-size:11.5px;"></span>
+                  <span class="muted mono" id="recStepEditLabel" style="font-size:11.5px;margin-right:auto;"></span>
                   <input id="recStepEditVal" type="text" placeholder="Value or ${variable}" style="flex:1;min-width:140px;" />
-                  <label class="chk-inline"><input type="checkbox" id="recStepEditSecret" /> Secret</label>
+                  <label class="chk-inline" id="recStepEditSecretWrap"><input type="checkbox" id="recStepEditSecret" /> Secret</label>
                   <button type="button" class="btn btn-sm btn-primary" id="btnRecStepEditApply">Update</button>
+                  <button type="button" class="btn btn-sm" id="btnRecStepMoveUp" title="Move step up">&#8593;</button>
+                  <button type="button" class="btn btn-sm" id="btnRecStepMoveDown" title="Move step down">&#8595;</button>
+                  <button type="button" class="btn btn-sm" id="btnRecStepDup" title="Duplicate step">Duplicate</button>
                   <button type="button" class="btn btn-sm btn-danger" id="btnRecStepEditDel">Remove</button>
                 </div>
               </div>
@@ -2327,6 +2330,12 @@
         document.querySelectorAll("main > .view-pane").forEach((sec) => {
           sec.hidden = sec.id !== ("view-" + target);
         });
+        document.querySelectorAll(".hide-on-record").forEach((el) => {
+          el.hidden = target === "record";
+        });
+        if (target === "record" && $("devicePopoverMenu") && $("devicePopoverMenu").hidePopover) {
+          try { $("devicePopoverMenu").hidePopover(); } catch (_) {}
+        }
         if (target === "settings") {
           switchSettingsTab(resolvedSub || STATE.settingsTab || "env");
         }
@@ -2410,28 +2419,28 @@
         if (plat === "ios") {
           const bootedIos = (devs.ios || []).filter((x) => String(x.state || "").toLowerCase() === "booted");
           bootedIos.forEach((x) => addOpt(`live:ios:${x.identifier}`, `${x.name} [Booted]`));
-          Object.entries(profiles)
-            .filter(([, cfg]) => cfg.platform === "ios")
-            .forEach(([k, cfg]) => addOpt(k, `${cfg.device_name} (${k})`));
-          if (!Object.values(profiles).some((cfg) => cfg.platform === "ios")) {
-            addOpt("ios_simulator", "iPhone Simulator (ios_simulator)");
-          }
           (devs.ios || [])
             .filter((x) => String(x.state || "").toLowerCase() !== "booted")
-            .slice(0, 18)
+            .slice(0, 40)
             .forEach((x) => addOpt(`sim:ios:${x.identifier}`, `${x.name} [Shutdown]`));
+          Object.entries(profiles)
+            .filter(([k, cfg]) => cfg.platform === "ios" && (k !== "ios_simulator" || opts.length === 0))
+            .forEach(([k, cfg]) => addOpt(k, `${cfg.device_name} (${k})`));
+          if (!opts.length) {
+            addOpt("ios_simulator", "iPhone Simulator (ios_simulator)");
+          }
         } else {
           const liveAnd = (devs.android || []).filter((x) => !String(x.identifier || "").startsWith("avd:"));
           liveAnd.forEach((x) => addOpt(`live:android:${x.identifier}`, `${x.name} (${x.identifier}) [Booted]`));
-          Object.entries(profiles)
-            .filter(([, cfg]) => cfg.platform === "android")
-            .forEach(([k, cfg]) => addOpt(k, `${cfg.device_name} (${k})`));
-          if (!Object.values(profiles).some((cfg) => cfg.platform === "android")) {
-            addOpt("android_emulator", "Android Emulator (android_emulator)");
-          }
           (devs.android || [])
             .filter((x) => String(x.identifier || "").startsWith("avd:"))
             .forEach((x) => addOpt(`avd:${x.name}`, `${x.name} [Offline AVD]`));
+          Object.entries(profiles)
+            .filter(([k, cfg]) => cfg.platform === "android" && (k !== "android_emulator" || opts.length === 0))
+            .forEach(([k, cfg]) => addOpt(k, `${cfg.device_name} (${k})`));
+          if (!opts.length) {
+            addOpt("android_emulator", "Android Emulator (android_emulator)");
+          }
         }
         return opts;
       }
@@ -2472,10 +2481,20 @@
           const list = getDeviceOptionsForPlatform(plat);
           const prev = dSel.value;
           populateSelect(devId, list);
-          if (o.preferBooted) {
+          const sameUdidSwapped = prev.startsWith("sim:ios:")
+            ? `live:ios:${prev.slice("sim:ios:".length)}`
+            : (prev.startsWith("live:ios:") ? `sim:ios:${prev.slice("live:ios:".length)}` : "");
+          if (o.forcePreferBooted) {
             const liveOpt = list.find((it) => it.value.startsWith("live:"));
             if (liveOpt) dSel.value = liveOpt.value;
-          } else if (prev && !list.some((it) => it.value === prev) && list.length) {
+          } else if (prev && list.some((it) => it.value === prev)) {
+            dSel.value = prev;
+          } else if (sameUdidSwapped && list.some((it) => it.value === sameUdidSwapped)) {
+            dSel.value = sameUdidSwapped;
+          } else if (o.preferBooted) {
+            const liveOpt = list.find((it) => it.value.startsWith("live:"));
+            if (liveOpt) dSel.value = liveOpt.value;
+          } else if (list.length) {
             dSel.value = list[0].value;
           }
         });
@@ -2569,10 +2588,40 @@
         secretLabel.appendChild(secretChk);
         secretLabel.appendChild(document.createTextNode("Secret"));
 
+        const moveUpBtn = document.createElement("button");
+        moveUpBtn.type = "button";
+        moveUpBtn.className = "btn btn-sm";
+        moveUpBtn.textContent = "↑";
+        moveUpBtn.title = "Move step up";
+        moveUpBtn.addEventListener("click", () => {
+          if (row.previousElementSibling) row.parentNode.insertBefore(row, row.previousElementSibling);
+        });
+
+        const moveDownBtn = document.createElement("button");
+        moveDownBtn.type = "button";
+        moveDownBtn.className = "btn btn-sm";
+        moveDownBtn.textContent = "↓";
+        moveDownBtn.title = "Move step down";
+        moveDownBtn.addEventListener("click", () => {
+          if (row.nextElementSibling) row.parentNode.insertBefore(row.nextElementSibling, row);
+        });
+
+        const dupBtn = document.createElement("button");
+        dupBtn.type = "button";
+        dupBtn.className = "btn btn-sm";
+        dupBtn.textContent = "⧉";
+        dupBtn.title = "Duplicate step";
+        dupBtn.addEventListener("click", () => {
+          const cloneData = readStepRows({ querySelectorAll: () => [row] })[0] || { tap: "" };
+          const clonedRow = createStepRowElement(cloneData);
+          if (row.parentNode) row.parentNode.insertBefore(clonedRow, row.nextSibling);
+        });
+
         const delBtn = document.createElement("button");
         delBtn.type = "button";
         delBtn.className = "btn btn-sm btn-danger";
         delBtn.textContent = "×";
+        delBtn.title = "Remove step";
         delBtn.addEventListener("click", () => row.remove());
 
         function applyFieldModes() {
@@ -2633,7 +2682,7 @@
         secretChk.checked = initSecret;
         applyFieldModes();
 
-        row.append(typeSel, targetIn, valueIn, secretLabel, delBtn);
+        row.append(typeSel, targetIn, valueIn, secretLabel, moveUpBtn, moveDownBtn, dupBtn, delBtn);
         return row;
       }
 
@@ -3688,14 +3737,14 @@
         const isAndroid = app.kind === "apk";
         const pkg = app.detected_package || "";
         $("activeAppSummary").textContent = `${app.name} (${app.kind}, ${fmtBytes(app.size_bytes)}${pkg ? ", " + pkg : ""})`;
-        if (STATE.hostOs === "Darwin" || isAndroid) {
+        if ((STATE.hostOs === "Darwin" || isAndroid) && !options.preserveFormInputs) {
           const targetPlat = isAndroid ? "android" : "ios";
           if (targetPlat !== "ios" || STATE.hostOs === "Darwin") {
             $("recPlatform").value = targetPlat;
             $("inspectPlatform").value = targetPlat;
             $("runPlatformSelect").value = targetPlat;
             if ($("topQuickPlat")) $("topQuickPlat").value = targetPlat;
-            syncDeviceSelects({ preferBooted: true });
+            syncDeviceSelects({ preferBooted: false });
           }
         }
         if (pkg && !options.preserveFormInputs) {
@@ -3923,7 +3972,7 @@
           const matchingApp = apps.find((a) => (plat === "android" ? a.kind === "apk" : a.kind !== "apk"));
           if (matchingApp) selectSessionApp(matchingApp.rel_path, { autoSave: false, preserveFormInputs: true });
         }
-        syncDeviceSelects({ preferBooted: true });
+        syncDeviceSelects({ preferBooted: false });
       }
 
       async function resolveSelectedDeviceForAction(plat, rawVal) {
@@ -3932,7 +3981,7 @@
           return `live:ios:${val.slice("sim:ios:".length)}`;
         }
         if (val.startsWith("avd:")) {
-          return "android_emulator";
+          return val;
         }
         if (val) return val;
         return plat === "ios" ? "ios_simulator" : "android_emulator";
@@ -4228,6 +4277,7 @@
         $("recStepCount").textContent = String(list.length);
         if (!list.length) {
           $("recStepsList").innerHTML = '<div class="muted" style="padding:18px 14px;">Click an element on the mirrored device to record steps.</div>';
+          syncRecStepEditBar(null);
           return;
         }
         $("recStepsList").innerHTML = list.map((s, idx) => {
@@ -4236,13 +4286,14 @@
           const valParts = [];
           if (s.value) valParts.push(s.value);
           if (s.secret) valParts.push("secret");
-          return `<div class="rec-step-row${STATE.recSelectedStepIdx === idx ? " is-selected" : ""}" data-rec-step-idx="${idx}">
+          return `<div class="rec-step-row${STATE.recSelectedStepIdx === idx ? " is-selected" : ""}" data-rec-step-idx="${idx}" draggable="true" title="Click to edit/reorder, or drag to rearrange">
             <span class="rec-step-num">${idx + 1}</span>
             <span class="rec-step-act${actCls}">${esc(actLabel)}</span>
             <span class="rec-step-target">${esc(s.target || s.label || "")}</span>
             <span class="rec-step-val">${esc(valParts.join(" · "))}</span>
           </div>`;
         }).join("");
+        syncRecStepEditBar(STATE.recSelectedStepIdx);
       }
 
       function openTypePromptForElement(idx) {
@@ -4403,7 +4454,18 @@
         $("recProgressText").textContent = "Booting device & starting Appium session...";
         try {
           const plat = $("recPlatform").value;
-          const resolvedDev = await resolveSelectedDeviceForAction(plat, $("recDeviceSelect").value);
+          const rawDev = $("recDeviceSelect").value;
+          if (rawDev.startsWith("sim:ios:") || rawDev.startsWith("avd:")) {
+            const emu = STATE.emuStatus || {};
+            const otherBooted = plat === "ios"
+              ? ((emu.ios_simulators || []).some((s) => String(s.state || "").toLowerCase() === "booted") || (STATE.devicesData.ios || []).some((d) => String(d.state || "").toLowerCase() === "booted"))
+              : ((emu.running_android_emulators || []).length > 0 || (STATE.devicesData.android || []).some((d) => !String(d.identifier || "").startsWith("avd:") && d.state === "device"));
+            if (otherBooted) {
+              $("recProgressText").textContent = "Switching virtual device to selected target...";
+              await apiJson("/api/emulator/shutdown", { target: plat });
+            }
+          }
+          const resolvedDev = await resolveSelectedDeviceForAction(plat, rawDev);
           await apiJson("/api/recorder/start", {
             platform: plat,
             device_profile: resolvedDev,
@@ -4423,11 +4485,19 @@
         }
       });
       $("btnRecStop").addEventListener("click", async () => {
-        await apiJson("/api/recorder/stop", {});
-        await shutdownDeviceTarget($("recPlatform").value, "", { quiet: true });
+        const stopPlat = (STATE.recState && STATE.recState.platform) || $("recPlatform").value || "all";
+        showBanner("recStatusBanner", "Stopping recording & shutting down virtual device...", "info");
+        try {
+          await apiJson("/api/recorder/stop", {});
+        } catch (err) {
+          showBanner("recStatusBanner", err.message, "error");
+        }
+        await shutdownDeviceTarget(stopPlat, "", { quiet: false });
         pollRecorderStatus();
-        showBanner("recStatusBanner", "Recording stopped and virtual device shut down.", "ok");
       });
+      if ($("recEnvSelect")) {
+        $("recEnvSelect").addEventListener("change", () => loadEnvIntoForm($("recEnvSelect").value));
+      }
       $("btnRecSync").addEventListener("click", async () => {
         const st = await apiJson("/api/recorder/sync", { screen_name: $("recScreenName").value.trim() || "login" });
         applyRecorderState(st);
@@ -4527,18 +4597,62 @@
       $("btnRecWait").addEventListener("click", () => runRecorderAction({ action: "wait", value: "2" }));
       $("btnRecUndo").addEventListener("click", async () => { applyRecorderState(await apiJson("/api/recorder/undo", {})); });
 
+      function syncRecStepEditBar(idx) {
+        const steps = (STATE.recState && STATE.recState.steps) || [];
+        const st = (idx !== null && idx !== undefined && idx >= 0 && idx < steps.length) ? steps[idx] : null;
+        if (!st) {
+          STATE.recSelectedStepIdx = null;
+          $("recStepEditBar").hidden = true;
+          return;
+        }
+        STATE.recSelectedStepIdx = idx;
+        $("recStepEditBar").hidden = false;
+        $("recStepEditLabel").textContent = `#${idx + 1} ${st.action}${st.target ? " " + st.target : ""}`;
+        const act = String(st.action || "").toLowerCase();
+        const needsValue = ["type", "assert_text", "wait", "swipe"].includes(act);
+        const isType = act === "type";
+        $("recStepEditVal").hidden = !needsValue;
+        $("btnRecStepEditApply").hidden = !needsValue;
+        if ($("recStepEditSecretWrap")) $("recStepEditSecretWrap").hidden = !isType;
+        if (needsValue) {
+          $("recStepEditVal").value = st.value || "";
+          $("recStepEditVal").placeholder = act === "assert_text" ? "Expected text or ${var}" : (act === "wait" ? "Seconds (e.g. 2)" : (act === "swipe" ? "up / down / left / right" : "Value or ${variable}"));
+        } else {
+          $("recStepEditVal").value = "";
+        }
+        $("recStepEditSecret").checked = Boolean(st.secret);
+        if ($("btnRecStepMoveUp")) $("btnRecStepMoveUp").disabled = idx <= 0;
+        if ($("btnRecStepMoveDown")) $("btnRecStepMoveDown").disabled = idx >= steps.length - 1;
+      }
+
       $("recStepsList").addEventListener("click", (e) => {
         const row = e.target.closest("[data-rec-step-idx]");
         if (!row) return;
         const idx = Number(row.dataset.recStepIdx);
-        const st = ((STATE.recState && STATE.recState.steps) || [])[idx];
-        if (!st) return;
         STATE.recSelectedStepIdx = idx;
-        $("recStepEditBar").hidden = false;
-        $("recStepEditLabel").textContent = `#${idx + 1} ${st.action} ${st.target || ""}`;
-        $("recStepEditVal").value = st.value || "";
-        $("recStepEditSecret").checked = Boolean(st.secret);
-        renderRecorderSteps(STATE.recState.steps);
+        renderRecorderSteps((STATE.recState && STATE.recState.steps) || []);
+      });
+      let recDragIdx = null;
+      $("recStepsList").addEventListener("dragstart", (e) => {
+        const row = e.target.closest("[data-rec-step-idx]");
+        if (!row) return;
+        recDragIdx = Number(row.dataset.recStepIdx);
+        if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+      });
+      $("recStepsList").addEventListener("dragover", (e) => {
+        if (recDragIdx !== null) e.preventDefault();
+      });
+      $("recStepsList").addEventListener("drop", async (e) => {
+        const row = e.target.closest("[data-rec-step-idx]");
+        if (!row || recDragIdx === null) return;
+        e.preventDefault();
+        const toIdx = Number(row.dataset.recStepIdx);
+        const fromIdx = recDragIdx;
+        recDragIdx = null;
+        if (fromIdx === toIdx) return;
+        const res = await apiJson("/api/recorder/update", { index: fromIdx, move_to: toIdx });
+        STATE.recSelectedStepIdx = res.selected_index ?? toIdx;
+        applyRecorderState(res);
       });
       $("btnRecStepEditApply").addEventListener("click", async () => {
         if (STATE.recSelectedStepIdx === null) return;
@@ -4549,6 +4663,31 @@
         });
         applyRecorderState(res);
       });
+      if ($("btnRecStepMoveUp")) {
+        $("btnRecStepMoveUp").addEventListener("click", async () => {
+          if (STATE.recSelectedStepIdx === null || STATE.recSelectedStepIdx <= 0) return;
+          const res = await apiJson("/api/recorder/update", { index: STATE.recSelectedStepIdx, move_to: STATE.recSelectedStepIdx - 1 });
+          STATE.recSelectedStepIdx = res.selected_index ?? (STATE.recSelectedStepIdx - 1);
+          applyRecorderState(res);
+        });
+      }
+      if ($("btnRecStepMoveDown")) {
+        $("btnRecStepMoveDown").addEventListener("click", async () => {
+          const steps = (STATE.recState && STATE.recState.steps) || [];
+          if (STATE.recSelectedStepIdx === null || STATE.recSelectedStepIdx >= steps.length - 1) return;
+          const res = await apiJson("/api/recorder/update", { index: STATE.recSelectedStepIdx, move_to: STATE.recSelectedStepIdx + 1 });
+          STATE.recSelectedStepIdx = res.selected_index ?? (STATE.recSelectedStepIdx + 1);
+          applyRecorderState(res);
+        });
+      }
+      if ($("btnRecStepDup")) {
+        $("btnRecStepDup").addEventListener("click", async () => {
+          if (STATE.recSelectedStepIdx === null) return;
+          const res = await apiJson("/api/recorder/update", { index: STATE.recSelectedStepIdx, duplicate: true });
+          STATE.recSelectedStepIdx = res.selected_index ?? (STATE.recSelectedStepIdx + 1);
+          applyRecorderState(res);
+        });
+      }
       $("btnRecStepEditDel").addEventListener("click", async () => {
         if (STATE.recSelectedStepIdx === null) return;
         const res = await apiJson("/api/recorder/update", { index: STATE.recSelectedStepIdx, delete: true });

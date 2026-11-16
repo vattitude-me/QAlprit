@@ -573,4 +573,57 @@ def test_inspector_ignores_ios_keyboard_overlays_and_marks_cta_clickable() -> No
     assert 'id="btnWorkflowRecordNew"' in ui_html
     assert 'class="split-handle"' in ui_html
     assert 'grid-template-columns: 24px minmax(112px, auto) minmax(0, 1fr) auto;' in ui_html
+    assert 'hide-on-record' in ui_html
+    assert 'id="btnRecStepMoveUp"' in ui_html
+    assert 'id="btnRecStepMoveDown"' in ui_html
+    assert 'id="btnRecStepDup"' in ui_html
+    assert 'if (val.startsWith("avd:"))' in ui_html
+    assert 'const needsValue = ["type", "assert_text", "wait", "swipe"].includes(act);' in ui_html
+
+
+def test_avd_profile_resolution_and_recorder_step_reorder_duplicate(tmp_path: Path) -> None:
+    import json
+    import threading
+    import urllib.request
+    from qalprit.desktop import ensure_workspace
+    from qalprit.ui_server import create_ui_server
+    from qalprit.workbench_api import _resolve_device_profile
+
+    avd_prof = _resolve_device_profile({}, "avd:mbtest", "android")
+    assert avd_prof.platform == "android"
+    assert avd_prof.target_type == "simulator"
+    assert avd_prof.avd == "mbtest"
+
+    ws = ensure_workspace(tmp_path / "rec_edit_ws")
+    server = create_ui_server(ws, host="127.0.0.1", port=0)
+    port = server.server_address[1]
+    rm = server.RequestHandlerClass.keywords["recorder_manager"]  # type: ignore[attr-defined]
+    rm._active = True
+    rm._steps = [
+        {"action": "tap", "target": "login.user", "value": "", "secret": False, "label": "Tap user"},
+        {"action": "type", "target": "login.pass", "value": "p", "secret": True, "label": "Type pass"},
+        {"action": "tap", "target": "login.btn", "value": "", "secret": False, "label": "Tap login"},
+    ]
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        def _post(path: str, payload: dict):
+            req = urllib.request.Request(
+                f"http://127.0.0.1:{port}{path}",
+                data=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+
+        moved = _post("/api/recorder/update", {"index": 2, "move_to": 0})
+        assert moved["selected_index"] == 0
+        assert [s["target"] for s in moved["steps"]] == ["login.btn", "login.user", "login.pass"]
+
+        duped = _post("/api/recorder/update", {"index": 0, "duplicate": True})
+        assert duped["selected_index"] == 1
+        assert [s["target"] for s in duped["steps"]] == ["login.btn", "login.btn", "login.user", "login.pass"]
+    finally:
+        server.shutdown()
+        server.server_close()
 

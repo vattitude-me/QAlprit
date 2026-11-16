@@ -746,12 +746,33 @@ class RecorderManager:
                 self._logs.append(f"Removed step: {removed.get('label')}")
         return self.status()
 
-    def update_step(self, index: int, *, value: str | None = None, secret: bool | None = None, delete: bool = False) -> dict[str, Any]:
+    def update_step(
+        self,
+        index: int,
+        *,
+        value: str | None = None,
+        secret: bool | None = None,
+        delete: bool = False,
+        duplicate: bool = False,
+        move_to: int | None = None,
+    ) -> dict[str, Any]:
+        selected_idx: int | None = index
         with self._lock:
             if not (0 <= index < len(self._steps)):
                 raise ValueError("Invalid step index.")
             if delete:
                 self._steps.pop(index)
+                selected_idx = None
+            elif duplicate:
+                cloned = dict(self._steps[index])
+                target_idx = index + 1
+                self._steps.insert(target_idx, cloned)
+                selected_idx = target_idx
+            elif move_to is not None:
+                step_item = self._steps.pop(index)
+                target_idx = max(0, min(len(self._steps), int(move_to)))
+                self._steps.insert(target_idx, step_item)
+                selected_idx = target_idx
             else:
                 st = self._steps[index]
                 if value is not None:
@@ -762,7 +783,9 @@ class RecorderManager:
                     shown = SecretMasker.REPLACEMENT if st["secret"] else st["value"]
                     st["label"] = f"Type '{shown}' into {st['target']}"
             self._rev += 1
-        return self.status()
+        res = self.status()
+        res["selected_index"] = selected_idx
+        return res
 
     def save_recorded(
         self,
