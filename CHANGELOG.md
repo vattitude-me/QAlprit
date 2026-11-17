@@ -12,6 +12,24 @@ Ideas planned for a later release. Nothing here ships yet.
 
 ---
 
+## [v0.1.47] - 2026-11-26
+
+### Show the device during a run (`ui/index.html`, `background_devices.py`, `driver_factory.py`, `emulator_manager.py`)
+- Run tests has a "Show the device while it runs" switch under Options. It shares the "Show the device window" setting, so changing either one changes both. Turning either one on restarts a background Android emulator with its window, as the setting already did in v0.1.46, and opens a background iOS simulator's window.
+- When a run starts on an iOS simulator that is already booted in the background and the setting is on, its window opens.
+- An Android emulator started with `-no-window` can't open a window later. When the switch is on and the chosen emulator still runs with no window, Start run shuts it down and the run boots it again with its window. The page also offers Restart with window.
+- Windowless emulators are found from the emulator process list (`background_devices.windowless_android_emulators()`), not only from QAlprit's started-device list. Before, an emulator left over from an earlier session was missed, so the run reused it with no window even with the switch on.
+- The AVD name of a running emulator is read from `ro.boot.qemu.avd_name` first (`background_devices.android_avd_name()`). `adb emu avd name` often needs the console auth token, so restarting with a window could boot the default AVD instead of the one that was running.
+- Shutting down an Android emulator waits up to 20 seconds for it to exit, so restarting the same AVD doesn't hit its lock.
+
+### Runs & reports (`ui/index.html`)
+- The "Run ... finished" banner and its report link clear while a new run is going. Before, the previous run's result could stay on screen above the new run's progress.
+
+### Lessons learned
+- This work sat on a branch cut from v0.1.34 while main moved to v0.1.46. Replaying it dropped the `emu_proc is not None and emu_proc.poll() is None` guard in `shutdown()`. Rebase long-lived branches early and read the merged result, not only the conflict markers.
+
+---
+
 ## [v0.1.46] - 2026-11-23
 
 ### Added
