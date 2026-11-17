@@ -57,6 +57,7 @@ from qalprit.workbench_api import (
     save_screen_locators,
     save_test_journey,
     save_uploaded_app,
+    save_uploaded_app_stream,
     update_storage_preferences,
     upload_flow_markdown,
     upload_spec_markdown,
@@ -351,7 +352,7 @@ def compare_runs(results_dir: Path, base_run_id: str, target_run_id: str) -> dic
     }
 
 
-_MAX_HTTP_UPLOAD_BYTES = 310 * 1024 * 1024
+_MAX_HTTP_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024 + 16 * 1024 * 1024
 
 
 class _WorkbenchHandler(BaseHTTPRequestHandler):
@@ -599,7 +600,13 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
                 else:
                     qs = parse_qs(parsed.query)
                     filename = (qs.get("filename") or [self.headers.get("X-Filename") or ""])[0]
-                    raw_bytes = self._read_raw_body(max_bytes=_MAX_HTTP_UPLOAD_BYTES)
+                    length = int(self.headers.get("Content-Length") or "0")
+                    if length > _MAX_HTTP_UPLOAD_BYTES:
+                        raise ValueError("Request body exceeds the 2 GB limit.")
+                    self._send_json(
+                        save_uploaded_app_stream(self.project_root, filename, self.rfile, length)
+                    )
+                    return
                 self._send_json(save_uploaded_app(self.project_root, filename, raw_bytes))
                 return
 

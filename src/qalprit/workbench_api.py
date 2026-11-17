@@ -39,7 +39,7 @@ from qalprit.spec_loader import TestSpec, load_flows, load_specs
 from qalprit.validator import validate_project
 
 _ALLOWED_APP_EXTS = {".apk", ".ipa", ".zip"}
-_MAX_UPLOAD_BYTES = 300 * 1024 * 1024
+_MAX_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024
 _SLUG_RE = re.compile(r"[^a-zA-Z0-9._-]+")
 
 
@@ -268,6 +268,50 @@ def list_workspace_configs(project_root: Path) -> tuple[dict[str, Any], dict[str
         except Exception:
             pass
     return envs_out, devs_out
+
+
+def save_uploaded_app_stream(
+    project_root: Path, filename: str, stream: Any, length: int
+) -> dict[str, Any]:
+    """Stream an uploaded app to `apps/` in chunks so large APK/IPA files never sit in memory."""
+    if length <= 0:
+        raise ValueError("Uploaded file is empty.")
+    if length > _MAX_UPLOAD_BYTES:
+        raise ValueError(f"Uploaded file exceeds {_MAX_UPLOAD_BYTES // (1024 * 1024)} MB limit.")
+    base_name = Path((filename or "").replace("\\", "/")).name
+    if not base_name or base_name.startswith("."):
+        raise ValueError("Invalid app filename.")
+    ext = Path(base_name).suffix.lower()
+    if ext not in _ALLOWED_APP_EXTS:
+        raise ValueError(f"Unsupported app file extension '{ext}'. Upload an .apk, .ipa, or .zip.")
+    safe_name = f"{_safe_slug(Path(base_name).stem, default='app')}{ext}"
+    apps_dir = (project_root / "apps").resolve()
+    apps_dir.mkdir(parents=True, exist_ok=True)
+    dest = (apps_dir / safe_name).resolve()
+    if not dest.is_relative_to(apps_dir):
+        raise ValueError("Resolved upload path escapes apps/ directory.")
+    tmp = dest.with_name(dest.name + ".part")
+    remaining = length
+    try:
+        with tmp.open("wb") as fh:
+            while remaining > 0:
+                chunk = stream.read(min(1024 * 1024, remaining))
+                if not chunk:
+                    raise ValueError("Upload ended before the whole file arrived.")
+                fh.write(chunk)
+                remaining -= len(chunk)
+        tmp.replace(dest)
+    finally:
+        if tmp.exists():
+            tmp.unlink()
+    return {
+        "ok": True,
+        "name": safe_name,
+        "rel_path": f"apps/{safe_name}",
+        "kind": ext.lstrip("."),
+        "size_bytes": length,
+        "detected_package": _detect_app_identifier(dest, ext.lstrip(".")),
+    }
 
 
 def save_uploaded_app(project_root: Path, filename: str, raw_bytes: bytes) -> dict[str, Any]:
