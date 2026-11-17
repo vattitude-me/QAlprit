@@ -12,6 +12,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from qalprit import background_devices
 from qalprit.appium_manager import build_appium_env
 from qalprit.devices import list_android_devices, list_ios_simulators
 from qalprit.doctor import (
@@ -21,7 +22,6 @@ from qalprit.doctor import (
     find_cmdline_tool,
     find_sdk_for_avd,
     find_system_android_sdk,
-    find_xcode_developer_dir,
     prepare_writable_android_sdk,
     win_subprocess_kwargs,
 )
@@ -398,6 +398,8 @@ class EmulatorJobManager:
                 "error": self._state["error"],
             }
         snap["env_status"] = get_emulator_status()
+        snap["started_devices"] = background_devices.started_devices()
+        snap["show_device_window"] = background_devices.device_window_visible()
         return snap
 
     def _update(self, phase: str, pct: int, line: str = "") -> None:
@@ -479,7 +481,9 @@ class EmulatorJobManager:
         if already:
             return {"ok": True, "already_running": True, "serial": already[0]}
 
-        self._begin("boot", "Launching Emulator", 10, f"Starting virtual device '{target_avd}'...")
+        hidden = not background_devices.device_window_visible()
+        where = "in the background" if hidden else "with its window"
+        self._begin("boot", f"Starting the Android emulator {where}", 10, f"Starting virtual device '{target_avd}' {where}...")
 
         def _worker() -> None:
             env = build_appium_env(dict(os.environ))
@@ -507,6 +511,8 @@ class EmulatorJobManager:
                     "auto",
                     "-no-snapshot-save",
                 ]
+                if hidden:
+                    cmd += background_devices.ANDROID_HIDDEN_ARGS
                 creation_flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
                 proc_kwargs: dict[str, Any] = {"creationflags": creation_flags} if (platform.system() == "Windows" and creation_flags) else {}
                 log_fp = log_path.open("w", encoding="utf-8", errors="replace")
@@ -525,6 +531,7 @@ class EmulatorJobManager:
 
                 deadline = time.monotonic() + 180.0
                 pct = 15
+                remembered = ""
                 while time.monotonic() < deadline:
                     if self._cancel_event.is_set():
                         proc.terminate()
@@ -552,7 +559,11 @@ class EmulatorJobManager:
                     online = [d.identifier for d in cur_devs if d.kind == "emulator" and d.state == "device"]
                     if online:
                         serial = online[0]
-                        self._update("Waiting for Android OS", max(pct, 60), f"Connected {serial}; waiting for Android home screen...")
+                        if serial != remembered:
+                            # Remember it as soon as it appears, so quitting mid-boot still shuts it down.
+                            background_devices.remember_started("android", serial, name=target_avd, hidden=hidden)
+                            remembered = serial
+                        self._update("Waiting for Android to finish starting", max(pct, 60), f"Connected {serial}; waiting for the Android home screen...")
                         boot_chk = subprocess.run(
                             [adb_bin, "-s", serial, "shell", "getprop", "sys.boot_completed"],
                             capture_output=True,
@@ -562,19 +573,24 @@ class EmulatorJobManager:
                             **win_subprocess_kwargs(),
                         )
                         if boot_chk.returncode == 0 and boot_chk.stdout.strip() == "1":
-                            self._update("Booted", 100, f"Android Emulator '{target_avd}' ({serial}) is booted and ready!")
+                            ready = "running in the background" if hidden else "ready"
+                            self._update("Booted", 100, f"Android emulator '{target_avd}' ({serial}) is {ready}.")
                             self._finish("completed", "Booted & Ready", 100)
                             return
                     pct = min(92, pct + 4)
-                    self._update("Booting Virtual Phone", pct)
+                    if not online:
+                        self._update(f"Starting the Android emulator {where}", pct)
                     time.sleep(2.0)
 
-                raise TimeoutError("Timed out waiting for Android Emulator to finish booting (180s).")
+                raise TimeoutError(
+                    "The Android emulator did not finish starting within 3 minutes. "
+                    f"Stop it and try again, or check {log_path}."
+                )
             except Exception as exc:
                 self._finish("failed", "Boot Failed", self._state["progress_pct"], str(exc))
 
         threading.Thread(target=_worker, daemon=True).start()
-        return {"ok": True, "action": "boot", "avd_name": target_avd}
+        return {"ok": True, "action": "boot", "avd_name": target_avd, "hidden": hidden}
 
     def boot_ios_simulator(self, udid: str = "") -> dict[str, Any]:
         """Boot an Apple iOS Simulator on macOS cleanly."""
@@ -585,6 +601,7 @@ class EmulatorJobManager:
             raise RuntimeError(err or "No iOS Simulators available. Install Xcode & iOS Simulator runtime.")
         target = next((s for s in sims if s.identifier == udid), sims[0])
         xc_env = _macos_xcode_env()
+        hidden = not background_devices.device_window_visible()
         if target.state != "Booted":
             proc = subprocess.run(
                 ["xcrun", "simctl", "boot", target.identifier],
@@ -595,14 +612,29 @@ class EmulatorJobManager:
             )
             if proc.returncode != 0 and "Unable to boot device in current state: Booted" not in (proc.stderr or ""):
                 raise RuntimeError((proc.stderr or proc.stdout).strip() or "Failed to boot iOS Simulator.")
-        ui_proc = subprocess.run(["open", "-a", "Simulator"], capture_output=True, text=True, env=xc_env, timeout=10)
-        if ui_proc.returncode != 0:
-            xcode_dev = find_xcode_developer_dir(xc_env)
-            if xcode_dev is not None:
-                device_hub = xcode_dev.parent / "Applications" / "DeviceHub.app"
-                if device_hub.exists():
-                    subprocess.run(["open", "-a", str(device_hub)], capture_output=True, text=True, timeout=10)
-        return {"ok": True, "name": target.name, "identifier": target.identifier}
+            background_devices.remember_started("ios", target.identifier, name=target.name, hidden=hidden)
+        if not hidden:
+            background_devices.open_simulator_window()
+        return {"ok": True, "name": target.name, "identifier": target.identifier, "hidden": hidden and background_devices.is_hidden("ios", target.identifier)}
+
+    def cancel_for_quit(self) -> None:
+        """Cancel a setup or boot that is still running when the Workbench quits.
+
+        Only the job's own child processes are stopped. Devices that already finished
+        starting are handled by `background_devices.shutdown_background_devices()`.
+        """
+        with self._lock:
+            if not self._state["running"]:
+                return
+            self._cancel_event.set()
+            procs = list(self._active_procs)
+            emu_proc = self._emulator_proc if self._state["action"] == "boot" else None
+        for p in procs + ([emu_proc] if emu_proc is not None else []):
+            try:
+                if p.poll() is None:
+                    p.terminate()
+            except Exception:
+                pass
 
     def stop(self) -> dict[str, Any]:
         """Stop active emulator setup/boot job and/or kill running Android emulators."""
@@ -641,6 +673,7 @@ class EmulatorJobManager:
                         **win_subprocess_kwargs(),
                     )
                     killed.append(d.identifier)
+        background_devices.forget("android")
         return {"ok": True, "stopping": was_running, "killed_emulators": killed}
 
     def shutdown(self, target: str = "all", identifier: str = "") -> dict[str, Any]:
@@ -671,6 +704,7 @@ class EmulatorJobManager:
                             **win_subprocess_kwargs(),
                         )
                         killed_android.append(d.identifier)
+                        background_devices.forget("android", d.identifier)
             if emu_proc is not None and emu_proc.poll() is None:
                 try:
                     emu_proc.terminate()
@@ -697,7 +731,9 @@ class EmulatorJobManager:
                 )
                 if proc.returncode == 0 or "current state: Shutdown" in (proc.stderr or ""):
                     shutdown_ios.append(s.identifier)
+                    background_devices.forget("ios", s.identifier)
             if not clean_id:
+                background_devices.forget("ios")
                 subprocess.run(
                     ["xcrun", "simctl", "shutdown", "all"],
                     capture_output=True,

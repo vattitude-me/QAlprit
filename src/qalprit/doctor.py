@@ -1059,6 +1059,7 @@ def discover_system_software(workspace_root: Path | None = None) -> dict[str, An
             "os_default_workspace_dir": str(get_standard_workspace_dir()),
             "settings_path": str(get_settings_path()) if "get_settings_path" in globals() else "",
             "prefer_existing_system_sdk": bool(settings.get("prefer_existing_system_sdk", False)),
+            "show_device_window": bool(settings.get("show_device_window", False)),
             "legacy_dot_qalprit_exists": legacy_dot.is_dir(),
             "legacy_dot_qalprit_path": str(legacy_dot),
             "legacy_workspace_exists": legacy_ws.is_dir(),

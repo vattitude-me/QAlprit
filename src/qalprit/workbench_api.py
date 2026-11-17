@@ -1124,6 +1124,8 @@ def update_storage_preferences(current_workspace: Path, payload: dict[str, Any])
 
     if "prefer_existing_system_sdk" in payload:
         updates["prefer_existing_system_sdk"] = bool(payload.get("prefer_existing_system_sdk"))
+    if "show_device_window" in payload:
+        updates["show_device_window"] = bool(payload.get("show_device_window"))
 
     saved = save_user_settings(updates)
     return {
@@ -1161,6 +1163,57 @@ def run_workspace_validation(
         "errors": [{"location": i.location, "message": i.message} for i in res.errors],
         "warnings": [{"location": i.location, "message": i.message} for i in res.warnings],
     }
+
+
+def journey_workflow_datasets(project_root: Path, spec: Any) -> DatasetBundle | None:
+    """Data rows of the workflow a journey runs, when it runs exactly one workflow that has rows."""
+    names: list[str] = []
+    for step in [*getattr(spec, "setup", []), *getattr(spec, "steps", []), *getattr(spec, "teardown", [])]:
+        if getattr(step, "type", "") == "run_flow":
+            name = str((step.params or {}).get("flow") or "").strip()
+            if name and name not in names:
+                names.append(name)
+    with_rows = [b for b in (load_datasets(project_root, "flow", n) for n in names) if b.rows]
+    return with_rows[0] if len(with_rows) == 1 else None
+
+
+_MISSING_VAR_RE = re.compile(r"Missing environment variable '\$\{([^}]+)\}'")
+
+
+def explain_validation_errors(errors: list[Any], env_name: str, limit: int = 4) -> str:
+    """Turn validation errors into a short message that says what to fix.
+
+    Missing ``${variable}`` errors are grouped into one line that names the test files and
+    the two places a value can come from. Other errors are listed once each.
+    """
+    missing: list[str] = []
+    sources: list[str] = []
+    other: list[str] = []
+    for err in errors:
+        msg = str(getattr(err, "message", err))
+        m = _MISSING_VAR_RE.search(msg)
+        if m:
+            if m.group(1) not in missing:
+                missing.append(m.group(1))
+            stem = Path(str(getattr(err, "file", "") or "")).stem
+            if stem and stem not in sources:
+                sources.append(stem)
+        elif msg not in other:
+            other.append(msg)
+    lines: list[str] = []
+    if missing:
+        names = ", ".join("${" + v + "}" for v in missing)
+        where = " and ".join(sources[:3]) if sources else "This test"
+        verb = "uses" if len(sources) <= 1 else "use"
+        lines.append(
+            f"{where} {verb} {names}, but nothing gives {'it' if len(missing) == 1 else 'them'} a value. "
+            f"Add a data row for it under Variables & datasets, "
+            f"or add {'it' if len(missing) == 1 else 'them'} to the '{env_name}' environment in Settings."
+        )
+    lines.extend(other[:limit])
+    if len(other) > limit:
+        lines.append(f"...and {len(other) - limit} more.")
+    return "\n".join(lines) or "The tests did not pass validation."
 
 
 class RunJobManager:
@@ -1267,7 +1320,7 @@ class RunJobManager:
             flow_name=flow_name,
         )
         if not val.ok:
-            raise ValueError("; ".join(e.message for e in val.errors[:5]))
+            raise ValueError(explain_validation_errors(val.errors, env_name))
         profile = _resolve_device_profile(val.devices, device_profile, platform)
         env_cfg = val.environments[env_name]
         specs: list[TestSpec] = list(val.specs)
@@ -1314,6 +1367,12 @@ class RunJobManager:
             ds_target: str = flow_name or (spec_id or (specs[0].id if len(specs) == 1 else ""))
             if ds_target:
                 dataset_bundle = load_datasets(project_root, ds_kind, ds_target)  # type: ignore[arg-type]
+                if ds_kind == "spec" and not dataset_bundle.rows:
+                    # A journey without rows of its own uses the rows of the one workflow it runs.
+                    spec_obj = next((s for s in specs if s.id == ds_target), None)
+                    flow_bundle = journey_workflow_datasets(project_root, spec_obj) if spec_obj else None
+                    if flow_bundle is not None:
+                        dataset_bundle = flow_bundle
                 if requested_dataset_names:
                     wanted = set(requested_dataset_names)
                     selected_rows = [r for r in dataset_bundle.rows if r.name in wanted]

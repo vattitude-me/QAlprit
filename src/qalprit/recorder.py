@@ -233,6 +233,28 @@ def _step_to_yaml_dict(step: dict[str, Any]) -> Any:
     return {action: target}
 
 
+def _connect_phase_text(platform: str, profile: Any) -> str:
+    """Tell the user what the slow part of starting a session is, so a long wait doesn't look like a hang."""
+    if platform == "ios":
+        return (
+            "Connecting to the iOS simulator and opening the app. "
+            "The first session on a simulator builds WebDriverAgent and can take a few minutes."
+        )
+    try:
+        from qalprit.devices import list_android_devices
+
+        devs, _ = list_android_devices()
+        running = any(not d.identifier.startswith("avd:") and d.state == "device" for d in devs)
+    except Exception:
+        running = True
+    if not running and getattr(profile, "target_type", "") == "simulator":
+        return (
+            "Starting the Android emulator in the background and opening the app. "
+            "This can take up to 2 minutes."
+        )
+    return "Connecting to the device and opening the app..."
+
+
 class RecorderManager:
     """Manages a single live interactive recording session against an Android Emulator / iOS Simulator."""
 
@@ -275,6 +297,8 @@ class RecorderManager:
         self._notice = ""
         self._notice_rev = 0
         self._refresh_failures = 0
+        self._session_token = 0
+        self._start_monotonic: float | None = None
 
     def _log(self, msg: str) -> None:
         with self._lock:
@@ -284,9 +308,13 @@ class RecorderManager:
 
     def status(self) -> dict[str, Any]:
         with self._lock:
+            starting_elapsed = 0.0
+            if self._starting and self._start_monotonic is not None:
+                starting_elapsed = round(time.monotonic() - self._start_monotonic, 1)
             return {
                 "active": self._active,
                 "starting": self._starting,
+                "starting_elapsed_sec": starting_elapsed,
                 "status": self._status,
                 "phase": self._phase,
                 "error": self._error,
@@ -449,7 +477,7 @@ class RecorderManager:
             self._logs.append(f"Session lost: {self._error}")
             self._rev += 1
 
-    def _refresh_loop(self, interval: float = 2.0) -> None:
+    def _refresh_loop(self, interval: float = 0.8) -> None:
         """Keep the mirror in step with the device and keep the Appium session alive while idle."""
         while not self._stop_event.wait(interval):
             if not self._active or self._driver is None:
@@ -732,10 +760,13 @@ class RecorderManager:
 
         self._stop_event.clear()
         with self._lock:
+            self._session_token += 1
+            token = self._session_token
+            self._start_monotonic = time.monotonic()
             self._starting = True
             self._active = False
             self._status = "starting"
-            self._phase = "Starting Appium and connecting to the device..."
+            self._phase = "Starting the Appium server..."
             self._error = ""
             self._project_root = project_root
             self._platform = platform
@@ -760,6 +791,11 @@ class RecorderManager:
             ]
             self._masker = val.env_ctx.masker if val.env_ctx else SecretMasker([])
 
+        connect_phase = _connect_phase_text(platform, profile)
+
+        def _cancelled() -> bool:
+            return self._stop_event.is_set() or self._session_token != token
+
         def _boot_worker() -> None:
             log_path = project_root / "results" / "workbench_recorder_appium.log"
             mgr: AppiumManager | None = None
@@ -767,10 +803,23 @@ class RecorderManager:
             try:
                 mgr = AppiumManager(log_path=log_path, masker=self._masker)
                 mgr.__enter__()
+                with self._lock:
+                    if _cancelled():
+                        raise InterruptedError("Recorder start cancelled.")
+                    # Stop can now shut Appium down even while the session is still being created.
+                    self._appium_mgr = mgr
+                    self._phase = connect_phase
+                self._log(connect_phase)
                 driver = create_appium_driver(mgr.url, profile, env_cfg, app_path=resolved_app)
+                if _cancelled():
+                    raise InterruptedError("Recorder start cancelled.")
+                with self._lock:
+                    self._phase = "Connected. Capturing the first screen..."
                 if settle_seconds > 0:
                     time.sleep(min(settle_seconds, 5.0))
                 with self._driver_lock:
+                    if _cancelled():
+                        raise InterruptedError("Recorder start cancelled.")
                     self._appium_mgr = mgr
                     self._driver = driver
                     self._capture_snapshot_locked()
@@ -797,6 +846,11 @@ class RecorderManager:
                     except Exception:
                         pass
                 with self._lock:
+                    if self._appium_mgr is mgr:
+                        self._appium_mgr = None
+                    if self._session_token != token or self._stop_event.is_set():
+                        # Stopped by the user, or replaced by a newer start. Stop already set the state.
+                        return
                     self._starting = False
                     self._active = False
                     self._status = "failed"
@@ -1039,6 +1093,24 @@ class RecorderManager:
                 self._logs.append(f"Removed step: {removed.get('label')}")
         return self.status()
 
+    def clear(self, flow_name: str = "") -> dict[str, Any]:
+        """Drop every recorded step and the locators they captured. A live session keeps running.
+
+        ``flow_name`` renames the test being recorded, so a new test does not reuse the old name.
+        """
+        with self._lock:
+            had = len(self._steps)
+            if flow_name.strip():
+                self._flow_name = flow_name.strip()
+                self._screen_name = _safe_slug(self._flow_name.split("/")[-1], "screen")
+            self._steps = []
+            self._locators = {}
+            self._notice = ""
+            self._rev += 1
+            if had:
+                self._logs.append(f"Cleared {had} recorded step(s).")
+        return self.status()
+
     def update_step(
         self,
         index: int,
@@ -1172,6 +1244,8 @@ class RecorderManager:
 
         if stop_after:
             self.stop()
+        # The steps now live in flows/, so the recorder starts the next test empty.
+        self.clear()
 
         return {
             "ok": True,

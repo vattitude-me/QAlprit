@@ -135,8 +135,16 @@ def test_save_with_variables_keeps_the_secret_out_of_the_flow_file(tmp_path: Pat
     assert [r.name for r in bundle.rows] == ["recorded"]
     assert bundle.rows[0].values == {"user": "bob@example.com", "pass": "10203040"}
 
-    # Recording the flow again must not wipe dataset rows the tester added.
-    rm._steps[0]["value"] = "carol@example.com"
+    # Saving clears the recorder, so record the flow again. That must not wipe dataset rows the tester added.
+    assert rm.status()["steps"] == []
+    rm._locators = {
+        "demo.user": {"screen": "demo", "key": "user", "strategy": "accessibility_id", "value": "user", "sensitive": False},
+        "demo.pass": {"screen": "demo", "key": "pass", "strategy": "accessibility_id", "value": "pass", "sensitive": True},
+    }
+    rm._steps = [
+        {"action": "type", "target": "demo.user", "value": "carol@example.com", "secret": False, "label": "Type"},
+        {"action": "type", "target": "demo.pass", "value": "10203040", "secret": True, "label": "Type"},
+    ]
     rm.save_recorded(flow_name="demo/login", create_test=False, stop_after=False, parameterize=True)
     assert load_datasets(tmp_path, "flow", "demo/login").rows[0].values["user"] == "bob@example.com"
 
@@ -204,3 +212,24 @@ def test_simulator_screenshot_comes_from_simctl_and_falls_back_to_wda(monkeypatc
     calls.clear()
     assert AppiumDriverAdapter(raw, platform="ios").get_screenshot_as_png() == b"\x89PNG-wda"
     assert calls == []
+
+
+def test_clear_and_save_leave_the_recorder_empty_for_the_next_test(tmp_path: Path) -> None:
+    from qalprit.recorder import RecorderManager
+
+    rm = RecorderManager()
+    rm._project_root = tmp_path
+    rm._platform = "android"
+    rm._flow_name = "auth/old"
+    rm._steps = [{"action": "tap", "target": "login.btn", "value": "", "secret": False, "label": "Tap"}]
+    rm._locators = {"login.btn": {"screen": "login", "key": "btn", "strategy": "id", "value": "btn", "sensitive": False}}
+
+    st = rm.clear(flow_name="new-test-2")
+    assert st["steps"] == [] and st["flow_name"] == "new-test-2"
+    assert rm._locators == {}
+
+    rm._steps = [{"action": "tap", "target": "login.btn", "value": "", "secret": False, "label": "Tap"}]
+    rm._locators = {"login.btn": {"screen": "login", "key": "btn", "strategy": "id", "value": "btn", "sensitive": False}}
+    res = rm.save_recorded(flow_name="new-test-2", create_test=False)
+    assert res["ok"] and (tmp_path / "flows" / "new-test-2.md").is_file()
+    assert rm.status()["steps"] == []

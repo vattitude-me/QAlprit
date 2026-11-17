@@ -4,9 +4,73 @@ All notable backend, UI, packaging, and documentation changes to **QAlprit** are
 
 ---
 
+## Upcoming
+
+Ideas planned for a later release. Nothing here ships yet.
+
+- Open a saved workflow in the recorder to add, remove or reorder steps, then save it back under the same name. Today the recorder only starts empty, and saving under an existing name replaces that workflow after you confirm.
+
+---
+
 ## [Unreleased]
 
 - _No unreleased changes yet._
+
+---
+
+## [v0.1.34] - 2026-11-17
+
+### Devices run in the background (`background_devices.py`, `emulator_manager.py`, `driver_factory.py`)
+- Android emulators start with `-no-window -no-audio` and iOS simulators start without opening Simulator.app, so no device window covers the Workbench. The recorder mirror shows the screen instead.
+- This applies however the device starts: from the device menu, from the recorder, or from a run where Appium boots the AVD (`appium:avdArgs`) or the simulator (`appium:isHeadless`).
+- New setting "Show the device window" under Settings, Devices, for people who want the window. It is off by default.
+- QAlprit records the devices it starts in `started-devices.json` next to `settings.json`, and drops entries for devices that are no longer running.
+- The top bar shows a background device as "Running in background", with Stop. For an iOS simulator it also has Show window (`POST /api/emulator/show_window`). An Android emulator started without a window cannot show one later, and the message says to turn the setting on and start it again.
+
+### Clean quit (`desktop.py`, `ui_server.py`, `cli.py`)
+- Quitting the Workbench stops the recorder, any run, any device boot still in progress, and the Appium servers they started. It then shuts down the background devices QAlprit started. Devices you started yourself, or started with a visible window, keep running.
+- The cleanup also runs on Cmd+Q and the window close button. pywebview's Cocoa host exits the process from C on Cmd+Q, so Python `finally` blocks never ran there before.
+
+### Ask before quitting mid-work (`desktop.py`, `ui_server.py`)
+- Quitting while a test run is going, while the recorder has steps you have not saved, or while a device is still starting now asks first, with "Keep working" and "Quit anyway". It names what would be cut short.
+- It uses the native dialog on each platform (NSAlert on macOS, a message box on Windows) and covers Cmd+Q, Alt+F4 and the window close button. If nothing is in progress, the app quits without asking.
+
+### Test installers without publishing (`.github/workflows/publish.yml`)
+- The PyPI upload now runs only for a published GitHub Release. Running the workflow by hand builds the Windows `.exe` and macOS `.dmg` as downloadable files for testing and publishes nothing.
+
+### Progress you can follow (`recorder.py`, `ui/index.html`)
+- The recorder shows each phase (starting Appium, starting the device, opening the app, capturing the first screen) with elapsed seconds. After 45 seconds it says it is still working and that Stop cancels.
+- Stop now works while the recorder is still starting. It kills the Appium server it launched and the half-started session is discarded.
+- The live mirror refreshes every 0.8 seconds instead of 2, and the status polls every 0.7 seconds instead of 1.1.
+- Device boots report progress in the device menu and end with a toast that says the device is ready or why it failed.
+
+### Run tests page (`ui/index.html`)
+- Running has its own page in the sidebar instead of a modal. The modal hid errors behind its grey backdrop.
+- Two steps replace eight dropdowns. "What to run" is One test, A suite or All tests, with one test picker that groups journeys and workflows. "Where to run it" holds the platform, environment, device and app. Retries, redaction and data rows sit under Options, in plain words.
+- A summary card shows the choices before you start, and errors appear on the page in that card until you change something.
+- Device names say "running" or "off, starts when needed" instead of `[Booted]`, `[Shutdown]` and `[Offline AVD]`, and iOS versions read "iOS 26.5" instead of "iOS 26 5".
+- Toasts now show above any open dialog.
+
+### Runs & reports (`ui/index.html`)
+- The first column is the run date in local time ("Today, 1:12 PM", "Yesterday, 9:05 AM", "Nov 14, 4:30 PM"). Hover shows the full timestamp and run id.
+
+### Clearer run errors (`workbench_api.py`)
+- Missing `${variables}` are grouped into one line that names the test and says where to add a value (a data row or the environment), instead of one repeated line per variable and per step.
+
+### Recorder starts each new test empty (`recorder.py`, `ui_server.py`, `ui/index.html`)
+- Saving a workflow clears the recorded steps, so "Record a new test" no longer shows the workflow you just saved. The test name changes to an unused one such as `new-test-2`.
+- "Record a new test" asks before it throws away steps you have not saved. Cancel keeps them on the page.
+- New "Clear all" button next to Undo last, and `POST /api/recorder/clear`. A live recording keeps running.
+- Save asks before it replaces a workflow that already has that name. Before, it replaced it without asking.
+
+### Journeys use their workflow's data rows (`workbench_api.py`, `validator.py`, `ui/index.html`)
+- A journey that runs a workflow with data rows now runs once per row, using that workflow's rows. Before, it looked only for rows on the journey itself and stopped with "No selected datasets found".
+- Validation counts a workflow's data row columns as values for its params when a journey calls it, so the journey no longer has to pass `username` and `password` itself.
+- The Run tests page ticks "Run once for each data row" when the picked test or its workflow has rows, and shows the row count. Unticking it stays unticked until you pick another test.
+
+### Lessons learned
+- A modal dialog lives in the browser's top layer, so toasts and banners outside it render under its backdrop. Show errors inside the dialog, or put the toast host in the top layer too (`popover="manual"`).
+- Recorded workflows can contain `${name}` values typed by hand. The recorder only registers variables it creates itself, so a hand-typed one has no source until a data row or environment value is added. The run error now says so.
 
 ---
 
