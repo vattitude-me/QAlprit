@@ -84,12 +84,15 @@ class StepContext:
     run_dir: Path | None = None
     update_baselines: bool = False
     dataset_vars: dict[str, str] = field(default_factory=dict)
+    captured_vars: dict[str, str] = field(default_factory=dict)
 
     @property
     def extra_env_vars(self) -> dict[str, str]:
         merged = self.env_cfg.as_env_vars()
         if self.dataset_vars:
             merged.update(self.dataset_vars)
+        if self.captured_vars:
+            merged.update(self.captured_vars)
         return merged
 
     def resolve_locator(self, target: str, params: dict[str, Any] | None = None) -> ResolvedLocator:
@@ -349,6 +352,8 @@ def format_step_description(step: StepItem, masker: SecretMasker | None = None) 
         desc = "Press device back"
     elif t == "hide_keyboard":
         desc = "Hide soft keyboard"
+    elif t == "enter_otp":
+        desc = "Enter one-time code" + (f" into {p.get('target')}" if p.get("target") else "")
     elif t == "biometric":
         desc = f"Simulate biometric {p.get('action')}"
     elif t == "screenshot":

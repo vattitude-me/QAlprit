@@ -14,7 +14,11 @@ Ideas planned for a later release. Nothing here ships yet.
 
 ## [Unreleased]
 
-- _No unreleased changes yet._
+### New `enter_otp` step (`otp.py`, `steps/interaction_steps.py`, `recorder.py`, `ui_server.py`, `ui/index.html`)
+- A recorded flow no longer replays the OTP you typed while recording, which fails on the next run. `enter_otp: login.otp_field` stops the run, asks for the current code, and types it into the field.
+- Workbench: a prompt appears in the live run strip with a code box. Terminal: the run asks on the console. CI: set `OTP` in `.env` or a dataset column and nothing pauses. With none of these the step fails with a message that says what to set, instead of hanging.
+- Recorder: the type bar has an **Enter OTP** button. It types the code you give into the device but saves only `enter_otp`, so no code lands in the flow, dataset or report.
+- The captured code is masked everywhere and stored as `${OTP}` for later steps in the same run.
 
 ---
 

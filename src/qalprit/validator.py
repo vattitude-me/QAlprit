@@ -30,6 +30,7 @@ _TARGETED_STEPS = {
     "tap",
     "tap_if_visible",
     "type",
+    "enter_otp",
     "clear",
     "scroll_until_visible",
     "wait_for_visible",

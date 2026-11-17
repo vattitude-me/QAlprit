@@ -852,3 +852,66 @@ def test_ui_server_corrupt_runs_and_compare_runs(tmp_path: Path) -> None:
     assert [f["id"] for f in diff["fixes"]] == ["T2"]
     assert [p["id"] for p in diff["persistent_failures"]] == ["T3"]
     assert [n["id"] for n in diff["new_tests"]] == ["T4"]
+
+
+# ---------------------------------------------------------------------------
+# enter_otp: pause for a one-time code
+# ---------------------------------------------------------------------------
+
+
+def test_enter_otp_uses_preset_variable_without_asking(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from qalprit import otp
+
+    monkeypatch.setattr(otp.BROKER, "_web", False)
+    driver = FakeDriver(platform="android")
+    field = driver.add_element("accessibility_id", "status_lbl", text="")
+    ctx = _make_step_context(tmp_path, driver)
+    ctx.dataset_vars["OTP"] = "482913"
+    execute_step(ctx, normalize_step({"enter_otp": "auth.status_lbl"}))
+    assert field.typed == ["482913"]
+    assert ctx.masker.mask("code 482913") != "code 482913"
+
+
+def test_enter_otp_waits_for_submitted_code(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import threading
+    import time
+
+    from qalprit import otp
+
+    broker = otp.OtpBroker()
+    broker.enable_web()
+    monkeypatch.setattr("qalprit.steps.interaction_steps.BROKER", broker)
+    driver = FakeDriver(platform="android")
+    driver.add_element("accessibility_id", "status_lbl", text="")
+    ctx = _make_step_context(tmp_path, driver)
+
+    def answer() -> None:
+        for _ in range(100):
+            if broker.pending():
+                broker.submit("135790")
+                return
+            time.sleep(0.02)
+
+    t = threading.Thread(target=answer)
+    t.start()
+    execute_step(ctx, normalize_step({"enter_otp": {"target": "auth.status_lbl", "timeout": 5}}))
+    t.join()
+    assert ctx.captured_vars["OTP"] == "135790"
+    assert broker.pending() is None
+
+
+def test_otp_broker_fails_fast_without_a_way_to_ask() -> None:
+    from qalprit.otp import OtpBroker, OtpUnavailableError
+
+    with pytest.raises(OtpUnavailableError):
+        OtpBroker().request("login.otp", timeout=1)
+
+
+def test_otp_broker_times_out_and_aborts() -> None:
+    from qalprit.otp import OtpBroker, OtpUnavailableError
+
+    b = OtpBroker()
+    b.enable_web()
+    with pytest.raises(OtpUnavailableError, match="within"):
+        b.request("x", timeout=0.2)
+    assert b.submit("1") is False

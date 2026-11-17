@@ -216,6 +216,8 @@ def _step_to_yaml_dict(step: dict[str, Any]) -> Any:
         if secret:
             inner["secret"] = True
         return {"type": inner}
+    if action == "enter_otp":
+        return {"enter_otp": target}
     if action == "assert_text":
         return {"assert_text": {"target": target, "contains": value}}
     if action == "swipe":
@@ -975,7 +977,7 @@ class RecorderManager:
 
             # A tap on something hidden behind the keyboard would hit a key instead. Close the
             # keyboard first and record that, the same way a hand-written flow would.
-            if act in {"tap", "type"} and target_el.get("visible") is False:
+            if act in {"tap", "type", "enter_otp"} and target_el.get("visible") is False:
                 kb_shown = False
                 try:
                     kb_shown = bool(driver.is_keyboard_shown())
@@ -1022,6 +1024,26 @@ class RecorderManager:
                     "secret": is_secret,
                     "label": f"Verify '{loc['display_label']}' contains '{expected}'",
                 }
+            elif act == "enter_otp":
+                # The code is only typed into the device now. The saved step asks for a fresh
+                # code on every run, so no code is stored in the flow, dataset or report.
+                if value and self._masker is not None:
+                    self._masker.add(value)
+                elem = _find()
+                elem.click()
+                try:
+                    elem.clear()
+                except Exception:
+                    pass
+                elem.send_keys(value)
+                step = {
+                    "action": "enter_otp",
+                    "target": loc["target"],
+                    "value": "",
+                    "secret": True,
+                    "label": f"Enter one-time code into {loc['display_label']}",
+                }
+                time.sleep(0.6)
             elif act == "type":
                 elem = _find()
                 elem.click()

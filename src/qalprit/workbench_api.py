@@ -19,6 +19,7 @@ from typing import Any
 import frontmatter
 import yaml
 
+from qalprit.otp import BROKER
 from qalprit.appium_manager import AppiumManager
 from qalprit.config_loader import (
     DeviceProfile,
@@ -1314,6 +1315,7 @@ class RunJobManager:
             if not self._state["running"]:
                 return {"ok": True, "running": False, "status": self._state["status"]}
             self._cancel_event.set()
+            BROKER.abort()
             self._state["status"] = "stopping"
             self._state["phase"] = "Stopping"
             run_id = self._state["run_id"]

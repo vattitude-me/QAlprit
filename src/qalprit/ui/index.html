@@ -2068,6 +2068,7 @@
                   <input id="recTypeInput" type="text" placeholder="Value or ${username} / ${QA_PASS}" style="flex:1;min-width:140px;" />
                   <label class="chk-inline"><input type="checkbox" id="recTypeSecret" /> Secret</label>
                   <button type="button" class="btn btn-primary btn-sm" id="btnRecSendType">Send &amp; Type</button>
+                  <button type="button" class="btn btn-sm" id="btnRecSendOtp" title="Type the code now, but save a step that asks for a fresh code on every run">Enter OTP</button>
                   <button type="button" class="btn btn-sm" id="btnRecTapSelected" title="Tap this field without typing">Tap only</button>
                   <button type="button" class="btn btn-sm btn-ghost" id="btnRecTypeCancel" aria-label="Close type bar">&times;</button>
                 </div>
@@ -2354,6 +2355,11 @@
             </div>
             <div class="progress-track"><div class="progress-fill" id="runProgressFill"></div></div>
             <div id="runStatusBanner" class="status-banner" hidden aria-live="polite"></div>
+            <div id="runOtpBox" class="status-banner warn" hidden role="alert" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              <strong id="runOtpLabel">The run is waiting for a one-time code.</strong>
+              <input id="runOtpInput" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="Code" style="width:140px;" />
+              <button type="button" class="btn btn-primary btn-sm" id="btnRunOtpSend">Send code</button>
+            </div>
             <pre id="runLiveLog" class="console" hidden></pre>
           </div>
         </div>
@@ -2909,7 +2915,7 @@
         settingsTab: "env",
         activeApp: "",
         hostOs: "",
-        stepVocab: ["launch", "reset_app", "background", "tap", "tap_if_visible", "type", "clear", "swipe", "scroll_until_visible", "wait", "wait_for_visible", "wait_for_enabled", "wait_for_text", "wait_for_keyboard", "assert_visible", "assert_not_visible", "assert_text", "assert_enabled", "assert_disabled", "back", "hide_keyboard", "biometric", "run_flow", "screenshot", "visual_compare"],
+        stepVocab: ["launch", "reset_app", "background", "tap", "tap_if_visible", "type", "clear", "swipe", "scroll_until_visible", "wait", "wait_for_visible", "wait_for_enabled", "wait_for_text", "wait_for_keyboard", "assert_visible", "assert_not_visible", "assert_text", "assert_enabled", "assert_disabled", "back", "hide_keyboard", "enter_otp", "biometric", "run_flow", "screenshot", "visual_compare"],
         emuStatus: null,
         emuPollTimer: null,
         recState: null,
@@ -5582,6 +5588,13 @@
         $("recTypeBar").hidden = true;
         runRecorderAction({ action: "type", element_index: STATE.recSelectedIdx, value: $("recTypeInput").value, secret: $("recTypeSecret").checked });
       });
+      $("btnRecSendOtp").addEventListener("click", () => {
+        if (STATE.recSelectedIdx === null) return;
+        const code = $("recTypeInput").value;
+        if (!code.trim()) { showBanner("recStatusBanner", "Type the code you received in the box, then press Enter OTP. The saved step will ask for a new code on each run.", "warn"); return; }
+        $("recTypeBar").hidden = true;
+        runRecorderAction({ action: "enter_otp", element_index: STATE.recSelectedIdx, value: code, secret: true });
+      });
       $("btnRecTapSelected").addEventListener("click", () => {
         if (STATE.recSelectedIdx === null) return;
         $("recTypeBar").hidden = true;
@@ -5998,6 +6011,19 @@
             $("runLiveLog").scrollTop = $("runLiveLog").scrollHeight;
           }
           $("btnStopLiveRun").hidden = !st.running;
+          const otp = st.otp_pending;
+          const otpBox = $("runOtpBox");
+          if (otp && !otpBox.dataset.otpId) {
+            $("runOtpLabel").textContent = `The run is waiting for a one-time code for ${otp.label}.`;
+            $("runOtpInput").value = "";
+            otpBox.hidden = false;
+            otpBox.style.display = "flex";
+            otpBox.dataset.otpId = String(otp.id);
+            $("runOtpInput").focus();
+          } else if (!otp && otpBox.dataset.otpId) {
+            otpBox.hidden = true;
+            otpBox.dataset.otpId = "";
+          }
           if (st.running) return;
           if (STATE.pollTimer) { clearInterval(STATE.pollTimer); STATE.pollTimer = null; }
           if (st.status === "completed") {
@@ -6017,6 +6043,19 @@
         STATE.pollTimer = setInterval(pollRunStatus, 1000);
         pollRunStatus();
       }
+      async function sendRunOtp() {
+        const code = $("runOtpInput").value.trim();
+        if (!code) return;
+        try {
+          await apiJson("/api/runs/otp", { code });
+          $("runOtpBox").hidden = true;
+          $("runOtpBox").dataset.otpId = "";
+        } catch (err) {
+          showBanner("runStatusBanner", err.message, "error");
+        }
+      }
+      $("btnRunOtpSend").addEventListener("click", sendRunOtp);
+      $("runOtpInput").addEventListener("keydown", (e) => { if (e.key === "Enter") sendRunOtp(); });
       $("btnStopLiveRun").addEventListener("click", async () => { await apiJson("/api/runs/stop", {}); pollRunStatus(); });
 
       async function launchRunFromModal(dryRun) {

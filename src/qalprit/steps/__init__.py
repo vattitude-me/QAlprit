@@ -11,6 +11,7 @@ from qalprit.steps.device_steps import exec_biometric
 from qalprit.steps.interaction_steps import (
     exec_back,
     exec_clear,
+    exec_enter_otp,
     exec_hide_keyboard,
     exec_scroll_until_visible,
     exec_swipe,
@@ -54,6 +55,7 @@ STEP_EXECUTORS: dict[str, Callable[[StepContext, StepItem], StepOutcome]] = {
     "assert_disabled": exec_assert_disabled,
     "back": exec_back,
     "hide_keyboard": exec_hide_keyboard,
+    "enter_otp": exec_enter_otp,
     "biometric": exec_biometric,
     "screenshot": exec_screenshot,
     "visual_compare": exec_visual_compare,
