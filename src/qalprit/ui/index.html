@@ -2311,6 +2311,14 @@
               </div>
               <input id="runUseDatasetsChk" type="checkbox" switch />
             </div>
+            <div class="run-opt">
+              <div>
+                <label for="runShowDeviceChk" style="margin:0;">Show the device while it runs</label>
+                <p class="muted" id="runShowDeviceHint">Off: the device runs in the background. Results and screenshots still appear in Runs &amp; reports.</p>
+                <button type="button" class="btn btn-sm" id="btnRunRestartWithWindow" hidden style="margin-top:6px;">Restart with window</button>
+              </div>
+              <input id="runShowDeviceChk" type="checkbox" switch />
+            </div>
           </div>
         </details>
           </div>
@@ -2577,7 +2585,7 @@
               <p class="muted" id="emuStatusDesc" style="margin:0;font-size:12px;">Install the default Android Virtual Device (~1.8 GB) or boot, switch, and shut down Android &amp; iOS targets.</p>
               <div style="padding:8px 10px;border-radius:8px;background:var(--surface);border:1px solid var(--border);">
                 <label class="chk-inline" style="font-weight:600;"><input type="checkbox" id="prefShowDeviceWindow" /> Show the device window</label>
-                <p class="muted" style="margin:4px 0 0;font-size:12px;">Off by default. Devices run in the background and you use them through the mirror in Record a test, so the emulator window doesn't cover QAlprit. Turn it on to see the emulator or simulator window too. QAlprit shuts down the background devices it started when you quit. It applies the next time a device starts.</p>
+                <p class="muted" style="margin:4px 0 0;font-size:12px;">Off by default. Devices run in the background and you use them through the mirror in Record a test, so the emulator window doesn't cover QAlprit. Turn it on to see the emulator or simulator window too. QAlprit shuts down the background devices it started when you quit. A running iOS simulator opens its window right away. A running Android emulator shows its window after it restarts. You can also change this on the Run tests page.</p>
               </div>
               <div class="btn-row" style="flex-wrap:wrap;gap:8px;">
                 <button type="button" class="btn btn-primary" id="btnEmuSetup" hidden>Setup Android Emulator (~1.8 GB)</button>
@@ -3417,6 +3425,7 @@
         if (runningIos.length) sbParts.push(`iOS: ${runningIos[0]}`);
         $("sbEmuText").textContent = sbParts.length ? sbParts.join(" · ") : "No device running";
         updateRecDeviceButtons();
+        updateRunShowDeviceHint();
         if (STATE.guidedReady) { renderHome(); renderWelcome(); }
       }
 
@@ -5042,8 +5051,10 @@
           if ($("btnIosShutdown")) $("btnIosShutdown").hidden = !bootedIos.length;
 
           if (st.error) showBanner("emuStatusBanner", st.error, "error");
-          if ($("prefShowDeviceWindow") && st.show_device_window !== undefined && document.activeElement !== $("prefShowDeviceWindow")) {
-            $("prefShowDeviceWindow").checked = Boolean(st.show_device_window);
+          if (st.show_device_window !== undefined) {
+            ["prefShowDeviceWindow", "runShowDeviceChk"].forEach((id) => {
+              if ($(id) && document.activeElement !== $(id)) $(id).checked = Boolean(st.show_device_window);
+            });
           }
           // A boot started from the top bar or Record a test must report its result wherever the user is.
           if (STATE.emuWasBusy && !isBusy && st.action === "boot") {
@@ -5118,15 +5129,77 @@
           } catch (err) { toastError(err, "Could not show the simulator"); }
         });
       }
+      // The background device QAlprit started that the Run tests page would use, if any.
+      function runHiddenDevice(plat) {
+        const hidden = ((STATE.emuStatus || {}).started_devices || []).filter((d) => d.kind === plat && d.hidden);
+        if (!hidden.length) return null;
+        const raw = $("runDeviceSelect") ? $("runDeviceSelect").value : "";
+        const live = raw.match(/^live:(android|ios):(.+)$/);
+        if (live) return hidden.find((d) => d.identifier === live[2]) || null;
+        if (raw.startsWith("avd:")) return hidden.find((d) => d.name === raw.slice(4)) || null;
+        return hidden[0];
+      }
+      function updateRunShowDeviceHint() {
+        const chk = $("runShowDeviceChk");
+        const hint = $("runShowDeviceHint");
+        const btn = $("btnRunRestartWithWindow");
+        if (!chk || !hint || !btn) return;
+        const plat = $("runPlatformSelect").value || "android";
+        const bg = chk.checked ? runHiddenDevice(plat) : null;
+        btn.hidden = !(bg && plat === "android");
+        if (!chk.checked) {
+          hint.textContent = "Off: the device runs in the background. Results and screenshots still appear in Runs & reports.";
+        } else if (bg && plat === "android") {
+          hint.textContent = `${bg.name || "This emulator"} is running with no window. Start run restarts it with its window first, which adds about a minute. You can also restart it now.`;
+        } else if (bg) {
+          hint.textContent = "The Simulator window opens when the run starts.";
+        } else {
+          hint.textContent = "On: the emulator or simulator window stays on screen so you can watch each step.";
+        }
+      }
+      async function setShowDeviceWindow(on, sourceEl) {
+        try {
+          await apiJson("/api/system/preferences", { show_device_window: on });
+        } catch (err) {
+          if (sourceEl) sourceEl.checked = !on;
+          toastError(err, "Could not save the setting");
+          return false;
+        }
+        ["prefShowDeviceWindow", "runShowDeviceChk"].forEach((id) => { if ($(id)) $(id).checked = on; });
+        if (STATE.emuStatus) STATE.emuStatus.show_device_window = on;
+        // A background iOS simulator can open its window right away. An Android emulator has to restart.
+        if (on && ((STATE.emuStatus || {}).started_devices || []).some((d) => d.kind === "ios" && d.hidden)) {
+          try { await apiJson("/api/emulator/show_window", { target: "ios", identifier: "" }); } catch (_) {}
+        }
+        await pollEmulatorStatus();
+        updateRunSummary();
+        return true;
+      }
       if ($("prefShowDeviceWindow")) {
         $("prefShowDeviceWindow").addEventListener("change", async (e) => {
           const on = e.target.checked;
+          if (await setShowDeviceWindow(on, e.target)) {
+            toast(on ? "Device windows will show. A running Android emulator needs a restart to show its window." : "Devices will run in the background the next time one starts.", "ok");
+          }
+        });
+      }
+      if ($("runShowDeviceChk")) {
+        $("runShowDeviceChk").addEventListener("change", (e) => setShowDeviceWindow(e.target.checked, e.target));
+      }
+      if ($("btnRunRestartWithWindow")) {
+        $("btnRunRestartWithWindow").addEventListener("click", async () => {
+          const dev = runHiddenDevice("android");
+          if (!dev) return;
+          const btn = $("btnRunRestartWithWindow");
+          btn.disabled = true;
           try {
-            await apiJson("/api/system/preferences", { show_device_window: on });
-            toast(on ? "Device windows will show the next time a device starts." : "Devices will run in the background the next time one starts.", "ok");
-          } catch (err) {
-            e.target.checked = !on;
-            toastError(err, "Could not save the setting");
+            showBanner("runStartBanner", `Restarting ${dev.name || "the emulator"} with its window...`, "info");
+            await shutdownDeviceTarget("android", dev.identifier, { quiet: true });
+            await bootAndroidTarget(dev.name && dev.name !== dev.identifier ? dev.name : "", false);
+            showBanner("runStartBanner", "The emulator is starting with its window. Progress shows in the device menu at the top. Start the run once it's ready.", "info");
+          } finally {
+            btn.disabled = false;
+            updateRunShowDeviceHint();
           }
         });
       }
@@ -5937,7 +6010,9 @@
         const retryText = retries ? `retry ${retries === 1 ? "once" : retries === 2 ? "twice" : retries + " times"}` : "no retries";
         const parts = [retryText, $("runRedactChk").checked ? "screenshots redacted" : "screenshots not redacted"];
         if ($("runUseDatasetsChk").checked) parts.push("each data row");
+        parts.push($("runShowDeviceChk").checked ? "device window shown" : "device in background");
         $("runMoreSummary").textContent = "· " + parts.join(", ");
+        updateRunShowDeviceHint();
 
         const plat = $("runPlatformSelect").value || "android";
         const mode = STATE.runMode;
@@ -5998,7 +6073,12 @@
             $("runLiveLog").scrollTop = $("runLiveLog").scrollHeight;
           }
           $("btnStopLiveRun").hidden = !st.running;
-          if (st.running) return;
+          if (st.running) {
+            // A new run is going, so the previous run's result and report link no longer apply.
+            if (!$("runStatusBanner").hidden) showBanner("runStatusBanner", "", "");
+            $("openFinishedReportLink").hidden = true;
+            return;
+          }
           if (STATE.pollTimer) { clearInterval(STATE.pollTimer); STATE.pollTimer = null; }
           if (st.status === "completed") {
             const s = st.summary || {};
@@ -6026,11 +6106,20 @@
         const needsBoot = !dryRun && !rawDevNow.startsWith("live:");
         showBanner("runStartBanner", dryRun
           ? "Checking which tests would run..."
-          : (needsBoot ? "Starting the device in the background. This can take a minute or two..." : "Starting the run..."), "info");
+          : (needsBoot
+            ? `Starting the device${$("runShowDeviceChk").checked ? "" : " in the background"}. This can take a minute or two...`
+            : "Starting the run..."), "info");
         buttons.forEach((b) => { b.disabled = true; });
         try {
           const plat = $("runPlatformSelect").value;
-          const rawDev = $("runDeviceSelect").value;
+          let rawDev = $("runDeviceSelect").value;
+          // The user asked to watch the run, but the emulator has no window. Restart it so the run boots it with one.
+          const windowless = !dryRun && plat === "android" && $("runShowDeviceChk").checked ? runHiddenDevice("android") : null;
+          if (windowless && windowless.name && windowless.name !== windowless.identifier) {
+            showBanner("runStartBanner", `${windowless.name} is running with no window. Restarting it with its window, then starting the run. This can take a minute or two...`, "info");
+            await shutdownDeviceTarget("android", windowless.identifier, { quiet: true });
+            rawDev = `avd:${windowless.name}`;
+          }
           const resolvedDev = dryRun
             ? (rawDev.startsWith("sim:ios:") ? "ios_simulator" : (rawDev.startsWith("avd:") ? "android_emulator" : (rawDev || (plat === "ios" ? "ios_simulator" : "android_emulator"))))
             : await resolveSelectedDeviceForAction(plat, rawDev);

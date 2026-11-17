@@ -218,3 +218,47 @@ def test_quit_asks_only_when_work_would_be_cut_short(settings_file: Path, monkey
     assert released == [] and "test run is still going" in asked[-1]
     assert desktop._on_window_closing(server, ask=lambda msg: True) is True
     assert released == [True]
+
+
+def test_run_on_booted_background_simulator_opens_window_when_setting_on(
+    settings_file: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from qalprit.config_loader import DeviceProfile
+    from qalprit.devices import DiscoveredDevice
+    from qalprit.driver_factory import _ensure_ios_simulator_ready
+
+    booted = DiscoveredDevice(platform="ios", identifier="UDID-1", name="iPhone 17 (iOS 26 5)", state="Booted", kind="simulator")
+    monkeypatch.setattr("qalprit.driver_factory.platform.system", lambda: "Darwin")
+    monkeypatch.setattr("qalprit.driver_factory.list_ios_simulators", lambda: ([booted], None))
+    shown: list[tuple[str, str]] = []
+    monkeypatch.setattr(bg, "show_window", lambda kind, ident="": shown.append((kind, ident)) or {"ok": True})
+    bg.remember_started("ios", "UDID-1", name="iPhone 17", hidden=True)
+    prof = DeviceProfile(platform="ios", target_type="simulator", device_name="iPhone 17", automation_name="XCUITest")
+
+    _ensure_ios_simulator_ready(prof)
+    assert shown == []
+
+    settings_file.write_text(json.dumps({"show_device_window": True}), encoding="utf-8")
+    _ensure_ios_simulator_ready(prof)
+    assert shown == [("ios", "UDID-1")]
+
+
+def test_windowless_emulator_found_from_process_list(monkeypatch: pytest.MonkeyPatch) -> None:
+    ps_out = (
+        "/sdk/emulator/qemu/darwin-aarch64/qemu-system-aarch64-headless -avd QAlprit_Pixel -delay-adb -no-window -no-audio\n"
+        "/sdk/emulator/qemu/darwin-aarch64/qemu-system-aarch64 -avd Other_Pixel\n"
+    )
+
+    def fake_run(cmd, **_kw):
+        out = ps_out if cmd[0] == "ps" else ("QAlprit_Pixel\n" if cmd[1:3] == ["-s", "emulator-5554"] else "Other_Pixel\n")
+        return SimpleNamespace(returncode=0, stdout=out, stderr="")
+
+    monkeypatch.setattr(bg.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(bg.subprocess, "run", fake_run)
+    monkeypatch.setattr(bg, "find_android_tool", lambda _n: "adb")
+    monkeypatch.setattr(bg, "_running_identifiers", lambda: ({"emulator-5554", "emulator-5556"}, set()))
+
+    assert bg._windowless_avd_names() == {"QAlprit_Pixel"}
+    assert bg.windowless_android_emulators() == [
+        {"kind": "android", "identifier": "emulator-5554", "name": "QAlprit_Pixel", "hidden": True}
+    ]

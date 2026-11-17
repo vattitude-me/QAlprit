@@ -18,6 +18,20 @@ Ideas planned for a later release. Nothing here ships yet.
 
 ---
 
+## [v0.1.35] - 2026-11-17
+
+### Show the device during a run (`ui/index.html`, `driver_factory.py`)
+- Run tests has a "Show the device while it runs" switch under Options. It shares the "Show the device window" setting, so changing either one changes both.
+- Turning it on opens the window of an iOS simulator already running in the background, right away and again when a run starts on it.
+- An Android emulator started with `-no-window` can't open a window later. When the switch is on and the chosen emulator runs in the background, Start run shuts it down and the run boots it again with its window. The page also offers Restart with window.
+- Windowless emulators are found from the emulator process list (`background_devices.windowless_android_emulators()`), not only from QAlprit's started-device list. Before, an emulator left over from an earlier session was missed, so the run reused it with no window even with the switch on.
+- Shutting down an Android emulator now waits up to 20 seconds for it to exit, so restarting the same AVD doesn't hit its lock.
+
+### Runs & reports (`ui/index.html`)
+- The "Run ... finished" banner and its report link clear as soon as a new run starts. Before, the previous run's result stayed on screen above the new run's progress.
+
+---
+
 ## [v0.1.34] - 2026-11-17
 
 ### Devices run in the background (`background_devices.py`, `emulator_manager.py`, `driver_factory.py`)

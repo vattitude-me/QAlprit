@@ -125,6 +125,71 @@ def started_devices(*, prune: bool = True) -> list[dict[str, Any]]:
         return alive
 
 
+def _android_avd_name(adb_bin: str, serial: str) -> str:
+    """The AVD name of a running emulator. The emulator console often needs an auth token, so read the system property first."""
+    attempts = [
+        ["shell", "getprop", "ro.boot.qemu.avd_name"],
+        ["shell", "getprop", "ro.kernel.qemu.avd_name"],
+        ["emu", "avd", "name"],
+    ]
+    for args in attempts:
+        try:
+            proc = subprocess.run(
+                [adb_bin, "-s", serial, *args],
+                capture_output=True, text=True, timeout=5, **win_subprocess_kwargs(),
+            )
+        except Exception:
+            continue
+        lines = [ln.strip() for ln in (proc.stdout or "").splitlines() if ln.strip() and ln.strip() != "OK"]
+        if lines:
+            return lines[0]
+    return ""
+
+
+def _windowless_avd_names() -> set[str]:
+    """AVD names of emulator processes running with -no-window, read from the process list."""
+    try:
+        if platform.system() == "Windows":
+            cmd = ["wmic", "process", "where", "name like '%qemu%' or name like 'emulator%'", "get", "CommandLine"]
+        else:
+            cmd = ["ps", "-axo", "command"]
+        out = subprocess.run(cmd, capture_output=True, text=True, timeout=5, **win_subprocess_kwargs()).stdout or ""
+    except Exception:
+        return set()
+    names: set[str] = set()
+    for line in out.splitlines():
+        if "-no-window" not in line or ("qemu" not in line and "emulator" not in line):
+            continue
+        parts = line.split()
+        for i, tok in enumerate(parts):
+            if tok == "-avd" and i + 1 < len(parts):
+                names.add(parts[i + 1])
+            elif tok.startswith("@") and len(tok) > 1:
+                names.add(tok[1:])
+    return names
+
+
+def windowless_android_emulators() -> list[dict[str, Any]]:
+    """Running Android emulators that have no window, whoever started them.
+
+    The started-device registry misses emulators left over from an earlier session,
+    so this checks the emulator processes directly.
+    """
+    names = _windowless_avd_names()
+    if not names:
+        return []
+    adb_bin = find_android_tool("adb")
+    if not adb_bin:
+        return []
+    android, _ = _running_identifiers()
+    found = []
+    for serial in sorted(android):
+        name = _android_avd_name(adb_bin, serial)
+        if name in names:
+            found.append({"kind": "android", "identifier": serial, "name": name, "hidden": True})
+    return found
+
+
 def is_hidden(kind: str, identifier: str) -> bool:
     return any(
         e["kind"] == kind and e["identifier"] == identifier and e.get("hidden")
