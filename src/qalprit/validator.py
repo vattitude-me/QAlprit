@@ -31,6 +31,8 @@ _TARGETED_STEPS = {
     "tap_if_visible",
     "type",
     "enter_otp",
+    "set_toggle",
+    "assert_toggle",
     "clear",
     "scroll_until_visible",
     "wait_for_visible",
@@ -154,6 +156,14 @@ def _validate_step_shape(
         if "value" not in step.params or step.params["value"] is None:
             issues.append(
                 ValidationIssue("error", file_path, loc, "'type' requires 'value'")
+            )
+
+    elif step.type in ("set_toggle", "assert_toggle"):
+        raw_state = step.params.get("state")
+        ok_state = isinstance(raw_state, bool) or str(raw_state).strip().lower() in {"on", "off", "true", "false"}
+        if raw_state is None or not ok_state:
+            issues.append(
+                ValidationIssue("error", file_path, loc, f"'{step.type}' requires state: on or off, got {raw_state!r}")
             )
 
     elif step.type == "swipe":

@@ -12,6 +12,8 @@ from qalprit.steps.base import (
     StepOutcome,
     StepTimeoutError,
     perform_with_stale_retry,
+    read_toggle_state,
+    toggle_want,
     wait_for_element,
     wait_until_not_visible,
 )
@@ -177,6 +179,31 @@ def exec_assert_not_visible(ctx: StepContext, step: StepItem) -> StepOutcome:
     timeout = step.params.get("timeout")
     wait_until_not_visible(ctx, target, params=tpl_params, timeout=timeout)
     return StepOutcome()
+
+
+def exec_assert_toggle(ctx: StepContext, step: StepItem) -> StepOutcome:
+    """Assert a switch is on or off, waiting for it to settle."""
+    target = step.params["target"]
+    want = toggle_want(step)
+    word = "on" if want else "off"
+    tpl_params = step.params.get("params")
+    timeout = step.params.get("timeout")
+    elem, resolved = wait_for_element(ctx, target, params=tpl_params, timeout=timeout)
+    wait_seconds = float(ctx.env_cfg.default_timeout if timeout is None else timeout)
+    deadline = time.monotonic() + max(0.0, wait_seconds)
+    while True:
+        state = read_toggle_state(elem)
+        if state == want:
+            return StepOutcome(secret_elements=[elem] if resolved.sensitive else [])
+        if time.monotonic() >= deadline:
+            break
+        time.sleep(ctx.poll_interval)
+    actual = "unreadable" if state is None else ("on" if state else "off")
+    raise StepFailureError(
+        f"Assertion failed on '{target}': expected the switch to be {word}, but it is {actual}",
+        failure_category="assertion_failure",
+        diagnostics={"target": target, "expected": word, "actual": actual, "platform": ctx.platform},
+    )
 
 
 def exec_assert_enabled(ctx: StepContext, step: StepItem) -> StepOutcome:

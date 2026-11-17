@@ -915,3 +915,58 @@ def test_otp_broker_times_out_and_aborts() -> None:
     with pytest.raises(OtpUnavailableError, match="within"):
         b.request("x", timeout=0.2)
     assert b.submit("1") is False
+
+
+# ---------------------------------------------------------------------------
+# set_toggle / assert_toggle
+# ---------------------------------------------------------------------------
+
+
+def test_set_toggle_taps_only_when_needed_and_asserts_state(tmp_path: Path) -> None:
+    driver = FakeDriver(platform="android")
+    sw = driver.add_element("accessibility_id", "status_lbl", text="")
+    sw.checked = False
+    ctx = _make_step_context(tmp_path, driver)
+
+    execute_step(ctx, normalize_step({"set_toggle": {"target": "auth.status_lbl", "state": "on"}}))
+    assert sw.checked is True and sw.clicks == 1
+    # Already on: no second tap, so it cannot flip off by accident.
+    execute_step(ctx, normalize_step({"set_toggle": {"target": "auth.status_lbl", "state": "on"}}))
+    assert sw.checked is True and sw.clicks == 1
+    # YAML reads a bare `off` as False.
+    execute_step(ctx, normalize_step({"set_toggle": {"target": "auth.status_lbl", "state": False}}))
+    assert sw.checked is False and sw.clicks == 2
+
+    execute_step(ctx, normalize_step({"assert_toggle": {"target": "auth.status_lbl", "state": "off"}}))
+    with pytest.raises(StepFailureError, match="expected the switch to be on"):
+        execute_step(ctx, normalize_step({"assert_toggle": {"target": "auth.status_lbl", "state": "on", "timeout": 0.1}}))
+
+
+def test_toggle_state_is_validated(tmp_path: Path) -> None:
+    ws = _make_minimal_project(tmp_path)
+    (ws / "flows" / "auth" / "t.md").write_text(
+        "---\nname: t\nsteps:\n  - set_toggle:\n      target: login.submit_button\n      state: maybe\n---\n", encoding="utf-8"
+    )
+    res = validate_project(ws, env_name="qa")
+    assert any("requires state" in e.message for e in res.errors)
+
+
+def test_apply_app_reset_shared_helper_restarts_app() -> None:
+    from qalprit.runner import apply_app_reset
+
+    calls: list[tuple[str, str]] = []
+
+    class _Drv:
+        def terminate_app(self, app_id: str) -> None:
+            calls.append(("terminate", app_id))
+
+        def activate_app(self, app_id: str) -> None:
+            calls.append(("activate", app_id))
+
+    ok, why = apply_app_reset(
+        _Drv(), "none", app_id="com.x", profile=None, app_path=None, masker=SecretMasker()
+    )
+    assert ok and why == ""
+    assert calls == [("terminate", "com.x"), ("activate", "com.x")]
+    # No app id means nothing to reset.
+    assert apply_app_reset(_Drv(), "clear_data", app_id="", profile=None, app_path=None, masker=SecretMasker()) == (True, "")

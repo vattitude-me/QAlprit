@@ -34,6 +34,8 @@ STEP_VOCABULARY: frozenset[str] = frozenset(
         "back",
         "hide_keyboard",
         "enter_otp",
+        "set_toggle",
+        "assert_toggle",
         "biometric",
         "run_flow",
         "screenshot",

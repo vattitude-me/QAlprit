@@ -12,7 +12,17 @@ Ideas planned for a later release. Nothing here ships yet.
 
 ---
 
-## [Unreleased]
+## [v0.1.36] - 2026-11-17
+
+### Fixed
+
+- Recording now starts from a fresh app. The recorder clears the app's data before the first screen, the same way test runs do, so a replay begins where the recording did. Turn off "Fresh app" next to the Start button to record from the app's current state.
+
+
+### Switches and saving (`steps/`, `recorder.py`, `ui/index.html`)
+- New `set_toggle` and `assert_toggle` steps with `state: on | off`. A recorded tap on a switch flips it, so a rerun could turn it off when it was already on. `set_toggle` reads the state first and taps only when needed. The recorder now saves `set_toggle` with the state the switch ended in, and the assert bar has a **Switch state** button that records `assert_toggle`.
+- The steps editor has a state dropdown (On/Off) for both steps.
+- The workflow and journey editor shows **Unsaved changes** after any edit, asks before switching to another test and warns before the window closes. Saving now shows a toast, because the old confirmation sat below the step list and was easy to miss.
 
 ### New `enter_otp` step (`otp.py`, `steps/interaction_steps.py`, `recorder.py`, `ui_server.py`, `ui/index.html`)
 - A recorded flow no longer replays the OTP you typed while recording, which fails on the next run. `enter_otp: login.otp_field` stops the run, asks for the current code, and types it into the field.

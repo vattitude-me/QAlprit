@@ -15,6 +15,8 @@ from typing import Any
 
 from PIL import Image, ImageDraw
 
+from qalprit.runner import apply_app_reset
+from qalprit.steps.base import read_toggle_state
 from qalprit.appium_manager import AppiumManager, build_appium_env
 from qalprit.doctor import find_android_tool, win_subprocess_kwargs
 from qalprit.datasets import is_sensitive_column, load_datasets, save_datasets
@@ -218,6 +220,8 @@ def _step_to_yaml_dict(step: dict[str, Any]) -> Any:
         return {"type": inner}
     if action == "enter_otp":
         return {"enter_otp": target}
+    if action in ("set_toggle", "assert_toggle"):
+        return {action: {"target": target, "state": "off" if value.strip().lower() in {"off", "false", "0"} else "on"}}
     if action == "assert_text":
         return {"assert_text": {"target": target, "contains": value}}
     if action == "swipe":
@@ -741,6 +745,7 @@ class RecorderManager:
         flow_name: str = "recorded_flow",
         settle_seconds: float = 0.8,
         redact_sensitive: bool | None = None,
+        fresh_start: bool = True,
     ) -> dict[str, Any]:
         """Attach persistent Appium session to emulator and begin recording."""
         if self._active or self._starting:
@@ -815,6 +820,22 @@ class RecorderManager:
                 driver = create_appium_driver(mgr.url, profile, env_cfg, app_path=resolved_app)
                 if _cancelled():
                     raise InterruptedError("Recorder start cancelled.")
+                if fresh_start:
+                    # Test runs reset the app before each test. Do the same here so the first
+                    # recorded screen is the one a replay starts from, not wherever the app was left.
+                    with self._lock:
+                        self._phase = "Resetting the app so recording starts from a clean state..."
+                    self._log("Clearing the app's data so recording starts from its first screen.")
+                    ok, why = apply_app_reset(
+                        driver,
+                        "clear_data",
+                        app_id=env_cfg.android_package if platform == "android" else env_cfg.ios_bundle_id,
+                        profile=profile,
+                        app_path=resolved_app,
+                        masker=self._masker,
+                    )
+                    if not ok:
+                        self._log(f"Could not reset the app ({why}). Recording from its current screen instead.")
                 with self._lock:
                     self._phase = "Connected. Capturing the first screen..."
                 if settle_seconds > 0:
@@ -1011,6 +1032,19 @@ class RecorderManager:
                     "secret": is_secret,
                     "label": f"Verify '{loc['display_label']}' is visible",
                 }
+            elif act == "assert_toggle":
+                elem = _find()
+                now_on = read_toggle_state(elem)
+                if now_on is None:
+                    raise ValueError("That element does not report an on/off state. Pick the switch itself.")
+                word = "on" if now_on else "off"
+                step = {
+                    "action": "assert_toggle",
+                    "target": loc["target"],
+                    "value": word,
+                    "secret": False,
+                    "label": f"Verify {loc['display_label']} is {word}",
+                }
             elif act == "assert_text":
                 elem = _find()
                 expected = value or str(target_el.get("text") or "")
@@ -1083,6 +1117,22 @@ class RecorderManager:
                     "label": f"Tap {loc['display_label']}",
                 }
                 time.sleep(0.75)
+                if str(target_el.get("role") or "") == "toggle":
+                    # A bare tap replays as a flip, so a rerun can land on the wrong side.
+                    # Record the state the switch ended in instead.
+                    try:
+                        now_on = read_toggle_state(driver.find_element(strat, loc_val))
+                    except Exception:
+                        now_on = None
+                    if now_on is not None:
+                        word = "on" if now_on else "off"
+                        step = {
+                            "action": "set_toggle",
+                            "target": loc["target"],
+                            "value": word,
+                            "secret": is_secret,
+                            "label": f"Turn {loc['display_label']} {word}",
+                        }
 
             self._append_or_merge_step(step)
             self._capture_snapshot_locked()

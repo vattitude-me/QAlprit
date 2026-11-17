@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from qalprit.otp import BROKER
 from qalprit.spec_loader import StepItem
 from qalprit.steps.base import (
     StepContext,
+    StepFailureError,
     StepOutcome,
     StepTimeoutError,
     perform_with_stale_retry,
+    read_toggle_state,
+    toggle_want,
     wait_for_element,
 )
 
@@ -185,6 +189,42 @@ def exec_scroll_until_visible(ctx: StepContext, step: StepItem) -> StepOutcome:
 def exec_back(ctx: StepContext, step: StepItem) -> StepOutcome:
     ctx.driver.back()
     return StepOutcome()
+
+
+def exec_set_toggle(ctx: StepContext, step: StepItem) -> StepOutcome:
+    """Put a switch into the wanted state. Taps only when it is not already there."""
+    target = step.params["target"]
+    want = toggle_want(step)
+    word = "on" if want else "off"
+    tpl_params = step.params.get("params")
+    timeout = step.params.get("timeout")
+
+    elem, resolved = wait_for_element(ctx, target, params=tpl_params, timeout=timeout)
+    state = read_toggle_state(elem)
+    if state is None:
+        raise StepFailureError(
+            f"Cannot read the on/off state of '{target}'. Pick the switch element itself.",
+            failure_category="assertion_failure",
+            diagnostics={"target": target, "platform": ctx.platform},
+        )
+    if state != want:
+        elem.click()
+        deadline = time.monotonic() + 3.0
+        while time.monotonic() < deadline:
+            try:
+                state = read_toggle_state(elem)
+            except Exception:
+                state = None
+            if state == want:
+                break
+            time.sleep(ctx.poll_interval)
+        if state != want:
+            raise StepFailureError(
+                f"'{target}' did not turn {word} after tapping it",
+                failure_category="assertion_failure",
+                diagnostics={"target": target, "wanted": word, "platform": ctx.platform},
+            )
+    return StepOutcome(secret_elements=[elem] if resolved.sensitive else [])
 
 
 def exec_enter_otp(ctx: StepContext, step: StepItem) -> StepOutcome:

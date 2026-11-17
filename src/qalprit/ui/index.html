@@ -2015,6 +2015,10 @@
           </div>
 
           <div class="rec-toolbar-right">
+            <label class="switch-inline" for="recFreshChk" title="Clear the app's data before recording, the same way test runs start">
+              <input id="recFreshChk" type="checkbox" switch checked />
+              <span>Fresh app</span>
+            </label>
             <label class="switch-inline" for="recRedactChk">
               <input id="recRedactChk" type="checkbox" switch checked />
               <span>Redact secrets</span>
@@ -2083,6 +2087,7 @@
                 <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
                   <input id="recAssertTextInput" type="text" placeholder="Expected text or ${expected}" style="flex:1;min-width:140px;" />
                   <button type="button" class="btn btn-primary btn-sm" id="btnRecVerifyText">Assert Text</button>
+                  <button type="button" class="btn btn-sm" id="btnRecVerifyToggle" title="Check that this switch is on or off, as it is right now">Switch state</button>
                   <button type="button" class="btn btn-sm" id="btnRecVerifyVisible" title="Only check that this element is on screen">Is visible</button>
                   <button type="button" class="btn btn-sm btn-ghost" id="btnRecAssertCancel" aria-label="Close assert bar">&times;</button>
                 </div>
@@ -2915,7 +2920,7 @@
         settingsTab: "env",
         activeApp: "",
         hostOs: "",
-        stepVocab: ["launch", "reset_app", "background", "tap", "tap_if_visible", "type", "clear", "swipe", "scroll_until_visible", "wait", "wait_for_visible", "wait_for_enabled", "wait_for_text", "wait_for_keyboard", "assert_visible", "assert_not_visible", "assert_text", "assert_enabled", "assert_disabled", "back", "hide_keyboard", "enter_otp", "biometric", "run_flow", "screenshot", "visual_compare"],
+        stepVocab: ["launch", "reset_app", "background", "tap", "tap_if_visible", "type", "clear", "swipe", "scroll_until_visible", "wait", "wait_for_visible", "wait_for_enabled", "wait_for_text", "wait_for_keyboard", "assert_visible", "assert_not_visible", "assert_text", "assert_enabled", "assert_disabled", "back", "hide_keyboard", "enter_otp", "set_toggle", "assert_toggle", "biometric", "run_flow", "screenshot", "visual_compare"],
         emuStatus: null,
         emuPollTimer: null,
         recState: null,
@@ -3448,6 +3453,13 @@
         valueIn.type = "text";
         valueIn.placeholder = "value or ${var}";
 
+        const stateSel = document.createElement("select");
+        stateSel.title = "Switch state";
+        [["on", "On"], ["off", "Off"]].forEach(([v, l]) => {
+          const o = document.createElement("option");
+          o.value = v; o.textContent = l; stateSel.appendChild(o);
+        });
+
         const secretLabel = document.createElement("label");
         secretLabel.className = "chk-inline";
         const secretChk = document.createElement("input");
@@ -3507,11 +3519,15 @@
           else if (t === "swipe") valueIn.placeholder = "up / down / left / right";
           else valueIn.placeholder = "text or ${var}";
 
+          const isToggle = t === "set_toggle" || t === "assert_toggle";
+          stateSel.hidden = !isToggle;
+          if (isToggle) valueIn.hidden = true;
           secretLabel.hidden = t !== "type";
         }
         typeSel.addEventListener("change", applyFieldModes);
 
-        let initType = "tap", initTarget = "", initValue = "", initSecret = false;
+        let initType = "tap", initTarget = "", initValue = "", initSecret = false, initState = "on";
+        const asState = (x) => (x === false || String(x).toLowerCase() === "off" || String(x).toLowerCase() === "false" ? "off" : "on");
         if (typeof initial === "string") {
           initType = initial;
         } else if (initial && typeof initial === "object") {
@@ -3523,6 +3539,7 @@
               initValue = p.params ? JSON.stringify(p.params) : "";
             } else {
               initTarget = p.target || "";
+              initState = asState(p.state);
               initValue = p.value ?? p.equals ?? p.contains ?? p.seconds ?? p.direction ?? p.action ?? p.name ?? p.baseline ?? p.app ?? "";
             }
             initSecret = Boolean(initial.secret || p.secret);
@@ -3535,6 +3552,7 @@
               else if (v && typeof v === "object") { initTarget = v.flow || ""; initValue = v.params ? JSON.stringify(v.params) : ""; }
             } else if (v && typeof v === "object") {
               initTarget = v.target || "";
+              initState = asState(v.state);
               initValue = v.value ?? v.equals ?? v.contains ?? v.seconds ?? v.direction ?? v.action ?? v.name ?? v.baseline ?? v.app ?? "";
               initSecret = Boolean(v.secret);
             } else if (v !== undefined && v !== null && typeof v !== "boolean") {
@@ -3547,9 +3565,10 @@
         targetIn.value = initTarget;
         valueIn.value = initValue !== undefined ? String(initValue) : "";
         secretChk.checked = initSecret;
+        stateSel.value = initState;
         applyFieldModes();
 
-        row.append(typeSel, targetIn, valueIn, secretLabel, moveUpBtn, moveDownBtn, dupBtn, delBtn);
+        row.append(typeSel, targetIn, valueIn, stateSel, secretLabel, moveUpBtn, moveDownBtn, dupBtn, delBtn);
         return row;
       }
 
@@ -3571,6 +3590,9 @@
               try { paramsObj = JSON.parse(val); } catch (_) { throw new Error(`Invalid JSON params for run_flow '${target}'`); }
             }
             steps.push(paramsObj && Object.keys(paramsObj).length ? { run_flow: { flow: target, params: paramsObj } } : { run_flow: target });
+          } else if (t === "set_toggle" || t === "assert_toggle") {
+            if (!target) return;
+            steps.push({ [t]: { target, state: selects[1] ? selects[1].value : "on" } });
           } else if (["back", "hide_keyboard"].includes(t)) {
             steps.push(t);
           } else if (["wait", "background"].includes(t)) {
@@ -3821,6 +3843,7 @@
             <div class="panel-head">
               <span class="panel-kicker">Steps Editor</span>
               <div class="btn-row">
+                <span class="ds-dirty" hidden style="font-size:12px;color:var(--warn,#d97706);font-weight:600;">Unsaved changes</span>
                 ${!isFlow ? `<button type="button" class="btn btn-sm" data-ds-validate>Validate workspace</button>` : ""}
                 <button type="button" class="btn btn-sm btn-primary" data-ds-save-steps>Save ${isFlow ? "workflow" : "journey"}</button>
               </div>
@@ -3890,10 +3913,28 @@
         // Populate steps container
         const stepsCont = host.querySelector(".ds-steps-container");
         (item.steps || []).forEach((st) => stepsCont.appendChild(createStepRowElement(st)));
+        STATE.stepsDirty = false;
+        const dirtyChip = host.querySelector(".ds-dirty");
+        const markStepsDirty = () => {
+          STATE.stepsDirty = true;
+          if (dirtyChip) dirtyChip.hidden = false;
+        };
+        const clearStepsDirty = () => {
+          STATE.stepsDirty = false;
+          if (dirtyChip) dirtyChip.hidden = true;
+        };
+        stepsCont.addEventListener("input", markStepsDirty);
+        stepsCont.addEventListener("change", markStepsDirty);
+        stepsCont.addEventListener("click", (e) => { if (e.target.closest("button")) markStepsDirty(); });
 
         // Bind events cleanly on rail & host
         rail.querySelectorAll("[data-rail-select]").forEach((btn) => {
-          btn.addEventListener("click", () => {
+          btn.addEventListener("click", async () => {
+            if (STATE.stepsDirty) {
+              const ok = await uiConfirm("This test has changes you have not saved. Switching now discards them.", { title: "Discard unsaved changes?", okLabel: "Discard", danger: true });
+              if (!ok) return;
+              STATE.stepsDirty = false;
+            }
             if (isFlow) { STATE.selectedFlowName = btn.dataset.railSelect; STATE.flowPreviewRowIdx = 0; }
             else { STATE.selectedSpecId = btn.dataset.railSelect; STATE.specPreviewRowIdx = 0; }
             renderDetailWorkspace(kind);
@@ -4086,7 +4127,7 @@
 
         // Steps tab actions
         const addStepBtn = host.querySelector("[data-ds-add-step]");
-        if (addStepBtn) addStepBtn.addEventListener("click", () => stepsCont.appendChild(createStepRowElement({ tap: "" })));
+        if (addStepBtn) addStepBtn.addEventListener("click", () => { stepsCont.appendChild(createStepRowElement({ tap: "" })); markStepsDirty(); });
         host.querySelectorAll("[data-ds-insert-flow]").forEach((chip) => {
           chip.addEventListener("click", () => {
             const fname = chip.dataset.dsInsertFlow;
@@ -4094,6 +4135,7 @@
             const paramsObj = {};
             if (flowObj && flowObj.params) flowObj.params.forEach((p) => { paramsObj[p] = "${" + p + "}"; });
             stepsCont.appendChild(createStepRowElement({ run_flow: Object.keys(paramsObj).length ? { flow: fname, params: paramsObj } : fname }));
+            markStepsDirty();
           });
         });
         const saveStepsBtn = host.querySelector("[data-ds-save-steps]");
@@ -4124,7 +4166,9 @@
                   teardown: item.teardown
                 });
               }
+              clearStepsDirty();
               b.hidden = false; b.className = "status-banner status-ok"; b.textContent = "Saved steps cleanly.";
+              toast(`Saved ${isFlow ? "workflow '" + item.name : "journey '" + item.id}'.`, "ok");
               await loadOverview({ skipAutoSync: true, preserveFormInputs: true });
             } catch (err) {
               b.hidden = false; b.className = "status-banner status-error"; b.textContent = err.message;
@@ -4180,6 +4224,7 @@
                 STATE.selectedSpecId = newId;
               }
               b.hidden = false; b.className = "status-banner status-ok"; b.textContent = "Saved settings.";
+              toast("Saved settings.", "ok");
               await loadOverview({ skipAutoSync: true, preserveFormInputs: true });
             } catch (err) {
               b.hidden = false; b.className = "status-banner status-error"; b.textContent = err.message;
@@ -5493,7 +5538,8 @@
             app_path: $("recAppSelect").value,
             screen_name: $("recScreenName").value.trim() || flowToScreenPrefix(flowName),
             flow_name: flowName,
-            redact_sensitive: $("recRedactChk").checked
+            redact_sensitive: $("recRedactChk").checked,
+            fresh_start: $("recFreshChk").checked
           });
           startRecorderPolling();
           await pollRecorderStatus();
@@ -5605,6 +5651,11 @@
         const txt = $("recAssertTextInput").value.trim();
         $("recAssertBar").hidden = true;
         runRecorderAction({ action: txt ? "assert_text" : "assert_visible", element_index: STATE.recSelectedIdx, value: txt });
+      });
+      $("btnRecVerifyToggle").addEventListener("click", () => {
+        if (STATE.recSelectedIdx === null) return;
+        $("recAssertBar").hidden = true;
+        runRecorderAction({ action: "assert_toggle", element_index: STATE.recSelectedIdx });
       });
       $("btnRecVerifyVisible").addEventListener("click", () => {
         if (STATE.recSelectedIdx === null) return;
@@ -6043,6 +6094,7 @@
         STATE.pollTimer = setInterval(pollRunStatus, 1000);
         pollRunStatus();
       }
+      window.addEventListener("beforeunload", (e) => { if (STATE.stepsDirty) { e.preventDefault(); e.returnValue = ""; } });
       async function sendRunOtp() {
         const code = $("runOtpInput").value.trim();
         if (!code) return;
