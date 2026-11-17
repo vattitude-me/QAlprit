@@ -15,6 +15,7 @@ from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse
 
 from qalprit import __version__, background_devices
+from qalprit.otp import BROKER
 from qalprit.cleanup import execute_selective_cleanup, inspect_cleanup_targets
 from qalprit.config_loader import load_screens
 from qalprit.datasets import (
@@ -495,7 +496,7 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
             return
 
         if req_path == "/api/runs/status":
-            self._send_json(self.job_manager.status())
+            self._send_json({**self.job_manager.status(), "otp_pending": BROKER.pending()})
             return
 
         if req_path == "/api/emulator/status":
@@ -834,6 +835,12 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
                 self._send_json(self.job_manager.start(self.project_root, self.results_dir, body))
                 return
 
+            if req_path == "/api/runs/otp":
+                if not BROKER.submit(str(body.get("code") or "")):
+                    raise ValueError("No run is waiting for a code right now, or the code was empty.")
+                self._send_json({"ok": True})
+                return
+
             if req_path == "/api/runs/stop":
                 self._send_json(self.job_manager.stop())
                 return
@@ -1002,6 +1009,7 @@ def create_ui_server(
     root = project_root.resolve()
     res_dir = (results_dir or (root / "results")).resolve()
     workspace_state = {"project_root": root, "results_dir": res_dir}
+    BROKER.enable_web()
     job_manager = RunJobManager()
     emulator_manager = EmulatorJobManager()
     recorder_manager = RecorderManager()

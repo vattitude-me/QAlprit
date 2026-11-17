@@ -54,6 +54,7 @@ Every test lives in a `.md` file under `specs/`. The YAML front matter between `
 | `assert_text` | `target`, `equals \| contains \| matches`, `timeout?` | Auto-waits and verifies element text (exact, substring, or regex) |
 | `assert_enabled` / `assert_disabled` | `target`, `timeout?`, `params?` | Assert element enabled/disabled state |
 | `back` / `hide_keyboard` | none | Hardware/system back or hide soft keyboard |
+| `enter_otp` | `target` (or `{target, variable?, timeout?}`) | Pauses the run and asks for a one-time code, then types it into `target`. Default timeout 120s. If `OTP` (or `variable`) is already set in `.env` or the dataset, that value is used and nothing pauses, which suits CI. The code is saved as `${OTP}` for later steps and is always masked in reports |
 | `biometric` | `action: enroll \| match \| fail` | Simulator/emulator only; auto-skipped on real devices |
 | `run_flow` | `flow`, `params?` | Expands a 1-level flow from `flows/` |
 | `screenshot` | `name` (or `{name, baseline?, threshold?, mask?}`) | Captures screenshot and optionally compares against baseline PNG |

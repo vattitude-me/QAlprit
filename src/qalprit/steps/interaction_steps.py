@@ -1,9 +1,10 @@
-"""UI interaction step handlers: tap, tap_if_visible, type, clear, swipe, scroll, back, hide_keyboard."""
+"""UI interaction step handlers: tap, tap_if_visible, type, clear, swipe, scroll, back, hide_keyboard, enter_otp."""
 
 from __future__ import annotations
 
 from typing import Any
 
+from qalprit.otp import BROKER
 from qalprit.spec_loader import StepItem
 from qalprit.steps.base import (
     StepContext,
@@ -184,6 +185,38 @@ def exec_scroll_until_visible(ctx: StepContext, step: StepItem) -> StepOutcome:
 def exec_back(ctx: StepContext, step: StepItem) -> StepOutcome:
     ctx.driver.back()
     return StepOutcome()
+
+
+def exec_enter_otp(ctx: StepContext, step: StepItem) -> StepOutcome:
+    """Pause for a one-time code, then type it into the field (when a target is given).
+
+    If the variable (default ``OTP``) is already set in the environment or dataset, that value is
+    used and nothing pauses. Otherwise a person is asked. The code is saved under the variable
+    name for later steps (``${OTP}``) and is always masked in reports.
+    """
+    variable = str(step.params.get("variable") or "OTP")
+    target = step.params.get("target")
+    tpl_params = step.params.get("params")
+    timeout = float(step.params.get("timeout") or 120)
+
+    code = str(ctx.extra_env_vars.get(variable) or "").strip()
+    if not code:
+        label = str(target or variable)
+        code = BROKER.request(label, timeout=timeout)
+    ctx.masker.add(code)
+    ctx.captured_vars[variable] = code
+    if not target:
+        return StepOutcome()
+
+    def _type_action(el: Any, _res: Any) -> None:
+        el.click()
+        el.clear()
+        el.send_keys(code)
+
+    _, elem, _resolved = perform_with_stale_retry(
+        ctx, target, _type_action, params=tpl_params, timeout=step.params.get("find_timeout")
+    )
+    return StepOutcome(secret_elements=[elem])
 
 
 def exec_hide_keyboard(ctx: StepContext, step: StepItem) -> StepOutcome:
