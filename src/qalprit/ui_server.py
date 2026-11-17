@@ -905,6 +905,7 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
                         screen_name=str(body.get("screen_name") or "login"),
                         flow_name=str(body.get("flow_name") or "recorded_flow"),
                         redact_sensitive=None if raw_redact is None else bool(raw_redact),
+                        fresh_start=bool(body.get("fresh_start", True)),
                     )
                 )
                 return

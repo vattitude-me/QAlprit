@@ -50,6 +50,107 @@ def _compute_file_sha256(path: Path | None) -> str:
         return ""
 
 
+def apply_app_reset(
+    driver: Any,
+    mode: str,
+    *,
+    app_id: str,
+    profile: DeviceProfile,
+    app_path: Path | None,
+    masker: Any,
+) -> tuple[bool, str]:
+    """Reset the app under test (none, reinstall or clear_data) and bring it to the foreground.
+
+    Shared by test runs and the recorder so both start from the same app state.
+    """
+    if not app_id:
+        return True, ""
+    try:
+        if mode == "none":
+            try:
+                driver.terminate_app(app_id)
+            except Exception as exc:
+                low = str(exc).lower()
+                if "not running" not in low and "unknown" not in low:
+                    return False, masker.mask(f"terminate_app failed: {exc}")
+            driver.activate_app(app_id)
+            return True, ""
+
+        if mode == "reinstall":
+            try:
+                driver.remove_app(app_id)
+            except Exception as exc:
+                low = str(exc).lower()
+                if not any(tok in low for tok in ("not installed", "unknown", "does not exist")):
+                    return False, masker.mask(f"remove_app failed: {exc}")
+            if app_path is not None:
+                driver.install_app(str(app_path))
+            driver.activate_app(app_id)
+            return True, ""
+
+        if mode == "clear_data":
+            if profile.platform == "android":
+                cleared = False
+                last_clear_err = ""
+                adb_bin = find_android_tool("adb")
+                if adb_bin and not getattr(driver, "is_fake", False):
+                    cmd = [adb_bin]
+                    if profile.udid:
+                        cmd.extend(["-s", profile.udid])
+                    cmd.extend(["shell", "pm", "clear", app_id])
+                    try:
+                        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+                        if proc.returncode == 0:
+                            cleared = True
+                            if profile.auto_accept_alerts:
+                                base_cmd = [adb_bin] + (["-s", profile.udid] if profile.udid else [])
+                                for perm in ("android.permission.POST_NOTIFICATIONS",):
+                                    subprocess.run(
+                                        base_cmd + ["shell", "pm", "grant", app_id, perm],
+                                        capture_output=True,
+                                        text=True,
+                                        timeout=5,
+                                    )
+                        else:
+                            last_clear_err = (proc.stderr or proc.stdout or f"exit {proc.returncode}").strip()
+                    except Exception as exc:
+                        last_clear_err = str(exc)
+                if not cleared:
+                    try:
+                        driver.execute_script("mobile: clearApp", {"appId": app_id})
+                        cleared = True
+                    except Exception as exc:
+                        last_clear_err = str(exc)
+                if not cleared:
+                    return False, masker.mask(
+                        f"clear_data reset failed cleanly: {last_clear_err or 'unable to clear app data'}"
+                    )
+                driver.activate_app(app_id)
+                return True, ""
+
+            # iOS simulator container reset via uninstall/reinstall
+            try:
+                driver.terminate_app(app_id)
+            except Exception as exc:
+                low = str(exc).lower()
+                if "not running" not in low and "unknown" not in low:
+                    return False, masker.mask(f"terminate_app failed: {exc}")
+            try:
+                driver.remove_app(app_id)
+            except Exception as exc:
+                low = str(exc).lower()
+                if not any(tok in low for tok in ("not installed", "unknown", "does not exist")):
+                    return False, masker.mask(f"remove_app failed: {exc}")
+            if app_path is not None:
+                driver.install_app(str(app_path))
+            driver.activate_app(app_id)
+            return True, ""
+
+        return False, f"Unsupported reset mode: {mode}"
+    except Exception as exc:
+        return False, masker.mask(str(exc))
+
+
 class TestRunner:
     """Executes validated TestSpecs against a DriverProtocol instance."""
 
@@ -120,92 +221,14 @@ class TestRunner:
         )
 
     def _apply_reset(self, driver: Any, mode: str) -> tuple[bool, str]:
-        if not self.app_id:
-            return True, ""
-        try:
-            if mode == "none":
-                try:
-                    driver.terminate_app(self.app_id)
-                except Exception as exc:
-                    low = str(exc).lower()
-                    if "not running" not in low and "unknown" not in low:
-                        return False, self.env_ctx.masker.mask(f"terminate_app failed: {exc}")
-                driver.activate_app(self.app_id)
-                return True, ""
-
-            if mode == "reinstall":
-                try:
-                    driver.remove_app(self.app_id)
-                except Exception as exc:
-                    low = str(exc).lower()
-                    if not any(tok in low for tok in ("not installed", "unknown", "does not exist")):
-                        return False, self.env_ctx.masker.mask(f"remove_app failed: {exc}")
-                if self.app_path is not None:
-                    driver.install_app(str(self.app_path))
-                driver.activate_app(self.app_id)
-                return True, ""
-
-            if mode == "clear_data":
-                if self.profile.platform == "android":
-                    cleared = False
-                    last_clear_err = ""
-                    adb_bin = find_android_tool("adb")
-                    if adb_bin and not getattr(driver, "is_fake", False):
-                        cmd = [adb_bin]
-                        if self.profile.udid:
-                            cmd.extend(["-s", self.profile.udid])
-                        cmd.extend(["shell", "pm", "clear", self.app_id])
-                        try:
-                            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-                            if proc.returncode == 0:
-                                cleared = True
-                                if self.profile.auto_accept_alerts:
-                                    base_cmd = [adb_bin] + (["-s", self.profile.udid] if self.profile.udid else [])
-                                    for perm in ("android.permission.POST_NOTIFICATIONS",):
-                                        subprocess.run(
-                                            base_cmd + ["shell", "pm", "grant", self.app_id, perm],
-                                            capture_output=True,
-                                            text=True,
-                                            timeout=5,
-                                        )
-                            else:
-                                last_clear_err = (proc.stderr or proc.stdout or f"exit {proc.returncode}").strip()
-                        except Exception as exc:
-                            last_clear_err = str(exc)
-                    if not cleared:
-                        try:
-                            driver.execute_script("mobile: clearApp", {"appId": self.app_id})
-                            cleared = True
-                        except Exception as exc:
-                            last_clear_err = str(exc)
-                    if not cleared:
-                        return False, self.env_ctx.masker.mask(
-                            f"clear_data reset failed cleanly: {last_clear_err or 'unable to clear app data'}"
-                        )
-                    driver.activate_app(self.app_id)
-                    return True, ""
-
-                # iOS simulator container reset via uninstall/reinstall
-                try:
-                    driver.terminate_app(self.app_id)
-                except Exception as exc:
-                    low = str(exc).lower()
-                    if "not running" not in low and "unknown" not in low:
-                        return False, self.env_ctx.masker.mask(f"terminate_app failed: {exc}")
-                try:
-                    driver.remove_app(self.app_id)
-                except Exception as exc:
-                    low = str(exc).lower()
-                    if not any(tok in low for tok in ("not installed", "unknown", "does not exist")):
-                        return False, self.env_ctx.masker.mask(f"remove_app failed: {exc}")
-                if self.app_path is not None:
-                    driver.install_app(str(self.app_path))
-                driver.activate_app(self.app_id)
-                return True, ""
-
-            return False, f"Unsupported reset mode: {mode}"
-        except Exception as exc:
-            return False, self.env_ctx.masker.mask(str(exc))
+        return apply_app_reset(
+            driver,
+            mode,
+            app_id=self.app_id,
+            profile=self.profile,
+            app_path=self.app_path,
+            masker=self.env_ctx.masker,
+        )
 
     def _check_target_gate(self, spec: TestSpec, expanded_steps: list[StepItem]) -> str | None:
         target = self.profile.target_type

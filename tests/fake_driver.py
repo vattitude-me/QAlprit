@@ -25,12 +25,15 @@ class FakeElement:
     clicks: int = 0
     typed: list[str] = field(default_factory=list)
     cleared: int = 0
+    checked: bool | None = None
 
     def click(self) -> None:
         if self.stale_on_action:
             self.stale_on_action = False
             raise FakeStaleElementReferenceError("stale element reference during click")
         self.clicks += 1
+        if self.checked is not None:
+            self.checked = not self.checked
 
     def send_keys(self, value: str) -> None:
         if self.stale_on_action:
@@ -54,6 +57,11 @@ class FakeElement:
 
     def is_enabled(self) -> bool:
         return self.enabled
+
+    def get_attribute(self, name: str) -> str | None:
+        if name == "checked" and self.checked is not None:
+            return "true" if self.checked else "false"
+        return None
 
 
 class FakeDriver:

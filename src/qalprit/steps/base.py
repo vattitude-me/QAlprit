@@ -112,6 +112,42 @@ class StepContext:
         )
 
 
+def toggle_want(step: Any) -> bool:
+    """Wanted switch state from a step. YAML turns a bare on/off into a bool, so accept both."""
+    raw = step.params.get("state")
+    if isinstance(raw, bool):
+        return raw
+    text = str(raw).strip().lower()
+    if text in {"on", "true", "1", "yes"}:
+        return True
+    if text in {"off", "false", "0", "no"}:
+        return False
+    raise ValueError(f"'{step.type}' state must be on or off, got {raw!r}")
+
+
+def read_toggle_state(el: Any) -> bool | None:
+    """Return True/False for a switch, or None if the element does not expose a state.
+
+    Android reports `checked`, iOS reports `value` as 1 or 0.
+    """
+    for attr in ("checked", "value", "selected"):
+        try:
+            raw = el.get_attribute(attr)
+        except Exception:
+            continue
+        if raw is None:
+            continue
+        text = str(raw).strip().lower()
+        if text in {"true", "1", "on", "yes"}:
+            return True
+        if text in {"false", "0", "off", "no"}:
+            return False
+    try:
+        return bool(el.is_selected())
+    except Exception:
+        return None
+
+
 def wait_for_element(
     ctx: StepContext,
     target: str,
@@ -352,6 +388,9 @@ def format_step_description(step: StepItem, masker: SecretMasker | None = None) 
         desc = "Press device back"
     elif t == "hide_keyboard":
         desc = "Hide soft keyboard"
+    elif t in ("set_toggle", "assert_toggle"):
+        word = "on" if toggle_want(step) else "off"
+        desc = (f"Turn {p.get('target')} {word}" if t == "set_toggle" else f"Assert {p.get('target')} is {word}")
     elif t == "enter_otp":
         desc = "Enter one-time code" + (f" into {p.get('target')}" if p.get("target") else "")
     elif t == "biometric":
