@@ -140,7 +140,7 @@ def _env_prefers_browser() -> bool:
     return os.environ.get("QALPRIT_BROWSER", "").strip().lower() in {"1", "true", "yes"}
 
 
-def _launch_native_window(url: str, workspace: Path) -> bool:
+def _launch_native_window(url: str, workspace: Path, on_closing: Any = None) -> bool:
     """Open the QAlprit Workbench in a native WebView app window if available."""
     if _env_prefers_browser():
         return False
@@ -158,13 +158,17 @@ def _launch_native_window(url: str, workspace: Path) -> bool:
 
         storage_dir = workspace / ".webview"
         storage_dir.mkdir(parents=True, exist_ok=True)
-        webview.create_window(
+        window = webview.create_window(
             f"QAlprit Workbench v{__version__}",
             url,
             width=1360,
             height=880,
             min_size=(960, 640),
         )
+        if on_closing is not None and window is not None:
+            # Cmd+Q on macOS ends the process inside the Cocoa run loop, so `finally`
+            # blocks never run. The closing event fires for both Cmd+Q and the close button.
+            window.events.closing += on_closing
         start_kwargs: dict[str, Any] = {
             "private_mode": False,
             "storage_path": str(storage_dir),
@@ -215,6 +219,7 @@ def launch_workbench(
         except KeyboardInterrupt:
             print("\nShutting down QAlprit Workbench...")
         finally:
+            _release_services(server)
             server.server_close()
         return
 
@@ -233,7 +238,7 @@ def launch_workbench(
     server_thread = threading.Thread(target=_serve_loop, daemon=True)
     server_thread.start()
     try:
-        opened_native = _launch_native_window(url, workspace)
+        opened_native = _launch_native_window(url, workspace, on_closing=lambda: _on_window_closing(server))
         if not opened_native:
             _open_browser_fallback(url)
             while server_thread.is_alive():
@@ -243,7 +248,84 @@ def launch_workbench(
     finally:
         stop_event.set()
         server_thread.join(timeout=2.0)
+        _release_services(server)
         server.server_close()
+
+
+def _ask_native_quit(message: str) -> bool:
+    """Show a native Quit / Keep working dialog. True means quit.
+
+    Runs inside pywebview's closing handler, which is on the UI thread on both macOS
+    (Cmd+Q and the close button) and Windows (close button and Alt+F4). If the
+    dialog cannot be shown, quitting goes ahead so the app never gets stuck open.
+    """
+    try:
+        if sys.platform == "darwin":
+            import AppKit  # type: ignore[import-not-found]
+
+            AppKit.NSRunningApplication.currentApplication().activateWithOptions_(
+                AppKit.NSApplicationActivateIgnoringOtherApps
+            )
+            alert = AppKit.NSAlert.alloc().init()
+            alert.setMessageText_("Quit QAlprit?")
+            alert.setInformativeText_(message)
+            alert.addButtonWithTitle_("Keep working")
+            alert.addButtonWithTitle_("Quit anyway")
+            alert.setAlertStyle_(AppKit.NSWarningAlertStyle)
+            return alert.runModal() == AppKit.NSAlertSecondButtonReturn
+        if sys.platform == "win32":
+            import ctypes
+
+            mb_yesno, mb_iconwarning, mb_defbutton2, mb_topmost, idyes = 0x4, 0x30, 0x100, 0x40000, 6
+            answer = ctypes.windll.user32.MessageBoxW(  # type: ignore[attr-defined]
+                None,
+                message + "\n\nQuit anyway?",
+                "Quit QAlprit?",
+                mb_yesno | mb_iconwarning | mb_defbutton2 | mb_topmost,
+            )
+            return answer == idyes
+    except Exception as exc:
+        print(f"Quit confirmation skipped: {exc}")
+    return True
+
+
+def _on_window_closing(server: Any, ask: Any = None) -> bool:
+    """Ask before quitting when a run, unsaved recording or device start would be cut short.
+
+    Returns False to keep the window open. Otherwise releases services and lets it close.
+    """
+    from qalprit.ui_server import workbench_busy_work
+
+    if not getattr(server, "_qalprit_released", False):
+        try:
+            busy = workbench_busy_work(server)
+        except Exception:
+            busy = []
+        if busy and not (ask or _ask_native_quit)("\n".join(busy)):
+            return False
+    _release_services(server)
+    return True
+
+
+def _release_services(server: Any) -> None:
+    """Stop the recorder, Appium and background devices QAlprit started, so nothing keeps running unseen."""
+    from qalprit.ui_server import shutdown_workbench_services
+
+    if getattr(server, "_qalprit_released", False):
+        return
+    server._qalprit_released = True
+
+    try:
+        summary = shutdown_workbench_services(server)
+    except Exception as exc:  # Quitting must never fail on cleanup.
+        print(f"Cleanup on quit skipped: {exc}")
+        return
+    stopped = summary.get("stopped_devices") or {}
+    count = len(stopped.get("android", [])) + len(stopped.get("ios", []))
+    if count:
+        print(f"Shut down {count} background device(s) QAlprit started.")
+    for err in summary.get("errors", []):
+        print(f"Cleanup on quit: {err}")
 
 
 def check_desktop_webview_runtime() -> str:

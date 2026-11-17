@@ -11,6 +11,7 @@ import zipfile
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
+from qalprit import background_devices
 from qalprit.config_loader import DeviceProfile, EnvironmentConfig
 from qalprit.devices import _macos_xcode_env, list_android_devices, list_ios_simulators
 from qalprit.doctor import find_xcode_developer_dir
@@ -366,6 +367,24 @@ def _resolve_android_avd(profile: DeviceProfile) -> str | None:
     return None
 
 
+def _online_emulator_serials() -> set[str]:
+    try:
+        devices, _ = list_android_devices()
+    except Exception:
+        return set()
+    return {d.identifier for d in devices if d.kind == "emulator" and d.state == "device"}
+
+
+def _remember_appium_launched_emulator(raw_driver: Any, before: set[str], avd_name: str, hidden: bool) -> None:
+    """Appium boots the AVD itself when none is running. Track it like one QAlprit started."""
+    caps = getattr(raw_driver, "capabilities", None)
+    serial = ""
+    if isinstance(caps, dict):
+        serial = str(caps.get("deviceUDID") or caps.get("udid") or "")
+    if serial.startswith("emulator-") and serial not in before:
+        background_devices.remember_started("android", serial, name=avd_name or serial, hidden=hidden)
+
+
 def _xcode_has_legacy_simulator_app() -> bool:
     """Return True on macOS if Xcode includes Developer/Applications/Simulator.app (pre-Xcode 27)."""
     if platform.system() != "Darwin":
@@ -483,14 +502,17 @@ def _ensure_ios_simulator_ready(profile: DeviceProfile) -> tuple[str, str, str]:
                 if any(s.identifier == udid and str(s.state or "").lower() == "booted" for s in cur):
                     break
                 time.sleep(1.0)
-        if _xcode_has_legacy_simulator_app():
-            subprocess.run(["open", "-a", "Simulator"], capture_output=True, text=True, env=xc_env, timeout=10)
-        else:
-            xcode_dev = find_xcode_developer_dir(xc_env)
-            if xcode_dev is not None:
-                device_hub = xcode_dev.parent / "Applications" / "DeviceHub.app"
-                if device_hub.exists():
-                    subprocess.run(["open", "-a", str(device_hub)], capture_output=True, text=True, timeout=10)
+        hidden = not background_devices.device_window_visible()
+        background_devices.remember_started("ios", udid, name=target.name, hidden=hidden)
+        if not hidden:
+            if _xcode_has_legacy_simulator_app():
+                subprocess.run(["open", "-a", "Simulator"], capture_output=True, text=True, env=xc_env, timeout=10)
+            else:
+                xcode_dev = find_xcode_developer_dir(xc_env)
+                if xcode_dev is not None:
+                    device_hub = xcode_dev.parent / "Applications" / "DeviceHub.app"
+                    if device_hub.exists():
+                        subprocess.run(["open", "-a", str(device_hub)], capture_output=True, text=True, timeout=10)
 
     return udid, plat_ver, dev_name
 
@@ -511,6 +533,8 @@ def create_appium_driver(
         profile.auto_accept_alerts if auto_accept_alerts is None else auto_accept_alerts
     )
 
+    hidden = not background_devices.device_window_visible()
+    emulators_before: set[str] | None = None
     if profile.platform == "android":
         opts = UiAutomator2Options()
         opts.platform_name = "Android"
@@ -525,6 +549,9 @@ def create_appium_driver(
             opts.avd = resolved_avd
             opts.set_capability("appium:avdLaunchTimeout", 120000)
             opts.set_capability("appium:avdReadyTimeout", 120000)
+            if hidden and not any(k in profile.capabilities for k in ("appium:avdArgs", "avdArgs")):
+                opts.set_capability("appium:avdArgs", " ".join(background_devices.ANDROID_HIDDEN_ARGS))
+            emulators_before = _online_emulator_serials()
         if app_path is not None:
             opts.app = str(app_path.resolve())
         if env_cfg.android_package:
@@ -564,12 +591,15 @@ def create_appium_driver(
             # Xcode 27+ replaced Developer/Applications/Simulator.app with DeviceHub.app;
             # headless mode prevents appium-xcuitest-driver from shutting down booted simulators
             # and failing when trying to `open` the removed Simulator.app bundle.
-            if not has_headless_override and not _xcode_has_legacy_simulator_app():
+            # Headless also stops Appium from opening the Simulator window when the user keeps devices hidden.
+            if not has_headless_override and (hidden or not _xcode_has_legacy_simulator_app()):
                 opts.set_capability("appium:isHeadless", True)
         for k, v in profile.capabilities.items():
             opts.set_capability(k, v)
 
     raw_driver = webdriver.Remote(appium_url, options=opts)
+    if emulators_before is not None:
+        _remember_appium_launched_emulator(raw_driver, emulators_before, str(getattr(opts, "avd", "") or ""), hidden)
     simulator_udid = ""
     if profile.platform == "ios" and profile.target_type == "simulator" and platform.system() == "Darwin":
         simulator_udid = str(getattr(opts, "udid", "") or "")

@@ -1253,6 +1253,52 @@
       gap: 10px;
     }
     .dlg-body { padding: 16px; overflow-y: auto; max-height: calc(86vh - 110px); }
+    td.run-when { white-space: nowrap; color: var(--text); font-variant-numeric: tabular-nums; }
+    .run-page { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; margin-top: 16px; max-width: 1040px; }
+    .run-main { padding: 18px; gap: 16px; }
+    .run-side { padding: 16px; gap: 12px; position: sticky; top: 0; }
+    .run-recap { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 7px 12px; font-size: 12.5px; }
+    .run-recap dt { color: var(--muted); }
+    .run-recap dd { margin: 0; color: var(--text); font-weight: 600; overflow-wrap: anywhere; }
+    .run-recap dd.is-empty { color: var(--warn, #f59e0b); font-weight: 500; }
+    .run-go { width: 100%; justify-content: center; padding: 10px 14px; font-size: 14px; }
+    .run-side .btn:not(.run-go) { width: 100%; justify-content: center; }
+    .run-side-note { margin: 0; font-size: 11.5px; }
+    .run-side .status-banner { margin: 0; white-space: pre-line; }
+    @media (max-width: 900px) { .run-page { grid-template-columns: 1fr; } .run-side { position: static; } }
+    .run-sec { display: flex; flex-direction: column; gap: 10px; }
+    .run-sec + .run-sec { padding-top: 14px; border-top: 1px solid var(--border); }
+    .run-sec-title, .run-more summary {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 13px; font-weight: 700; color: var(--text);
+    }
+    .run-step {
+      display: inline-grid; place-items: center;
+      width: 20px; height: 20px; border-radius: 50%;
+      background: var(--accent-soft, rgba(45, 212, 191, 0.14)); color: var(--accent);
+      font-size: 11px; font-weight: 700; flex: none;
+    }
+    .run-seg { align-self: flex-start; }
+    .run-seg button { padding: 6px 14px; font-size: 12.5px; }
+    .run-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; align-items: start; }
+    .run-grid label { display: block; font-size: 12px; font-weight: 600; color: var(--text-soft); margin: 0 0 4px; }
+    .run-span { grid-column: 1 / -1; }
+    .run-label { display: block; font-size: 12px; font-weight: 600; color: var(--text-soft); margin-bottom: 4px; }
+    .run-hint { margin: 0; font-size: 12px; color: var(--muted); }
+    .run-hint.is-warn { color: var(--warn, #f59e0b); }
+    .run-more { border-top: 1px solid var(--border); padding-top: 12px; }
+    .run-more summary { cursor: pointer; list-style: none; }
+    .run-more summary::-webkit-details-marker { display: none; }
+    .run-more summary::after { content: "\25B8"; margin-left: auto; color: var(--muted); font-size: 11px; }
+    .run-more[open] summary::after { content: "\25BE"; }
+    .run-more summary .muted { font-weight: 500; font-size: 12px; }
+    .run-more-body { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; }
+    .run-opt {
+      display: flex; align-items: center; justify-content: space-between; gap: 14px;
+      padding: 8px 10px; border-radius: 8px; background: var(--bg); border: 1px solid var(--border);
+    }
+    .run-opt p { margin: 2px 0 0; font-size: 11.5px; }
+    @media (max-width: 560px) { .run-grid { grid-template-columns: 1fr; } }
     .dlg-foot {
       padding: 10px 16px;
       border-top: 1px solid var(--border);
@@ -1289,6 +1335,7 @@
     }
 
     /* Toasts and in-app ask dialog (replace native alert/confirm/prompt, which webviews block or style badly) */
+    .toast-host[popover] { inset: auto 16px 16px auto; margin: 0; padding: 0; border: 0; background: transparent; color: inherit; overflow: visible; }
     .toast-host {
       position: fixed;
       right: 16px;
@@ -1754,7 +1801,18 @@
       </div>
       <div id="topDevBootedBox" hidden style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px;border-radius:7px;background:var(--surface);border:1px solid var(--border);">
         <span id="topDevBootedText" style="font-size:12px;font-weight:600;color:var(--text);">Booted</span>
-        <button type="button" class="btn btn-sm btn-danger" id="btnTopShutdownDevice">Stop</button>
+        <span style="display:flex;gap:6px;">
+          <button type="button" class="btn btn-sm" id="btnTopShowWindow" hidden>Show window</button>
+          <button type="button" class="btn btn-sm btn-danger" id="btnTopShutdownDevice">Stop</button>
+        </span>
+      </div>
+      <p class="muted" id="topDevBgNote" hidden style="margin:0;font-size:11px;"></p>
+      <div class="progress-box" id="topDevProgressBox" hidden>
+        <div class="progress-head">
+          <strong id="topDevProgressPhase" style="font-size:12px;">Starting...</strong>
+          <span class="muted" id="topDevProgressMeta"></span>
+        </div>
+        <div class="progress-track"><div class="progress-fill" id="topDevProgressFill"></div></div>
       </div>
       <div>
         <label for="topQuickDevice">Device to use</label>
@@ -1824,7 +1882,13 @@
         </div>
 
         <div class="nav-group">
-          <div class="nav-group-label">2. Check results</div>
+          <div class="nav-group-label">2. Run and check</div>
+          <button type="button" class="nav-item" data-nav="run">
+            <span class="nav-item-left">
+              <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><polygon points="6.5,5.5 11,8 6.5,10.5" fill="currentColor" stroke="none"/></svg>
+              <span class="nav-text"><span>Run tests</span><span class="nav-sub">Pick tests and a device</span></span>
+            </span>
+          </button>
           <button type="button" class="nav-item" data-nav="runs">
             <span class="nav-item-left">
               <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="5,3.5 13,8 5,12.5"/></svg>
@@ -1872,7 +1936,7 @@
             <p class="page-sub" id="homeSub">Record a test once, then run it whenever your app changes.</p>
           </div>
           <div class="btn-row">
-            <button type="button" class="btn" id="btnHomeCustomRun" title="Pick several tests, a device and run options">Custom run&hellip;</button>
+            <button type="button" class="btn" id="btnHomeCustomRun" title="Pick tests, a device and run options">&#9654; Run tests</button>
             <button type="button" class="btn btn-primary btn-record-lg" id="btnHomeRecord"><span class="rec-btn-dot"></span> Record a new test</button>
           </div>
         </div>
@@ -1965,7 +2029,7 @@
         <div class="progress-box" id="recProgressBox" hidden>
           <div class="progress-head">
             <strong id="recProgressText">Connecting to emulator...</strong>
-            <span class="muted" id="recDirectBadge"></span>
+            <span class="muted" id="recProgressMeta"></span>
           </div>
           <div class="progress-track"><div class="progress-fill is-indeterminate" id="recProgressFill"></div></div>
         </div>
@@ -2040,7 +2104,10 @@
             <div class="panel" style="min-height:0;">
               <div class="panel-head">
                 <span class="panel-kicker">Steps <span class="count-pill" id="recStepCount">0</span></span>
-                <button type="button" class="btn btn-sm" id="btnRecUndo" disabled title="Remove the last recorded step">Undo last</button>
+                <div class="btn-row" style="gap:6px;">
+                  <button type="button" class="btn btn-sm" id="btnRecUndo" disabled title="Remove the last recorded step">Undo last</button>
+                  <button type="button" class="btn btn-sm" id="btnRecClear" disabled title="Remove every step and start this test again">Clear all</button>
+                </div>
               </div>
               <div class="rec-steps-scroll" id="recStepsList">
                 <div class="muted" style="padding:18px 14px;">No steps yet. Click a control on the device screen to record one.</div>
@@ -2160,6 +2227,105 @@
       </section>
 
       <!-- ============================================================== -->
+      <!-- VIEW: RUN TESTS                                                -->
+      <!-- ============================================================== -->
+      <section class="view-pane" id="view-run" hidden aria-label="Run tests">
+        <div class="page-head">
+          <div>
+            <h2>Run tests</h2>
+            <p class="page-sub">Choose what to run and where. Progress and results appear in Runs &amp; reports.</p>
+          </div>
+        </div>
+        <form id="runForm" method="POST" class="run-page">
+          <div class="panel run-main">
+        <section class="run-sec" aria-labelledby="runSecWhat">
+          <div class="run-sec-title" id="runSecWhat"><span class="run-step">1</span>What to run</div>
+          <div class="seg run-seg" role="group" aria-label="What to run" id="runModeSeg">
+            <button type="button" data-run-mode="one" aria-pressed="true">One test</button>
+            <button type="button" data-run-mode="suite" aria-pressed="false">A suite</button>
+            <button type="button" data-run-mode="all" aria-pressed="false">All tests</button>
+          </div>
+          <div id="runPickOne">
+            <label for="runTargetSelect">Test</label>
+            <select id="runTargetSelect"></select>
+          </div>
+          <div id="runPickSuite" hidden>
+            <label for="runSuiteSelect">Suite</label>
+            <select id="runSuiteSelect"></select>
+          </div>
+          <p class="run-hint" id="runMatchHint"></p>
+        </section>
+
+        <section class="run-sec" aria-labelledby="runSecWhere">
+          <div class="run-sec-title" id="runSecWhere"><span class="run-step">2</span>Where to run it</div>
+          <div class="run-grid">
+            <div>
+              <span class="run-label">Platform</span>
+              <div class="seg run-seg" role="group" aria-label="Platform" id="runPlatSeg">
+                <button type="button" data-run-plat="android" aria-pressed="true">Android</button>
+                <button type="button" data-run-plat="ios" aria-pressed="false">iOS</button>
+              </div>
+              <select id="runPlatformSelect" hidden aria-hidden="true" tabindex="-1"><option value="android">android</option><option value="ios">ios</option></select>
+            </div>
+            <div>
+              <label for="runEnvSelect">Environment</label>
+              <select id="runEnvSelect"></select>
+            </div>
+            <div class="run-span">
+              <label for="runDeviceSelect">Device</label>
+              <select id="runDeviceSelect"></select>
+            </div>
+            <div class="run-span">
+              <label for="runAppSelect">App</label>
+              <select id="runAppSelect"></select>
+            </div>
+          </div>
+        </section>
+
+        <details class="run-more" id="runMore" open>
+          <summary><span class="run-step">3</span>Options <span class="muted" id="runMoreSummary"></span></summary>
+          <div class="run-more-body">
+            <div class="run-opt">
+              <div>
+                <label for="runRetriesInput" style="margin:0;">Retry a failed test</label>
+                <p class="muted">Runs a failed test again before marking it failed.</p>
+              </div>
+              <select id="runRetriesInput" style="width:130px;">
+                <option value="0">Don't retry</option>
+                <option value="1">Once</option>
+                <option value="2">Twice</option>
+                <option value="3">3 times</option>
+              </select>
+            </div>
+            <div class="run-opt">
+              <div>
+                <label for="runRedactChk" style="margin:0;">Hide sensitive fields in screenshots</label>
+                <p class="muted" id="runRedactEnvHint">Set by the environment.</p>
+              </div>
+              <input id="runRedactChk" type="checkbox" switch checked />
+            </div>
+            <div class="run-opt">
+              <div>
+                <label for="runUseDatasetsChk" style="margin:0;">Run once for each data row</label>
+                <p class="muted">Uses the test's CSV data rows that are ticked. Tests without data rows run once.</p>
+              </div>
+              <input id="runUseDatasetsChk" type="checkbox" switch />
+            </div>
+          </div>
+        </details>
+          </div>
+          <aside class="panel run-side" aria-label="Run summary">
+            <span class="panel-kicker">Ready to run</span>
+            <dl class="run-recap" id="runSummary"></dl>
+            <div class="status-banner" id="runStartBanner" hidden role="alert"></div>
+            <button type="submit" class="btn btn-primary run-go" id="btnStartLiveRun">&#9654; Start run</button>
+            <button type="button" class="btn" id="btnDryRun">Preview the tests</button>
+            <p class="muted run-side-note">Preview lists what would run without starting a device or the app.</p>
+          </aside>
+        </form>
+      </section>
+
+      <!-- ============================================================== -->
       <!-- VIEW: RUNS & REPORTS (Mock 3)                                  -->
       <!-- ============================================================== -->
       <section class="view-pane" id="view-runs" hidden aria-label="Runs and Reports">
@@ -2171,7 +2337,7 @@
           <div class="runs-actions">
             <input id="runsFilterInput" type="search" placeholder="Search by test, data row or status" style="width:240px;" />
             <button type="button" class="btn" id="btnOpenCompareModal">Compare runs</button>
-            <button type="button" class="btn btn-primary" id="btnOpenNewRunModal">&#9654; New run&hellip;</button>
+            <button type="button" class="btn btn-primary" id="btnOpenNewRunModal">&#9654; Run tests</button>
           </div>
         </div>
 
@@ -2198,7 +2364,7 @@
               <table>
                 <thead>
                   <tr>
-                    <th>Run</th>
+                    <th>Date</th>
                     <th>Test</th>
                     <th>Data row</th>
                     <th>Result</th>
@@ -2409,6 +2575,10 @@
             </div>
             <div class="panel-body" style="display:flex;flex-direction:column;gap:12px;">
               <p class="muted" id="emuStatusDesc" style="margin:0;font-size:12px;">Install the default Android Virtual Device (~1.8 GB) or boot, switch, and shut down Android &amp; iOS targets.</p>
+              <div style="padding:8px 10px;border-radius:8px;background:var(--surface);border:1px solid var(--border);">
+                <label class="chk-inline" style="font-weight:600;"><input type="checkbox" id="prefShowDeviceWindow" /> Show the device window</label>
+                <p class="muted" style="margin:4px 0 0;font-size:12px;">Off by default. Devices run in the background and you use them through the mirror in Record a test, so the emulator window doesn't cover QAlprit. Turn it on to see the emulator or simulator window too. QAlprit shuts down the background devices it started when you quit. It applies the next time a device starts.</p>
+              </div>
               <div class="btn-row" style="flex-wrap:wrap;gap:8px;">
                 <button type="button" class="btn btn-primary" id="btnEmuSetup" hidden>Setup Android Emulator (~1.8 GB)</button>
                 <button type="button" class="btn btn-primary" id="btnEmuBoot" hidden>Boot Android Emulator</button>
@@ -2537,7 +2707,7 @@
         <span class="sb-item" id="sbToolchainText">Toolchain checking...</span>
       </div>
       <div class="sb-group">
-        <span id="verPill">v0.1.31</span>
+        <span id="verPill">v0.1.34</span>
         <span>&middot; all data stays on this machine &middot;</span>
         <span>Managed by <a href="https://vattitude.ca" target="_blank" rel="noopener">vattitude.ca</a></span>
       </div>
@@ -2547,43 +2717,6 @@
   <!-- ================================================================ -->
   <!-- DIALOGS                                                          -->
   <!-- ================================================================ -->
-
-  <!-- New Run Modal -->
-  <dialog id="newRunDialog" closedby="any" aria-labelledby="newRunDialogTitle">
-    <div class="dlg-head">
-      <h3 id="newRunDialogTitle">New Test Run</h3>
-      <button type="button" class="btn btn-sm btn-ghost" data-close-dialog="newRunDialog" aria-label="Close">&times;</button>
-    </div>
-    <form id="runForm" method="POST">
-      <div class="dlg-body" style="display:flex;flex-direction:column;gap:12px;">
-        <div class="form-grid">
-          <div><label for="runPlatformSelect">Platform</label><select id="runPlatformSelect"><option value="android">android</option><option value="ios">ios</option></select></div>
-          <div><label for="runDeviceSelect">Device Profile</label><select id="runDeviceSelect"></select></div>
-          <div><label for="runEnvSelect">Environment</label><select id="runEnvSelect"></select></div>
-          <div><label for="runAppSelect">App</label><select id="runAppSelect"></select></div>
-        </div>
-        <div class="form-grid">
-          <div><label for="runSuiteSelect">Suite Filter</label><select id="runSuiteSelect"><option value="">All Suites</option></select></div>
-          <div><label for="runSpecFilter">Test Journey</label><select id="runSpecFilter"><option value="">All Journeys</option></select></div>
-          <div><label for="runFlowFilter">Workflow (Optional)</label><select id="runFlowFilter"><option value="">Use Suite / Journey</option></select></div>
-          <div><label for="runRetriesInput">Retries</label><input id="runRetriesInput" type="number" min="0" max="5" value="0" /></div>
-        </div>
-        <p class="muted" id="runMatchHint" style="margin:0;font-size:12px;"></p>
-        <label class="switch-inline" for="runRedactChk">
-          <input id="runRedactChk" type="checkbox" switch checked />
-          <span>Redact sensitive screenshots &mdash; <span class="muted" id="runRedactEnvHint">auto-set by environment</span></span>
-        </label>
-        <label class="chk-inline" for="runUseDatasetsChk">
-          <input id="runUseDatasetsChk" type="checkbox" />
-          <span>Run all selected CSV/variable datasets if present for the selected journey or workflow</span>
-        </label>
-      </div>
-      <div class="dlg-foot">
-        <button type="button" class="btn" id="btnDryRun">Dry run</button>
-        <button type="submit" class="btn btn-primary" id="btnStartLiveRun">&#9654; Start run</button>
-      </div>
-    </form>
-  </dialog>
 
   <!-- Compare Runs Modal -->
   <dialog id="compareDialog" closedby="any" aria-labelledby="compareDialogTitle">
@@ -2658,7 +2791,7 @@
   <datalist id="screenTargetOptions"></datalist>
   <datalist id="flowNameOptions"></datalist>
 
-  <div class="toast-host" id="toastHost" role="status" aria-live="polite"></div>
+  <div class="toast-host" id="toastHost" role="status" aria-live="polite" popover="manual"></div>
 
     <!-- WELCOME: first screen. Pick a platform, an app and a device, then record. -->
     <div class="welcome" id="welcomeOverlay" hidden role="dialog" aria-modal="true" aria-labelledby="wlTitle">
@@ -2867,6 +3000,13 @@
         el.append(body, close);
         host.appendChild(el);
         while (host.children.length > 4) host.firstElementChild.remove();
+        // Re-show as a popover so the toast sits in the top layer, above any open dialog and its backdrop.
+        try {
+          if (host.showPopover) {
+            if (host.matches(":popover-open")) host.hidePopover();
+            host.showPopover();
+          }
+        } catch (_) {}
         const ttl = ms || (kind === "error" ? 9000 : 4500);
         setTimeout(() => el.remove(), ttl);
       }
@@ -3099,11 +3239,11 @@
 
         if (plat === "ios") {
           const bootedIos = (devs.ios || []).filter((x) => String(x.state || "").toLowerCase() === "booted");
-          bootedIos.forEach((x) => addOpt(`live:ios:${x.identifier}`, `${x.name} [Booted]`));
+          bootedIos.forEach((x) => addOpt(`live:ios:${x.identifier}`, `${x.name} · running`));
           (devs.ios || [])
             .filter((x) => String(x.state || "").toLowerCase() !== "booted")
             .slice(0, 40)
-            .forEach((x) => addOpt(`sim:ios:${x.identifier}`, `${x.name} [Shutdown]`));
+            .forEach((x) => addOpt(`sim:ios:${x.identifier}`, `${x.name} · off, starts when needed`));
           Object.entries(profiles)
             .filter(([k, cfg]) => cfg.platform === "ios" && (k !== "ios_simulator" || opts.length === 0))
             .forEach(([k, cfg]) => addOpt(k, `${cfg.device_name} (${k})`));
@@ -3112,10 +3252,10 @@
           }
         } else {
           const liveAnd = (devs.android || []).filter((x) => !String(x.identifier || "").startsWith("avd:"));
-          liveAnd.forEach((x) => addOpt(`live:android:${x.identifier}`, `${x.name === x.identifier ? x.name : `${x.name} (${x.identifier})`} [Booted]`));
+          liveAnd.forEach((x) => addOpt(`live:android:${x.identifier}`, `${x.name === x.identifier ? x.name : `${x.name} (${x.identifier})`} · running`));
           (devs.android || [])
             .filter((x) => String(x.identifier || "").startsWith("avd:"))
-            .forEach((x) => addOpt(`avd:${x.name}`, `${x.name} [Offline AVD]`));
+            .forEach((x) => addOpt(`avd:${x.name}`, `${x.name} · off, starts when needed`));
           Object.entries(profiles)
             .filter(([k, cfg]) => cfg.platform === "android" && (k !== "android_emulator" || opts.length === 0))
             .forEach(([k, cfg]) => addOpt(k, `${cfg.device_name} (${k})`));
@@ -3225,9 +3365,12 @@
             .filter((d) => !String(d.identifier || "").startsWith("avd:") && d.state === "device")
             .forEach((d) => runningAnd.push(d.name || d.identifier));
         }
-        const runningIos = (emu.ios_simulators || []).filter(isBooted).map((x) => x.name || "iOS Simulator");
-        if (!runningIos.length) (STATE.devicesData.ios || []).filter(isBooted).forEach((d) => runningIos.push(d.name));
+        let bootedIos = (emu.ios_simulators || []).filter(isBooted);
+        if (!bootedIos.length) bootedIos = (STATE.devicesData.ios || []).filter(isBooted);
+        const runningIos = bootedIos.map((x) => x.name || "iOS Simulator");
         const mine = plat === "ios" ? runningIos : runningAnd;
+        const mineId = plat === "ios" ? ((bootedIos[0] || {}).identifier || "") : (runningAnd[0] || "");
+        const bgEntry = (emu.started_devices || []).find((d) => d.kind === plat && d.identifier === mineId && d.hidden);
         const other = plat === "ios" ? runningAnd : runningIos;
         const dot = $("topDeviceDot");
         const lbl = $("topDeviceLabel");
@@ -3235,10 +3378,33 @@
         const popBox = $("topDevBootedBox");
         const popText = $("topDevBootedText");
         if ($("topDevKicker")) $("topDevKicker").textContent = `${platName} device`;
-        if (mine.length) {
+        const busy = Boolean(emu.busy) && emu.action === "boot";
+        const showBtn = $("btnTopShowWindow");
+        const bgNote = $("topDevBgNote");
+        if (showBtn) { showBtn.hidden = !(bgEntry && plat === "ios"); showBtn.dataset.udid = mineId; }
+        if (bgNote) {
+          bgNote.hidden = !bgEntry;
+          bgNote.textContent = plat === "ios"
+            ? "Running in the background. Use the mirror in Record a test, or Show window to open Simulator."
+            : "Running in the background with no window. Use the mirror in Record a test. To see the emulator window, turn on Show the device window in Settings, then stop and start the device.";
+        }
+        if ($("topDevProgressBox")) {
+          $("topDevProgressBox").hidden = !busy;
+          if (busy) {
+            $("topDevProgressPhase").textContent = emu.phase || "Starting the device...";
+            $("topDevProgressMeta").textContent = `${Math.round(Number(emu.elapsed_sec || 0))}s`;
+            $("topDevProgressFill").style.width = (emu.progress_pct || 5) + "%";
+          }
+        }
+        if (busy && !mine.length) {
+          dot.className = "dot is-warn";
+          lbl.textContent = `Starting device... ${emu.progress_pct || 0}%`;
+          if (popBadge) { popBadge.className = "badge b-warn"; popBadge.textContent = "Starting"; }
+          if (popBox) popBox.hidden = true;
+        } else if (mine.length) {
           dot.className = "dot is-ok";
-          lbl.textContent = mine[0];
-          if (popBadge) { popBadge.className = "badge b-ok"; popBadge.textContent = "Running"; }
+          lbl.textContent = bgEntry ? `${mine[0]} · background` : mine[0];
+          if (popBadge) { popBadge.className = "badge b-ok"; popBadge.textContent = bgEntry ? "Running in background" : "Running"; }
           if (popBox && popText) { popBox.hidden = false; popText.textContent = mine[0]; }
         } else {
           dot.className = other.length ? "dot is-warn" : "dot";
@@ -4168,7 +4334,7 @@
             const passFailText = `<span style="color:var(--ok);">${s.passed || 0} pass</span> &middot; <span style="color:${s.failed ? "var(--fail)" : "var(--muted)"};">${s.failed || 0} fail</span>`;
             rowsHtml.push(`
               <tr class="is-clickable" data-toggle-batch="${esc(b.batch_id)}">
-                <td class="mono" style="color:var(--text);">${esc(shortRunLabel(b.batch_id))}</td>
+                ${runWhenCell(b.started_at, b.batch_id)}
                 <td><strong style="color:var(--text);">${esc(b.target_label || "batch")} &times; ${s.total || kids.length}</strong></td>
                 <td>${s.total || kids.length} datasets</td>
                 <td>${passFailText}</td>
@@ -4190,7 +4356,7 @@
                 ].filter(Boolean).join(" &middot; ");
                 rowsHtml.push(`
                   <tr class="is-clickable batch-child-row${sel ? " is-selected" : ""}" data-select-run="${esc(r.dir_name)}">
-                    <td class="mono">&#8627; ${esc(r.dataset_name || r.run_id)}</td>
+                    ${runWhenCell(r.started_at, r.run_id, "&#8627; ")}
                     <td>${esc(b.target_label || r.suite)}</td>
                     <td>${esc(r.dataset_name || "-")}</td>
                     <td style="color:${stColor};font-weight:600;">${stText}</td>
@@ -4217,7 +4383,7 @@
             ].filter(Boolean).join(" &middot; ");
             rowsHtml.push(`
               <tr class="is-clickable${sel ? " is-selected" : ""}" data-select-run="${esc(r.dir_name)}">
-                <td class="mono">${esc(shortRunLabel(r.run_id))}</td>
+                ${runWhenCell(r.started_at, r.run_id)}
                 <td>${esc(label)}</td>
                 <td>-</td>
                 <td style="color:${stColor};font-weight:600;">${stText}</td>
@@ -4360,7 +4526,7 @@
       }
 
       $("runsFilterInput").addEventListener("input", renderRunsAndInspector);
-      $("btnOpenNewRunModal").addEventListener("click", () => { refreshRunSpecDropdown(); $("newRunDialog").showModal(); });
+      $("btnOpenNewRunModal").addEventListener("click", () => openRunDialog());
       $("btnOpenCompareModal").addEventListener("click", () => $("compareDialog").showModal());
 
       // ================================================================
@@ -4392,7 +4558,8 @@
         const val = isEnvRedacted(envName);
         if ($("recRedactChk")) $("recRedactChk").checked = val;
         if ($("runRedactChk")) $("runRedactChk").checked = val;
-        if ($("runRedactEnvHint")) $("runRedactEnvHint").textContent = val ? `enabled in '${envName}'` : `off in '${envName}'`;
+        if ($("runRedactEnvHint")) $("runRedactEnvHint").textContent = `The '${envName}' environment has this ${val ? "on" : "off"} by default.`;
+        if ($("runMoreSummary")) updateRunSummary();
       }
       function loadEnvIntoForm(envName) {
         const cfg = ((STATE.overview && STATE.overview.environments) || {})[envName];
@@ -4527,11 +4694,9 @@
 
         const flows = data.flows || [];
         $("flowNameOptions").innerHTML = flows.map((f) => `<option value="${esc(f.name)}"></option>`).join("");
-        populateSelect("runFlowFilter", flows.map((f) => ({ value: f.name, label: `${f.name} (${f.step_count} steps)` })), "Use Suite / Journey");
 
         const specs = data.specs || [];
         const suites = Array.from(new Set(specs.map((s) => s.suite).filter(Boolean))).sort();
-        populateSelect("runSuiteSelect", suites.map((s) => ({ value: s, label: s })), "All Suites");
         refreshRunSpecDropdown();
         if ($("recSaveTestId") && (!$("recSaveTestId").value.trim() || $("recSaveTestId").dataset.auto !== "0")) {
           $("recSaveTestId").value = computeNextJourneyIdLocal($("recSaveSuite").value || "smoke", specs);
@@ -4728,11 +4893,13 @@
             pollEmulatorStatus();
             runPreflightChecks({ devices: true, doctor: false });
           } else {
-            showBanner(msgBanner, `Booting Android Emulator${avdName ? " (" + avdName + ")" : ""}...`, "info");
+            showBanner(msgBanner, `Starting the Android emulator${avdName ? " (" + avdName + ")" : ""}${res.hidden ? " in the background" : ""}. Progress shows in the device menu at the top.`, "info");
+            STATE.emuWasBusy = true;
             startEmulatorPolling();
           }
         } catch (err) {
           showBanner(msgBanner, err.message, "error");
+          if (msgBanner !== "recStatusBanner") toast(`The Android emulator did not start. ${err.message}`, "error", 15000);
         }
       }
 
@@ -4741,8 +4908,14 @@
         try {
           if (switchFirst) await apiJson("/api/emulator/shutdown", { target: "ios" });
           const chosen = udid || ($("iosSimSelect") ? $("iosSimSelect").value : "");
+          const label = $("topDeviceLabel");
+          if (label) label.textContent = "Starting simulator...";
+          showBanner(msgBanner, "Starting the iOS simulator...", "info");
           const res = await apiJson("/api/emulator/boot", { target: "ios", udid: chosen });
-          showBanner(msgBanner, `iOS Simulator booted: ${res.name || "Simulator"}`, "ok");
+          showBanner(msgBanner, res.hidden
+            ? `iOS simulator ${res.name || ""} is running in the background. Use Show window in the device menu to open it.`
+            : `iOS simulator ${res.name || ""} is ready.`, "ok");
+          if (STATE.activeNav !== "record" && STATE.activeNav !== "settings") toast(`iOS simulator ${res.name || ""} is ready${res.hidden ? " and running in the background" : ""}.`, "ok");
           await pollEmulatorStatus();
           await runPreflightChecks({ devices: true, doctor: false });
           switchTargetPlatformAndApp("ios");
@@ -4755,6 +4928,8 @@
           updateRecDeviceButtons();
         } catch (err) {
           showBanner(msgBanner, err.message, "error");
+          if (msgBanner !== "recStatusBanner") toast(`The iOS simulator did not start. ${err.message}`, "error", 15000);
+          updateTopbarSummary();
         }
       }
 
@@ -4867,6 +5042,15 @@
           if ($("btnIosShutdown")) $("btnIosShutdown").hidden = !bootedIos.length;
 
           if (st.error) showBanner("emuStatusBanner", st.error, "error");
+          if ($("prefShowDeviceWindow") && st.show_device_window !== undefined && document.activeElement !== $("prefShowDeviceWindow")) {
+            $("prefShowDeviceWindow").checked = Boolean(st.show_device_window);
+          }
+          // A boot started from the top bar or Record a test must report its result wherever the user is.
+          if (STATE.emuWasBusy && !isBusy && st.action === "boot") {
+            if (st.status === "failed" && st.error) toast(`The device did not start. ${st.error}`, "error", 15000);
+            else if (st.status === "completed") toast(st.show_device_window ? "Android emulator is ready." : "Android emulator is ready and running in the background.", "ok");
+          }
+          STATE.emuWasBusy = isBusy;
           if (isBusy) {
             badge.className = "badge b-warn";
             badge.textContent = st.phase || "Working...";
@@ -4923,6 +5107,26 @@
             const avd = val.startsWith("avd:") ? val.slice(4) : "";
             const booted = ((STATE.emuStatus && STATE.emuStatus.running_android_emulators) || []).length > 0;
             await bootAndroidTarget(avd, booted && !val.startsWith("live:"));
+          }
+        });
+      }
+      if ($("btnTopShowWindow")) {
+        $("btnTopShowWindow").addEventListener("click", async () => {
+          try {
+            await apiJson("/api/emulator/show_window", { target: "ios", identifier: $("btnTopShowWindow").dataset.udid || "" });
+            await pollEmulatorStatus();
+          } catch (err) { toastError(err, "Could not show the simulator"); }
+        });
+      }
+      if ($("prefShowDeviceWindow")) {
+        $("prefShowDeviceWindow").addEventListener("change", async (e) => {
+          const on = e.target.checked;
+          try {
+            await apiJson("/api/system/preferences", { show_device_window: on });
+            toast(on ? "Device windows will show the next time a device starts." : "Devices will run in the background the next time one starts.", "ok");
+          } catch (err) {
+            e.target.checked = !on;
+            toastError(err, "Could not save the setting");
           }
         });
       }
@@ -5007,6 +5211,7 @@
         $("recStepCount").textContent = String(list.length);
         $("btnRecSaveAll").disabled = !list.length;
         $("btnRecUndo").disabled = !list.length;
+        $("btnRecClear").disabled = !list.length;
         if (!list.length) {
           $("recStepsList").innerHTML = '<div class="muted" style="padding:18px 14px;">No steps yet. Click a control on the device screen to record one.</div>';
           syncRecStepEditBar(null);
@@ -5068,7 +5273,13 @@
         $("btnRecSync").hidden = !active;
         $("btnRecStop").hidden = !(active || starting);
         $("recProgressBox").hidden = !starting;
-        if (starting) $("recProgressText").textContent = st.phase || "Connecting...";
+        if (starting) {
+          $("recProgressText").textContent = st.phase || "Connecting...";
+          const secs = Math.round(Number(st.starting_elapsed_sec || 0));
+          $("recProgressMeta").textContent = secs >= 45 ? `${secs}s · still working, Stop cancels` : (secs ? `${secs}s` : "");
+        } else {
+          $("recProgressMeta").textContent = "";
+        }
 
         const pill = $("recLivePill");
         const dot = $("recLiveDot");
@@ -5138,13 +5349,16 @@
       async function pollRecorderStatus() {
         try {
           const st = await apiJson("/api/recorder/status");
+          const wasStarting = Boolean(STATE.recState && STATE.recState.starting);
           applyRecorderState(st);
+          // Appium may have started the device itself, so refresh the top bar once the session is up.
+          if (wasStarting && !st.starting) pollEmulatorStatus();
           if (!st.active && !st.starting && STATE.recPollTimer) { clearInterval(STATE.recPollTimer); STATE.recPollTimer = null; }
         } catch (_) {}
       }
       function startRecorderPolling() {
         if (STATE.recPollTimer) clearInterval(STATE.recPollTimer);
-        STATE.recPollTimer = setInterval(pollRecorderStatus, 1100);
+        STATE.recPollTimer = setInterval(pollRecorderStatus, 700);
       }
       function setRecBusy(on) {
         STATE.recBusy = Boolean(on);
@@ -5251,7 +5465,7 @@
         syncFlowNameFields(flowName);
         showBanner("recStatusBanner", "", "");
         $("recProgressBox").hidden = false;
-        $("recProgressText").textContent = "Booting device & starting Appium session...";
+        $("recProgressText").textContent = "Starting the recorder...";
         try {
           const plat = $("recPlatform").value;
           const rawDev = $("recDeviceSelect").value;
@@ -5404,6 +5618,50 @@
       const recStepEdit = (payload) => { STATE.recDirty = true; return recorderCall("/api/recorder/update", payload); };
       $("btnRecUndo").addEventListener("click", () => recorderCall("/api/recorder/undo", {}));
 
+      // A test name no saved workflow uses yet, so a new recording never replaces one by accident.
+      function freshRecordingName() {
+        const taken = new Set(((STATE.overview && STATE.overview.flows) || []).map((f) => String(f.name).toLowerCase()));
+        let n = 1;
+        while (taken.has((n === 1 ? "new-test" : `new-test-${n}`))) n += 1;
+        return n === 1 ? "new-test" : `new-test-${n}`;
+      }
+      function recordedStepCount() {
+        return ((STATE.recState && STATE.recState.steps) || []).length;
+      }
+      // Empty the step list. Asks first when the steps are not saved. Returns false when the user keeps them.
+      async function clearRecordedSteps({ newTest = false, flowName = "" } = {}) {
+        const kept = recordedStepCount();
+        if (kept && STATE.recDirty) {
+          const name = ($("recFlowNameInput") && $("recFlowNameInput").value.trim()) || "this test";
+          const go = await uiConfirm(
+            `'${name}' has ${kept} step${kept === 1 ? "" : "s"} you have not saved. ${newTest ? "Starting a new test" : "Clearing"} removes them.`,
+            { title: "Discard unsaved steps?", okLabel: newTest ? "Discard and start new" : "Discard steps", danger: true });
+          if (!go) return false;
+        }
+        if (kept || flowName) {
+          const st = await recorderCall("/api/recorder/clear", { flow_name: flowName });
+          if (!st) return false;
+        }
+        STATE.recDirty = false;
+        STATE.recSelectedStepIdx = null;
+        $("btnRecGoRun").hidden = true;
+        return true;
+      }
+      $("btnRecClear").addEventListener("click", () => clearRecordedSteps());
+      async function beginNewTest() {
+        navigateTo("record");
+        const name = freshRecordingName();
+        const cleared = await clearRecordedSteps({ newTest: true, flowName: name });
+        if (!cleared) {
+          showBanner("recStatusBanner", "Your unsaved steps are still here. Click Save workflow to keep them, or Clear all to start over.", "info");
+          return;
+        }
+        showBanner("recStatusBanner", "", "");
+        syncFlowNameFields(name);
+        const inp = $("recFlowNameInput");
+        if (inp) { inp.focus(); if (typeof inp.select === "function") inp.select(); }
+      }
+
       function syncRecStepEditBar(idx) {
         const steps = (STATE.recState && STATE.recState.steps) || [];
         const st = (idx !== null && idx !== undefined && idx >= 0 && idx < steps.length) ? steps[idx] : null;
@@ -5510,10 +5768,18 @@
       });
       $("btnRecSaveAll").addEventListener("click", async () => {
         if (STATE.recBusy) return;
+        const saveName = $("recSaveFlowName").value.trim() || "recorded_flow";
+        const exists = ((STATE.overview && STATE.overview.flows) || []).some((f) => String(f.name).toLowerCase() === saveName.toLowerCase());
+        if (exists) {
+          const go = await uiConfirm(
+            `A workflow named '${saveName}' already exists. Saving replaces its steps with the ${recordedStepCount()} you recorded. To keep both, cancel and change the test name.`,
+            { title: "Replace workflow?", okLabel: "Replace it", danger: true });
+          if (!go) return;
+        }
         $("btnRecSaveAll").disabled = true;
         try {
           const res = await apiJson("/api/recorder/save", {
-            flow_name: $("recSaveFlowName").value.trim() || "recorded_flow",
+            flow_name: saveName,
             suite: $("recSaveSuite").value.trim() || "smoke",
             test_id: $("recSaveTestId").value.trim(),
             test_title: $("recSaveTestTitle").value.trim() || "Repeat recorded workflow",
@@ -5532,6 +5798,8 @@
           $("btnRecGoRun").hidden = false;
           STATE.selectedFlowName = savedFlowName;
           await loadOverview({ skipAutoSync: true, preserveFormInputs: true });
+          // The saved steps are cleared on the server. Suggest a new name so the next recording does not replace this one.
+          syncFlowNameFields(freshRecordingName());
           pollRecorderStatus();
         } catch (err) {
           showBanner("recStatusBanner", err.message, "error");
@@ -5544,27 +5812,175 @@
       // ================================================================
       // NEW RUN MODAL & POLLING
       // ================================================================
-      function refreshRunSpecDropdown(preferredId) {
-        const sel = $("runSpecFilter");
-        if (!sel) return;
-        const suiteF = $("runSuiteSelect").value;
-        const platF = $("runPlatformSelect").value;
-        const flowF = $("runFlowFilter").value;
+      // The run dialog asks two plain questions: what to run (one test, a suite, or all tests)
+      // and where (platform, environment, device, app). Everything else sits under Options.
+      STATE.runMode = STATE.runMode || "one";
+      function runSpecsForPlatform(plat) {
         const allSpecs = (STATE.overview && STATE.overview.specs) || [];
-        const matched = allSpecs.filter((s) => (!suiteF || s.suite === suiteF) && (!platF || !s.platforms.length || s.platforms.includes(platF)));
-        const prev = preferredId !== undefined ? preferredId : sel.value;
-        populateSelect("runSpecFilter", matched.map((s) => ({ value: s.id, label: `[${s.suite}] ${s.id}: ${s.title}` })), `All journeys (${matched.length})`);
-        if (prev && Array.from(sel.options).some((o) => o.value === prev)) sel.value = prev;
-        $("runMatchHint").textContent = flowF
-          ? `Workflow '${flowF}' on '${platF}'.`
-          : `${matched.length} matching journey(s) on '${platF}'.`;
+        return allSpecs.filter((s) => !plat || !(s.platforms || []).length || s.platforms.includes(plat));
       }
-      ["runSuiteSelect", "runSpecFilter", "runFlowFilter", "runEnvSelect"].forEach((id) => {
+      function runFlowsForPlatform(plat) {
+        const flows = (STATE.overview && STATE.overview.flows) || [];
+        return flows.filter((f) => !plat || !(f.platforms || []).length || f.platforms.includes(plat));
+      }
+      function setRunMode(mode) {
+        STATE.runMode = mode;
+        document.querySelectorAll("[data-run-mode]").forEach((b) => b.setAttribute("aria-pressed", b.dataset.runMode === mode ? "true" : "false"));
+        $("runPickOne").hidden = mode !== "one";
+        $("runPickSuite").hidden = mode !== "suite";
+        refreshRunSpecDropdown();
+      }
+      function syncRunPlatSeg() {
+        const plat = $("runPlatformSelect").value;
+        document.querySelectorAll("[data-run-plat]").forEach((b) => {
+          b.setAttribute("aria-pressed", b.dataset.runPlat === plat ? "true" : "false");
+          if (b.dataset.runPlat === "ios") {
+            b.disabled = Boolean(STATE.hostOs) && STATE.hostOs !== "Darwin";
+            b.title = b.disabled ? "iOS testing needs a Mac with Xcode" : "";
+          }
+        });
+      }
+      function optionLabel(id) {
+        const sel = $(id);
+        const opt = sel && sel.options[sel.selectedIndex];
+        return opt ? opt.textContent : "";
+      }
+      function refreshRunSpecDropdown(preferredTarget) {
+        if (!$("runTargetSelect")) return;
+        const plat = $("runPlatformSelect").value || "android";
+        const platName = plat === "ios" ? "iOS" : "Android";
+        const specs = runSpecsForPlatform(plat);
+        const flows = runFlowsForPlatform(plat);
+
+        // One test: journeys and workflows in one list, grouped so it is clear which is which.
+        const tSel = $("runTargetSelect");
+        const prevTarget = preferredTarget !== undefined ? preferredTarget : tSel.value;
+        tSel.innerHTML = "";
+        const addGroup = (label, items) => {
+          if (!items.length) return;
+          const g = document.createElement("optgroup");
+          g.label = label;
+          items.forEach((it) => { const o = document.createElement("option"); o.value = it.value; o.textContent = it.label; g.appendChild(o); });
+          tSel.appendChild(g);
+        };
+        addGroup("Tests (journeys)", specs.map((sp) => ({ value: "spec:" + sp.id, label: sp.title && sp.title !== sp.id ? `${sp.title}  (${sp.id})` : sp.id })));
+        addGroup("Workflows", flows.map((f) => ({ value: "flow:" + f.name, label: `${f.name}  (${f.step_count} steps)` })));
+        if (!tSel.options.length) {
+          const o = document.createElement("option"); o.value = ""; o.textContent = `No ${platName} tests yet`; tSel.appendChild(o);
+        }
+        if (prevTarget && Array.from(tSel.options).some((o) => o.value === prevTarget)) tSel.value = prevTarget;
+
+        // A suite: each suite with how many tests it runs on this platform.
+        const sSel = $("runSuiteSelect");
+        const prevSuite = sSel.value;
+        const counts = {};
+        specs.forEach((sp) => { if (sp.suite) counts[sp.suite] = (counts[sp.suite] || 0) + 1; });
+        const suites = Object.keys(counts).sort();
+        populateSelect("runSuiteSelect", suites.map((name) => ({ value: name, label: `${name}  (${counts[name]} test${counts[name] === 1 ? "" : "s"})` })));
+        if (!suites.length) populateSelect("runSuiteSelect", [{ value: "", label: `No ${platName} suites yet` }]);
+        if (prevSuite && suites.includes(prevSuite)) sSel.value = prevSuite;
+
+        const mode = STATE.runMode;
+        let count = 0;
+        let what = "";
+        if (mode === "one") {
+          const v = tSel.value;
+          count = v ? 1 : 0;
+          what = v.startsWith("flow:") ? `the ${v.slice(5)} workflow` : (v ? "this test" : "");
+        } else if (mode === "suite") {
+          count = counts[sSel.value] || 0;
+          what = sSel.value ? `${count} test${count === 1 ? "" : "s"} in ${sSel.value}` : "";
+        } else {
+          count = specs.length;
+          what = count === 1 ? "the 1 test" : `all ${count} tests`;
+        }
+        const hint = $("runMatchHint");
+        hint.classList.toggle("is-warn", !count);
+        hint.textContent = count
+          ? `Runs ${what} on ${platName}.`
+          : `Nothing to run on ${platName} yet. Record a test first, or switch platform.`;
+        $("btnStartLiveRun").disabled = !count;
+        $("btnDryRun").disabled = !count;
+        syncRunPlatSeg();
+        updateRunSummary();
+      }
+      // How many data rows a run target would use: its own rows, or the rows of the one workflow a journey runs.
+      function runTargetDataRows(value) {
+        const ov = STATE.overview || {};
+        const rowsOf = (item) => (((item || {}).datasets || {}).rows || []).length;
+        if (!value) return 0;
+        if (value.startsWith("flow:")) return rowsOf((ov.flows || []).find((f) => f.name === value.slice(5)));
+        const spec = (ov.specs || []).find((s) => s.id === value.slice(5));
+        if (!spec) return 0;
+        if (rowsOf(spec)) return rowsOf(spec);
+        const names = [];
+        [...(spec.setup || []), ...(spec.steps || []), ...(spec.teardown || [])].forEach((st) => {
+          const name = st && st.type === "run_flow" ? String((st.params || {}).flow || "").trim() : "";
+          if (name && !names.includes(name)) names.push(name);
+        });
+        const counts = names.map((n) => rowsOf((ov.flows || []).find((f) => f.name === n))).filter((c) => c > 0);
+        return counts.length === 1 ? counts[0] : 0;
+      }
+      // Tick "each data row" when the picked test has rows, so its ${variables} get values. Only on a new pick.
+      function syncRunDatasetsChk() {
+        const key = STATE.runMode === "one" ? $("runTargetSelect").value : "";
+        if (key === STATE.runDsKey) return;
+        STATE.runDsKey = key;
+        const n = key ? runTargetDataRows(key) : 0;
+        $("runUseDatasetsChk").checked = n > 0;
+        const lbl = document.querySelector('label[for="runUseDatasetsChk"]');
+        if (lbl) lbl.textContent = n > 0 ? `Run once for each data row (${n} row${n === 1 ? "" : "s"})` : "Run once for each data row";
+      }
+      function updateRunSummary() {
+        syncRunDatasetsChk();
+        const retries = Number($("runRetriesInput").value) || 0;
+        const retryText = retries ? `retry ${retries === 1 ? "once" : retries === 2 ? "twice" : retries + " times"}` : "no retries";
+        const parts = [retryText, $("runRedactChk").checked ? "screenshots redacted" : "screenshots not redacted"];
+        if ($("runUseDatasetsChk").checked) parts.push("each data row");
+        $("runMoreSummary").textContent = "· " + parts.join(", ");
+
+        const plat = $("runPlatformSelect").value || "android";
+        const mode = STATE.runMode;
+        let what = "";
+        if (mode === "one") {
+          const v = $("runTargetSelect").value;
+          what = v ? optionLabel("runTargetSelect").replace(/\s{2,}\(.*\)$/, "") + (v.startsWith("flow:") ? " (workflow)" : "") : "";
+        } else if (mode === "suite") {
+          what = $("runSuiteSelect").value ? "Suite " + optionLabel("runSuiteSelect").replace(/\s{2,}/, " ") : "";
+        } else {
+          what = `All ${runSpecsForPlatform(plat).length} tests`;
+        }
+        const rows = [
+          ["Test", what],
+          ["Platform", plat === "ios" ? "iOS" : "Android"],
+          ["Device", $("runDeviceSelect").value ? optionLabel("runDeviceSelect") : ""],
+          ["App", $("runAppSelect").value ? optionLabel("runAppSelect") : ""],
+          ["Environment", $("runEnvSelect").value],
+          ["Options", parts.join(", ")],
+        ];
+        $("runSummary").innerHTML = rows.map(([k, v]) =>
+          `<dt>${esc(k)}</dt><dd class="${v ? "" : "is-empty"}">${esc(v || "Not chosen")}</dd>`).join("");
+      }
+      document.querySelectorAll("[data-run-mode]").forEach((b) => b.addEventListener("click", () => setRunMode(b.dataset.runMode)));
+      document.querySelectorAll("[data-run-plat]").forEach((b) => b.addEventListener("click", () => {
+        if (b.disabled || $("runPlatformSelect").value === b.dataset.runPlat) return;
+        $("runPlatformSelect").value = b.dataset.runPlat;
+        $("runPlatformSelect").dispatchEvent(new Event("change", { bubbles: true }));
+      }));
+      ["runTargetSelect", "runSuiteSelect", "runEnvSelect", "runDeviceSelect", "runAppSelect", "runRetriesInput", "runRedactChk", "runUseDatasetsChk"].forEach((id) => {
         if ($(id)) $(id).addEventListener("change", () => {
+          showBanner("runStartBanner", "");
           if (id === "runEnvSelect") syncRedactForEnv($("runEnvSelect").value);
-          refreshRunSpecDropdown();
+          if (id === "runTargetSelect" || id === "runSuiteSelect" || id === "runEnvSelect") refreshRunSpecDropdown();
+          else updateRunSummary();
         });
       });
+      function openRunDialog(preferredTarget) {
+        if (preferredTarget) STATE.runMode = "one";
+        navigateTo("run");
+        setRunMode(STATE.runMode);
+        refreshRunSpecDropdown(preferredTarget);
+      }
 
       async function pollRunStatus() {
         try {
@@ -5605,6 +6021,13 @@
 
       async function launchRunFromModal(dryRun) {
         $("openFinishedReportLink").hidden = true;
+        const buttons = [$("btnStartLiveRun"), $("btnDryRun")];
+        const rawDevNow = $("runDeviceSelect").value;
+        const needsBoot = !dryRun && !rawDevNow.startsWith("live:");
+        showBanner("runStartBanner", dryRun
+          ? "Checking which tests would run..."
+          : (needsBoot ? "Starting the device in the background. This can take a minute or two..." : "Starting the run..."), "info");
+        buttons.forEach((b) => { b.disabled = true; });
         try {
           const plat = $("runPlatformSelect").value;
           const rawDev = $("runDeviceSelect").value;
@@ -5615,16 +6038,16 @@
             platform: plat,
             device_profile: resolvedDev,
             env_name: $("runEnvSelect").value,
-            suite: $("runSuiteSelect").value,
-            spec_id: $("runSpecFilter").value,
-            flow_name: $("runFlowFilter").value,
+            suite: STATE.runMode === "suite" ? $("runSuiteSelect").value : "",
+            spec_id: STATE.runMode === "one" && $("runTargetSelect").value.startsWith("spec:") ? $("runTargetSelect").value.slice(5) : "",
+            flow_name: STATE.runMode === "one" && $("runTargetSelect").value.startsWith("flow:") ? $("runTargetSelect").value.slice(5) : "",
             app_path: $("runAppSelect").value,
             retries: Number($("runRetriesInput").value) || 0,
             redact_screenshots: $("runRedactChk").checked,
             run_datasets: $("runUseDatasetsChk").checked,
             dry_run: dryRun
           });
-          $("newRunDialog").close();
+          showBanner("runStartBanner", "");
           navigateTo("runs");
           $("runLiveCard").hidden = false;
           if (dryRun) {
@@ -5636,7 +6059,14 @@
           } else {
             startRunPolling();
           }
-        } catch (err) { toastError(err, "Run did not start"); }
+        } catch (err) {
+          const msg = (err && err.message) || String(err || "Something went wrong");
+          showBanner("runStartBanner", "The run did not start.\n" + msg, "error");
+          $("runStartBanner").scrollIntoView({ block: "nearest", behavior: "smooth" });
+        } finally {
+          buttons.forEach((b) => { b.disabled = false; });
+          refreshRunSpecDropdown();
+        }
       }
       $("btnDryRun").addEventListener("click", () => launchRunFromModal(true));
       $("runForm").addEventListener("submit", (e) => { e.preventDefault(); launchRunFromModal(false); });
@@ -5792,12 +6222,7 @@
       window.addEventListener("focus", scheduleSilentWorkspaceReload);
 
       function startNewRecordingFromWorkflows() {
-        navigateTo("record");
-        const flowInp = $("recFlowNameInput");
-        if (flowInp) {
-          flowInp.focus();
-          if (typeof flowInp.select === "function") flowInp.select();
-        }
+        beginNewTest();
       }
       document.addEventListener("click", (e) => {
         if (e.target && e.target.closest("[data-flow-record-new]")) {
@@ -5947,6 +6372,29 @@
         if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
         if (s < 86400 * 30) return `${Math.floor(s / 86400)} d ago`;
         return new Date(t).toLocaleDateString();
+      }
+      // Run date in local time: "Today, 1:12 PM", "Yesterday, 9:05 AM", "Mon, Nov 14, 4:30 PM", "Nov 14, 2025".
+      function fmtRunWhen(iso, runId) {
+        let t = Date.parse(String(iso || ""));
+        if (!Number.isFinite(t)) {
+          const m = String(runId || "").match(/^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/);
+          if (m) t = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
+        }
+        if (!Number.isFinite(t)) return "";
+        const d = new Date(t);
+        const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+        const startOf = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+        const days = Math.round((startOf(new Date()) - startOf(d)) / 86400000);
+        if (days === 0) return `Today, ${time}`;
+        if (days === 1) return `Yesterday, ${time}`;
+        if (days > 1 && days < 7) return `${d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}, ${time}`;
+        if (d.getFullYear() === new Date().getFullYear()) return `${d.toLocaleDateString([], { month: "short", day: "numeric" })}, ${time}`;
+        return d.toLocaleDateString([], { year: "numeric", month: "short", day: "numeric" });
+      }
+      function runWhenCell(iso, runId, prefix) {
+        const when = fmtRunWhen(iso, runId) || shortRunLabel(runId);
+        const full = Number.isFinite(Date.parse(String(iso || ""))) ? new Date(Date.parse(iso)).toLocaleString() : "";
+        return `<td class="run-when" title="${esc([full, runId].filter(Boolean).join("\n"))}">${prefix || ""}${esc(when)}</td>`;
       }
       function plural(n, word) {
         return `${n} ${word}${n === 1 ? "" : "s"}`;
@@ -6250,9 +6698,7 @@
       }
 
       function startGuidedRecording() {
-        navigateTo("record");
-        const inp = $("recFlowNameInput");
-        if (inp) { inp.focus(); if (typeof inp.select === "function") inp.select(); }
+        beginNewTest();
       }
       function runHomeAction(action, btn) {
         if (action === "welcome") { openWelcome(); return; }
@@ -6319,7 +6765,7 @@
         });
       });
       $("btnHomeRecord").addEventListener("click", startGuidedRecording);
-      $("btnHomeCustomRun").addEventListener("click", () => { refreshRunSpecDropdown(); $("newRunDialog").showModal(); });
+      $("btnHomeCustomRun").addEventListener("click", () => openRunDialog());
       $("btnHomeAllRuns").addEventListener("click", () => navigateTo("runs"));
       $("homeAppFile").addEventListener("change", async () => {
         const file = $("homeAppFile").files[0];
@@ -6364,8 +6810,8 @@
         try { localStorage.setItem("qalprit.skipWelcome", $("wlShowAtStart").checked ? "0" : "1"); } catch (_) {}
       }
       function deviceChoiceParts(label) {
-        const running = /\[Booted\]/.test(label);
-        const name = String(label).replace(/\s*\[(Booted|Shutdown|Offline AVD)\]\s*$/, "").replace(/\s*\([a-z0-9_]+\)$/, "");
+        const running = /·\s*running$/.test(label);
+        const name = String(label).replace(/\s*·\s*(running|off, starts when needed)\s*$/, "").replace(/\s*\([a-z0-9_-]+\)$/, "");
         return { name, running };
       }
       function renderWelcome() {

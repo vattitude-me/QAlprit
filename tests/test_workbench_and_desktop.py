@@ -1260,7 +1260,10 @@ def test_streamlined_ui_and_workflow_spec_crud_endpoints(tmp_path: Path, monkeyp
         assert 'id="uiAskDialog"' in html and 'id="toastHost"' in html
         assert 'id="specUploadInput"' in html
         assert 'id="btnAutoSpecId"' in html
-        assert 'id="runSpecFilter"' in html
+        # Running has its own page with one test picker, not a modal with several filter dropdowns.
+        assert 'id="view-run"' in html and 'data-nav="run"' in html
+        assert 'id="runTargetSelect"' in html and 'id="runStartBanner"' in html
+        assert 'id="newRunDialog"' not in html and 'id="runSpecFilter"' not in html
 
         # Auto-ID starts at SMK-001
         with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/specs/next-id?suite=smoke") as r:

@@ -694,6 +694,12 @@ def ui(
     except KeyboardInterrupt:
         click.echo("\nShutting down QAlprit Workbench.")
     finally:
+        from qalprit.ui_server import shutdown_workbench_services
+
+        try:
+            shutdown_workbench_services(server)
+        except Exception:
+            pass
         server.server_close()
 
 

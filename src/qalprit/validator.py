@@ -657,7 +657,16 @@ def validate_project(
                         continue
                     # When running a flow directly (flow_name == ref_flow_name) or with datasets,
                     # flow params can come from spec_dynamic_vars or env_ctx as well.
-                    available_for_flow = set(provided.keys()) | spec_dynamic_vars
+                    # A workflow's own data rows also give its params a value when a journey calls it.
+                    ref_flow_vars: set[str] = set()
+                    try:
+                        ref_ds = load_datasets(project_root, "flow", ref_flow_name)
+                        if ref_ds.rows and ref_ds.variables:
+                            ref_flow_vars = set(ref_ds.variables) | {"expected", "dataset"}
+                    except Exception:
+                        pass
+                    step_dynamic_vars = spec_dynamic_vars | ref_flow_vars
+                    available_for_flow = set(provided.keys()) | step_dynamic_vars
                     if result.env_ctx is not None:
                         available_for_flow |= set(result.env_ctx.variables.keys())
                     missing_fp = sorted(set(flow.params) - available_for_flow)
@@ -699,7 +708,7 @@ def validate_project(
                             result.screens,
                             result.env_ctx,
                             extra_env_vars,
-                            spec_dynamic_vars,
+                            step_dynamic_vars,
                             spec.source_path,
                             e_loc,
                             result.issues,

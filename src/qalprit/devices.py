@@ -117,7 +117,9 @@ def list_ios_simulators() -> tuple[list[DiscoveredDevice], str | None]:
         for runtime, devs in (data.get("devices") or {}).items():
             if "iOS" not in runtime:
                 continue
-            runtime_label = runtime.rsplit(".", 1)[-1].replace("-", " ")
+            # "com.apple.CoreSimulator.SimRuntime.iOS-26-5" -> "iOS 26.5"
+            os_name, _, os_ver = runtime.rsplit(".", 1)[-1].partition("-")
+            runtime_label = f"{os_name} {os_ver.replace('-', '.')}".strip()
             for d in devs:
                 if not d.get("isAvailable", True):
                     continue

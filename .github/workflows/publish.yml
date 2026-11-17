@@ -27,6 +27,8 @@ jobs:
           python -m build
           twine check dist/*
       - name: Publish to PyPI via Trusted Publishing
+        # A manual run only builds test installers. PyPI versions cannot be re-uploaded, so publish on releases only.
+        if: github.event_name == 'release'
         continue-on-error: true
         uses: pypa/gh-action-pypi-publish@release/v1
 

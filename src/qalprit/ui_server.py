@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse
 
-from qalprit import __version__
+from qalprit import __version__, background_devices
 from qalprit.cleanup import execute_selective_cleanup, inspect_cleanup_targets
 from qalprit.config_loader import load_screens
 from qalprit.datasets import (
@@ -859,6 +859,15 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
                 self._send_json(self.emulator_manager.stop())
                 return
 
+            if req_path == "/api/emulator/show_window":
+                self._send_json(
+                    background_devices.show_window(
+                        str(body.get("target") or "ios").lower(),
+                        str(body.get("identifier") or ""),
+                    )
+                )
+                return
+
             if req_path == "/api/emulator/shutdown":
                 self._send_json(
                     self.emulator_manager.shutdown(
@@ -925,6 +934,10 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
 
             if req_path == "/api/recorder/undo":
                 self._send_json(self.recorder_manager.undo())
+                return
+
+            if req_path == "/api/recorder/clear":
+                self._send_json(self.recorder_manager.clear(flow_name=str(body.get("flow_name") or "")))
                 return
 
             if req_path == "/api/recorder/update":
@@ -995,8 +1008,71 @@ def create_ui_server(
         recorder_manager=recorder_manager,
     )
     try:
-        return ThreadingHTTPServer((host, port), handler)
+        server = ThreadingHTTPServer((host, port), handler)
     except OSError:
         if port == 0:
             raise
-        return ThreadingHTTPServer((host, 0), handler)
+        server = ThreadingHTTPServer((host, 0), handler)
+    server.qalprit_managers = {  # type: ignore[attr-defined]
+        "runs": job_manager,
+        "emulator": emulator_manager,
+        "recorder": recorder_manager,
+    }
+    return server
+
+
+def workbench_busy_work(server: ThreadingHTTPServer) -> list[str]:
+    """Plain lines describing work that quitting would cut short. Empty when it is safe to quit."""
+    managers = getattr(server, "qalprit_managers", {}) or {}
+    busy: list[str] = []
+    try:
+        runs = managers.get("runs")
+        st = runs.status() if runs is not None else {}
+        if st.get("running"):
+            busy.append("A test run is still going. Quitting stops it partway, so its report will be incomplete.")
+    except Exception:
+        pass
+    try:
+        rec = managers.get("recorder")
+        steps = len(getattr(rec, "_steps", []) or []) if rec is not None else 0
+        if steps:
+            busy.append(f"The recorder has {steps} step{'s' if steps != 1 else ''} you have not saved.")
+    except Exception:
+        pass
+    try:
+        emu = managers.get("emulator")
+        # Read the state directly: status() also queries every device, which is slow during quit.
+        if emu is not None and (getattr(emu, "_state", {}) or {}).get("running"):
+            busy.append("A device is still being set up or started.")
+    except Exception:
+        pass
+    return busy
+
+
+def shutdown_workbench_services(server: ThreadingHTTPServer) -> dict[str, Any]:
+    """Release what the Workbench started before the process exits.
+
+    Stops the recorder session and any test run (each stops the Appium server it
+    launched), cancels a device setup or boot still in progress, and shuts down the
+    devices QAlprit started in the background. Devices with a visible window, or
+    started outside QAlprit, keep running.
+    """
+    managers = getattr(server, "qalprit_managers", {}) or {}
+    summary: dict[str, Any] = {"errors": []}
+    for key, action in (
+        ("recorder", lambda m: m.stop()),
+        ("runs", lambda m: m.stop()),
+        ("emulator", lambda m: m.cancel_for_quit()),
+    ):
+        mgr = managers.get(key)
+        if mgr is None:
+            continue
+        try:
+            action(mgr)
+        except Exception as exc:
+            summary["errors"].append(f"{key}: {friendly_error(exc)}")
+    try:
+        summary["stopped_devices"] = background_devices.shutdown_background_devices()
+    except Exception as exc:
+        summary["errors"].append(f"devices: {friendly_error(exc)}")
+    return summary
