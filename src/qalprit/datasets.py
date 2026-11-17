@@ -86,8 +86,13 @@ def parse_csv_datasets(
     target_kind: Literal["flow", "spec"],
     target_name: str,
     existing_secret_cols: list[str] | None = None,
+    allow_empty: bool = False,
 ) -> DatasetBundle:
-    """Parse CSV text into a DatasetBundle, preserving column order and secret markers."""
+    """Parse CSV text into a DatasetBundle, preserving column order and secret markers.
+
+    `allow_empty` accepts a header with no data rows. The Workbench saves that shape when a
+    user deletes every row but keeps the variables, so reading it back must not fail.
+    """
     cleaned_text = (csv_text or "").lstrip("\ufeff")
     if not cleaned_text.strip():
         raise ValueError("CSV input is empty.")
@@ -164,7 +169,7 @@ def parse_csv_datasets(
             )
         )
 
-    if not rows:
+    if not rows and not allow_empty:
         raise ValueError("CSV contains headers but zero data rows.")
 
     return DatasetBundle(
@@ -236,6 +241,7 @@ def load_datasets(
         target_kind=target_kind,
         target_name=target_name,
         existing_secret_cols=meta_secrets,
+        allow_empty=True,
     )
     bundle.source_path = rel.as_posix()
     return bundle

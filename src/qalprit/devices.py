@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from qalprit.doctor import _macos_xcode_env, find_android_tool, win_subprocess_kwargs
+from qalprit.paths import get_android_user_home, get_qalprit_avd_home
 
 
 @dataclass
@@ -62,11 +63,17 @@ def list_android_devices() -> tuple[list[DiscoveredDevice], str | None]:
     emu_bin = find_android_tool("emulator")
     if emu_bin:
         try:
+            # List AVDs from the same folder Appium and the emulator manager boot from,
+            # so every listed emulator can actually start.
+            emu_env = dict(os.environ)
+            emu_env.setdefault("ANDROID_AVD_HOME", str(get_qalprit_avd_home()))
+            emu_env.setdefault("ANDROID_USER_HOME", str(get_android_user_home()))
             proc = subprocess.run(
                 [emu_bin, "-list-avds"],
                 capture_output=True,
                 text=True,
                 timeout=8,
+                env=emu_env,
                 **win_subprocess_kwargs(),
             )
             if proc.returncode == 0:

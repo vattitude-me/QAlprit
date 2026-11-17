@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import threading
 import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -18,6 +19,7 @@ from qalprit.datasets import (
     load_datasets,
     mask_bundle_for_ui,
     parse_csv_datasets,
+    save_datasets,
 )
 from qalprit.desktop import ensure_workspace
 from qalprit.inspector import extract_interactive_elements
@@ -360,8 +362,10 @@ def test_ui_redesign_layout_ios_boot_and_api_contracts() -> None:
     assert 'id="btnOpenFlowsModal" data-nav="workflows"' in ui_html
     assert "anchorPopover" in ui_html
 
-    # 2. Workflows is default Workbench landing view; 1-time Setup & Devices is nested inside Settings
-    assert 'data-nav="workflows" aria-current="step"' in ui_html
+    # 2. The Testing space (Home) is the default landing view; device setup is nested inside Settings
+    assert 'data-nav="home" aria-current="step"' in ui_html
+    assert 'id="view-home"' in ui_html
+    assert 'id="welcomeOverlay"' in ui_html
     settings_start = ui_html.index('id="view-settings"')
     settings_block = ui_html[settings_start:]
     assert 'data-settings-tab="env"' in settings_block
@@ -629,3 +633,61 @@ def test_avd_profile_resolution_and_recorder_step_reorder_duplicate(tmp_path: Pa
         server.shutdown()
         server.server_close()
 
+
+
+def test_header_only_dataset_does_not_blank_the_workbench(tmp_path: Path) -> None:
+    """Deleting every data row keeps a header-only CSV. The Workbench must still load it."""
+    ws = ensure_workspace(tmp_path / "empty_ds_ws")
+    save_flow_spec(
+        ws,
+        name="mda/login",
+        params=["user", "password"],
+        steps=[
+            {"type": {"target": "login.user", "value": "${user}"}},
+            {"type": {"target": "login.password", "value": "${password}", "secret": True}},
+        ],
+    )
+    save_flow_spec(ws, name="mda/other", params=[], steps=[{"tap": "home.menu"}])
+
+    # The editor saves variables with no rows when the user deletes the last row.
+    save_datasets(ws, "flow", "mda/login", {"variables": ["user", "password"], "rows": []})
+    csv_path = ws / "datasets" / "flows" / "mda" / "login.csv"
+    assert csv_path.read_text(encoding="utf-8").strip() == "dataset,user,password"
+
+    bundle = load_datasets(ws, "flow", "mda/login")
+    assert bundle.variables == ["user", "password"]
+    assert bundle.rows == []
+
+    # Importing a header-only CSV is still a user mistake worth reporting.
+    with pytest.raises(ValueError, match="zero data rows"):
+        import_csv_to_datasets(ws, "flow", "mda/login", "dataset,user\n")
+
+    # A file that cannot be parsed is reported, and every other test still shows up.
+    broken = ws / "datasets" / "flows" / "mda" / "other.csv"
+    broken.write_text(",,,\n", encoding="utf-8")
+    ov = collect_workspace_overview(ws)
+    assert {f["name"] for f in ov["flows"]} == {"mda/login", "mda/other"}
+    assert any("other.csv" in w for w in ov["parse_warnings"])
+
+
+def test_get_errors_return_json_instead_of_dropping_the_connection(tmp_path: Path, monkeypatch) -> None:
+    import qalprit.ui_server as ui_server
+
+    ws = ensure_workspace(tmp_path / "get_err_ws")
+
+    def _boom(*_a, **_k):
+        raise RuntimeError("disk on fire")
+
+    monkeypatch.setattr(ui_server, "collect_workspace_overview", _boom)
+    server = create_ui_server(ws, host="127.0.0.1", port=0)
+    port = server.server_address[1]
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        with pytest.raises(urllib.error.HTTPError) as err:
+            urllib.request.urlopen(f"http://127.0.0.1:{port}/api/overview")
+        assert err.value.code == 500
+        body = json.loads(err.value.read().decode("utf-8"))
+        assert "disk on fire" in body["error"]
+    finally:
+        server.shutdown()
+        server.server_close()
