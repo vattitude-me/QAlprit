@@ -10,6 +10,49 @@ All notable backend, UI, packaging, and documentation changes to **QAlprit** are
 
 ---
 
+## [v0.1.33] - 2026-11-16
+
+### Guided start (`ui/index.html`)
+- New welcome screen on launch. It explains what QAlprit does in a few lines, then asks for the platform (Android or iPhone), the app file and the device, and opens the recorder with the test named.
+- Apps you added before show as cards, and new ones can be dropped in or picked from disk. Devices list as "Running now", "Starts automatically" or "A real phone plugged in", without internal profile ids.
+- Returning users get "Skip to Testing space". A checkbox turns the welcome screen off, and "Show the welcome guide" in the top bar menu brings it back.
+
+### Testing space (`ui/index.html`)
+- The app now opens on a home view. It shows counts, a setup checklist for new workspaces, every workflow and journey as a card, and the latest results.
+- Each card has Run, plus a menu with Open and edit, Rename, Duplicate and Delete. Run starts right away with the platform, app and device from the top bar and the workflow's selected dataset rows. "Custom run..." keeps the full run dialog.
+- Search and an All, Workflows and Journeys filter sit above the cards.
+
+### Create, rename and delete everywhere (`workbench_api.py`, `ui_server.py`)
+- Rename for workflows and journeys (`POST /api/flows/rename`). It moves the dataset CSV with the file and rewrites every `run_flow` that points at a renamed workflow, in steps and teardown.
+- Delete for runs (`POST /api/runs/delete`, which removes a batch and its per-row runs), app files (`POST /api/apps/delete`), saved elements (`POST /api/screens/delete`) and environments (`POST /api/environments/delete`, which keeps at least one).
+- Duplicating or deleting a workflow now copies or removes its dataset too.
+- Every delete checks its path stays inside the workspace and asks for confirmation in the UI.
+
+### Clearer navigation and copy (`ui/index.html`, `recorder.py`)
+- Sidebar items have a one line description: Testing space, Record a test, Workflows, Journeys, Runs & reports, Elements, Settings & setup.
+- Labels use plain sentence case ("Capture screen", "Find elements", "App") instead of tool jargon such as "Inspect XML Dump" or "App Binary".
+- Elements has a search box, wraps long locators instead of cutting them off, and shows more rows.
+- Fixed run step lists overflowing their card, app actions stacking in Settings, and the unstyled file picker.
+- The Settings apps table keeps sizes on one line and breaks long app IDs at the dots. A running Android emulator no longer shows its serial twice in the device list.
+
+### Device list (`devices.py`)
+- The Android emulator list now reads the same AVD folder that Appium and the emulator manager boot from. Before, it could offer an emulator from `~/.android/avd` that failed to start with "Avd ... is not available".
+
+### Workspace loading (`datasets.py`, `ui_server.py`)
+- Deleting the last data row of a workflow left a CSV with only a header. The next overview load raised "CSV contains headers but zero data rows", the server closed the connection, and the Workbench showed "QAlprit is not responding" with every list empty. The files were never lost. A header-only CSV now loads as a workflow with variables and no rows. Importing one is still rejected.
+- If a dataset CSV still cannot be read, the overview skips it and names the file in a warning instead of failing the whole request.
+- GET endpoints now return a JSON error with the reason, as POST endpoints already did, instead of dropping the connection.
+
+### Docs
+- README and AGENTS.md describe the welcome guide and the new view names.
+- Website and README screenshots are retaken from 0.1.33, with live recordings on the iOS Simulator and an Android emulator. The README adds a Testing space screenshot.
+
+### Lessons learned
+- v0.1.32 changed a lot under the hood but looked the same, so users saw no improvement. UI work now gets a local .dmg build and a walk-through with screenshots before release.
+- A file the app writes must be one it can read back. The dataset editor saved a header-only CSV that the loader rejected, and one unguarded loader call took down the whole Workbench. Loaders that feed the overview now degrade per file.
+
+---
+
 ## [v0.1.32] - 2026-11-16
 
 ### Live recorder reliability (`recorder.py`, `driver_factory.py`, `inspector.py`, `error_text.py`)

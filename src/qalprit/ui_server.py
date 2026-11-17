@@ -18,6 +18,7 @@ from qalprit import __version__
 from qalprit.cleanup import execute_selective_cleanup, inspect_cleanup_targets
 from qalprit.config_loader import load_screens
 from qalprit.datasets import (
+    DatasetBundle,
     export_csv_datasets,
     extract_variables_from_steps,
     import_csv_to_datasets,
@@ -34,8 +35,13 @@ from qalprit.results import load_results_json
 from qalprit.spec_loader import STEP_VOCABULARY, load_flows, load_specs
 from qalprit.workbench_api import (
     RunJobManager,
+    delete_environment_entry,
     delete_flow_spec,
+    delete_run_results,
+    delete_screen_locator,
     delete_test_journey,
+    delete_workspace_app,
+    rename_flow_spec,
     duplicate_flow_spec,
     duplicate_test_journey,
     inspect_live_screen,
@@ -43,6 +49,7 @@ from qalprit.workbench_api import (
     list_workspace_apps,
     list_workspace_configs,
     next_journey_id,
+    rename_flow_spec,
     reveal_in_file_manager,
     run_workspace_validation,
     save_environment_entry,
@@ -179,9 +186,19 @@ def collect_workspace_overview(
     apps = list_workspace_apps(root)
     environments, device_profiles = list_workspace_configs(root)
 
+    def _datasets_or_warn(kind: str, name: str) -> DatasetBundle:
+        # One unreadable CSV must not blank the whole Workbench. Show the test without data rows
+        # and say which file needs fixing.
+        try:
+            return load_datasets(root, kind, name)  # type: ignore[arg-type]
+        except Exception as exc:
+            folder = "flows" if kind == "flow" else "specs"
+            parse_warnings.append(f"datasets/{folder}/{name}.csv could not be read: {exc}")
+            return DatasetBundle(target_kind=kind, target_name=name, variables=[], secret_columns=[], rows=[])  # type: ignore[arg-type]
+
     specs_payload: list[dict[str, Any]] = []
     for s in specs:
-        ds_bundle = load_datasets(root, "spec", s.id)
+        ds_bundle = _datasets_or_warn("spec", s.id)
         detected_vars = extract_variables_from_steps(s.setup + s.steps + s.teardown, flows=flows)
         merged_params = list(dict.fromkeys([*s.params, *ds_bundle.variables, *detected_vars]))
         specs_payload.append(
@@ -212,7 +229,7 @@ def collect_workspace_overview(
 
     flows_payload: list[dict[str, Any]] = []
     for f in sorted(flows.values(), key=lambda x: x.name):
-        ds_bundle = load_datasets(root, "flow", f.name)
+        ds_bundle = _datasets_or_warn("flow", f.name)
         detected_vars = extract_variables_from_steps(f.steps)
         merged_params = list(dict.fromkeys([*f.params, *ds_bundle.variables, *detected_vars]))
         flows_payload.append(
@@ -409,6 +426,19 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
         return data
 
     def do_GET(self) -> None:  # noqa: N802
+        # Without this an exception closes the socket with no reply, and the UI can only say
+        # "QAlprit is not responding". Send the real reason instead, as do_POST does.
+        try:
+            self._handle_get()
+        except ValueError as exc:
+            self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+        except Exception as exc:
+            self._send_json(
+                {"error": friendly_error(exc), "error_type": type(exc).__name__},
+                status=HTTPStatus.INTERNAL_SERVER_ERROR,
+            )
+
+    def _handle_get(self) -> None:
         parsed = urlparse(self.path)
         req_path = unquote(parsed.path)
 
@@ -666,6 +696,34 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
                         name=str(body.get("name") or ""),
                     )
                 )
+                return
+
+            if req_path == "/api/flows/rename":
+                self._send_json(
+                    rename_flow_spec(
+                        self.project_root,
+                        name=str(body.get("name") or ""),
+                        new_name=str(body.get("new_name") or ""),
+                    )
+                )
+                return
+
+            if req_path == "/api/runs/delete":
+                if self.job_manager.status().get("running"):
+                    raise ValueError("A run is in progress. Stop it or wait for it to finish, then delete.")
+                self._send_json(delete_run_results(self.results_dir, str(body.get("dir_name") or "")))
+                return
+
+            if req_path == "/api/apps/delete":
+                self._send_json(delete_workspace_app(self.project_root, str(body.get("rel_path") or "")))
+                return
+
+            if req_path == "/api/screens/delete":
+                self._send_json(delete_screen_locator(self.project_root, str(body.get("target") or "")))
+                return
+
+            if req_path == "/api/environments/delete":
+                self._send_json(delete_environment_entry(self.project_root, str(body.get("env_name") or "")))
                 return
 
             if req_path == "/api/specs/save":

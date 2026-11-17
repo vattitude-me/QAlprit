@@ -735,7 +735,7 @@ class RecorderManager:
             self._starting = True
             self._active = False
             self._status = "starting"
-            self._phase = "Launching Appium & connecting to emulator..."
+            self._phase = "Starting Appium and connecting to the device..."
             self._error = ""
             self._project_root = project_root
             self._platform = platform
@@ -778,7 +778,7 @@ class RecorderManager:
                     self._starting = False
                     self._active = True
                     self._status = "recording"
-                    self._phase = "Recording active — click any element on screen or interact with the emulator."
+                    self._phase = "Recording. Click any control on the mirrored screen."
                     if not self._serial and isinstance(driver.capabilities, dict):
                         self._serial = str(driver.capabilities.get("deviceUDID") or driver.capabilities.get("deviceName") or "")
                 self._log(f"Connected! Captured {len(self._elements)} elements on '{self._screen_name}'.")

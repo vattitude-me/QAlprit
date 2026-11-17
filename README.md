@@ -43,11 +43,11 @@ Download the installer from the [latest release](https://github.com/vattitude-me
 
 The app bundles Appium 2, Node and Java, so there is nothing else to install for Android. iOS testing needs Xcode with an iOS Simulator, which is why it is macOS only.
 
-On first launch, open **Settings & Setup**. It checks your toolchain and can create an Android emulator for you with one click.
+On first launch a welcome guide asks three things: Android or iPhone, which app file, and which device. Then it opens the recorder. If you have tests already, click **Skip to Testing space**. **Settings & setup** checks your toolchain and can create an Android emulator for you with one click.
 
 ### 2. Record a test
 
-Go to **Record**, pick the platform, the device and your app file (`.apk` for Android, `.app` or `.zip` for the iOS Simulator), and click **Start recording**. QAlprit boots the device if it is off, installs the app and shows it live.
+Click **Record a new test** (or go to **Record a test**), pick the platform, the device and your app file (`.apk` for Android, `.app` or `.zip` for the iOS Simulator), and click **Start recording**. QAlprit boots the device if it is off, installs the app and shows it live.
 
 Now use the app the way a customer would:
 
@@ -80,24 +80,29 @@ Open the workflow and go to **Variables & datasets**. The values you typed while
 
 ### 5. Run and read the report
 
-Tick the rows you want, choose Android or iOS, and click **Run**. Each row runs from a clean app state. **Runs & Reports** shows a result per row with the final screen, and links to the full HTML report, a Markdown summary and JUnit XML for CI.
+Tick the rows you want, choose Android or iOS, and click **Run**. Each row runs from a clean app state. **Runs & reports** shows a result per row with the final screen, and links to the full HTML report, a Markdown summary and JUnit XML for CI.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/vattitude-me/QAlprit/main/web/screenshots/runs.png" alt="Runs and Reports view showing two dataset runs passed with report links" width="900" />
+  <img src="https://raw.githubusercontent.com/vattitude-me/QAlprit/main/web/screenshots/runs.png" alt="Runs and reports view showing two dataset runs passed with report links" width="900" />
 </p>
 
 ---
 
 ## What the Workbench gives you
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/vattitude-me/QAlprit/main/web/screenshots/testing-space.png" alt="Testing space with every workflow and journey as a card, a Run button on each, and the latest results" width="900" />
+</p>
+
 | View | What you do there |
 |---|---|
-| **Record** | Mirror a live emulator, simulator or USB phone and capture steps by clicking |
+| **Testing space** | See every test as a card, run it in one click, rename, duplicate or delete it, and check the latest results |
+| **Record a test** | Mirror a live emulator, simulator or USB phone and capture steps by clicking |
 | **Workflows** | Edit recorded steps, manage variables and CSV datasets, run one or many rows |
 | **Journeys** | Chain workflows into end-to-end tests and tag them into suites |
-| **Runs & Reports** | Watch a run live, open reports, compare two runs side by side |
-| **Screens & locators** | See every named element and how it is found on Android and iOS |
-| **Settings & Setup** | Check the toolchain, create emulators, manage environments and app files |
+| **Runs & reports** | Watch a run live, open reports, compare two runs, delete old runs |
+| **Elements** | Search every saved button and field, see how it is found on Android and iOS, delete unused ones |
+| **Settings & setup** | Check the toolchain, create emulators, manage environments and app files |
 
 ## What comes out
 

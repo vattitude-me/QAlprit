@@ -9,7 +9,7 @@ These project rules and architecture notes govern git workflow, codebase navigat
     - `cli.py`: Click CLI (`qalprit run`, `validate`, `list`, `inspect`, `doctor`, `devices`, `report`, `ui`, `version`).
     - `desktop.py`: Frozen `.exe`/`.app` GUI entry point (`launch_workbench()`), pywebview native window host, portable workspace bootstrap (`ensure_workspace()`), and bundled runtime path wiring (`runtime/`).
     - `ui_server.py`: Threading HTTP + API server (`create_ui_server()`, `/api/overview`, `/api/runs/*`, `/api/recorder/*`, `/api/emulator/*`, `/api/datasets/*`, `/api/flows/*`, `/api/specs/*`, `/api/screens/*`, `/api/environments/*`, `/api/apps/*`, `/api/system/*`).
-    - `ui/index.html`: Single-file Workbench UI (Workbench views: `Workflows`, `Journeys`, `Record`, `Runs & Reports`; Library: `Screens & locators`; Settings: `Settings & Setup`).
+    - `ui/index.html`: Single-file Workbench UI (first-launch welcome guide: platform, app, device, then record; views: `Testing space` (home, test cards with run/rename/duplicate/delete), `Record a test`, `Workflows`, `Journeys`, `Runs & reports`; Library: `Elements`; Settings: `Settings & setup`).
   - **Execution & Validation**:
     - `spec_loader.py` & `validator.py`: Parse Markdown+YAML journeys (`specs/`), reusable flows (`flows/`, optional `platforms:` scoping locator checks), screen locators (`screens/screens.yaml`), and `validate_project()` pre-flight checks.
     - `datasets.py`: CSV dynamic variable parameterization (`datasets/flows/`, `datasets/specs/`), secret column detection, and UI masking (`mask_bundle_for_ui()`).

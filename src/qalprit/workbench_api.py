@@ -757,6 +757,13 @@ def duplicate_flow_spec(project_root: Path, name: str, new_name: str = "") -> di
         raise ValueError("Workflow path escapes flows/ directory.")
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(_dump_frontmatter_md(meta, post.content or f"Duplicated from `{name}`."), encoding="utf-8")
+    for old_file, new_file in zip(
+        _dataset_files_for(project_root.resolve(), "flow", name),
+        _dataset_files_for(project_root.resolve(), "flow", rel_name),
+    ):
+        if old_file.is_file() and not new_file.exists():
+            new_file.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(old_file, new_file)
     return {"ok": True, "name": rel_name, "source_path": dest.relative_to(project_root).as_posix()}
 
 
@@ -777,6 +784,8 @@ def delete_flow_spec(project_root: Path, name: str) -> dict[str, Any]:
         raise ValueError("Refusing to delete file outside flows/ directory.")
     rel_path = target_path.relative_to(project_root).as_posix()
     target_path.unlink()
+    for ds_file in _dataset_files_for(project_root.resolve(), "flow", name):
+        ds_file.unlink(missing_ok=True)
     return {"ok": True, "name": name, "deleted_path": rel_path}
 
 
@@ -872,6 +881,187 @@ def delete_test_journey(project_root: Path, source_path: str) -> dict[str, Any]:
     rel = target.relative_to(root).as_posix()
     target.unlink()
     return {"ok": True, "deleted_path": rel}
+
+
+def _dataset_files_for(project_root: Path, kind: str, name: str) -> list[Path]:
+    """Dataset CSV and its sidecar for a workflow or journey, limited to files inside datasets/."""
+    from qalprit.datasets import _meta_path_for_csv, _safe_dataset_rel_path
+
+    ds_root = (project_root / "datasets").resolve()
+    csv_path = (project_root / _safe_dataset_rel_path(kind, name)).resolve()  # type: ignore[arg-type]
+    if not csv_path.is_relative_to(ds_root):
+        return []
+    return [csv_path, _meta_path_for_csv(csv_path)]
+
+
+def _retarget_run_flow_steps(steps: Any, old: str, new: str) -> bool:
+    """Point `run_flow` steps at a renamed workflow. Returns True when something changed."""
+    changed = False
+    if not isinstance(steps, list):
+        return False
+    for step in steps:
+        if not isinstance(step, dict) or "run_flow" not in step:
+            continue
+        ref = step["run_flow"]
+        if isinstance(ref, str) and ref.strip() == old:
+            step["run_flow"] = new
+            changed = True
+        elif isinstance(ref, dict):
+            for key in ("flow", "name"):
+                if str(ref.get(key) or "").strip() == old:
+                    ref[key] = new
+                    changed = True
+    return changed
+
+
+def rename_flow_spec(project_root: Path, name: str, new_name: str) -> dict[str, Any]:
+    """Rename a workflow, move its dataset, and update every `run_flow` step that calls it."""
+    root = project_root.resolve()
+    flows_dir = (root / "flows").resolve()
+    flows, _ = load_flows(flows_dir)
+    if name not in flows:
+        raise ValueError(f"Workflow '{name}' was not found.")
+    clean_parts = [_safe_slug(part, "flow") for part in (new_name or "").replace("\\", "/").split("/") if part.strip()]
+    if not clean_parts:
+        raise ValueError("New workflow name is required.")
+    rel_name = "/".join(clean_parts)
+    if rel_name == name:
+        return {"ok": True, "name": name, "updated_references": 0}
+    if rel_name in flows:
+        raise ValueError(f"Workflow '{rel_name}' already exists.")
+
+    src = flows[name].source_path.resolve()
+    dest = (flows_dir / f"{rel_name}.md").resolve()
+    if not src.is_relative_to(flows_dir) or not dest.is_relative_to(flows_dir):
+        raise ValueError("Workflow path escapes flows/ directory.")
+    if dest.exists():
+        raise ValueError(f"A file already exists at flows/{rel_name}.md.")
+
+    post = frontmatter.loads(src.read_text(encoding="utf-8"))
+    meta = dict(post.metadata or {})
+    meta["name"] = rel_name
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(_dump_frontmatter_md(meta, post.content or ""), encoding="utf-8")
+    src.unlink()
+
+    old_ds = _dataset_files_for(root, "flow", name)
+    new_ds = _dataset_files_for(root, "flow", rel_name)
+    for old_file, new_file in zip(old_ds, new_ds):
+        if old_file.is_file() and not new_file.exists():
+            new_file.parent.mkdir(parents=True, exist_ok=True)
+            old_file.replace(new_file)
+
+    updated = 0
+    for folder in (flows_dir, (root / "specs").resolve()):
+        if not folder.is_dir():
+            continue
+        for md_path in folder.rglob("*.md"):
+            try:
+                ref_post = frontmatter.loads(md_path.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            ref_meta = dict(ref_post.metadata or {})
+            hit = False
+            for block in ("setup", "steps", "teardown"):
+                hit = _retarget_run_flow_steps(ref_meta.get(block), name, rel_name) or hit
+            if hit:
+                md_path.write_text(_dump_frontmatter_md(ref_meta, ref_post.content or ""), encoding="utf-8")
+                updated += 1
+    return {
+        "ok": True,
+        "name": rel_name,
+        "source_path": dest.relative_to(root).as_posix(),
+        "updated_references": updated,
+    }
+
+
+def delete_run_results(results_dir: Path, dir_name: str) -> dict[str, Any]:
+    """Delete one run folder, or a batch folder together with its per-dataset runs."""
+    res_dir = results_dir.resolve()
+    clean = (dir_name or "").strip()
+    if not clean or "/" in clean or "\\" in clean or clean in {".", ".."}:
+        raise ValueError("A run folder name is required.")
+    target = (res_dir / clean).resolve()
+    if target.parent != res_dir or not target.is_dir() or (res_dir / clean).is_symlink():
+        raise ValueError(f"Run '{clean}' was not found.")
+    if not (target / "results.json").is_file() and not (target / "batch.json").is_file():
+        raise ValueError(f"'{clean}' is not a QAlprit run folder.")
+
+    doomed = [target]
+    if (target / "batch.json").is_file():
+        for sibling in res_dir.iterdir():
+            if sibling == target or not sibling.is_dir() or sibling.is_symlink():
+                continue
+            if sibling.name.startswith(f"{clean}_") and (sibling / "results.json").is_file():
+                doomed.append(sibling)
+    deleted: list[str] = []
+    for folder in doomed:
+        shutil.rmtree(folder)
+        deleted.append(folder.name)
+    return {"ok": True, "deleted": deleted}
+
+
+def delete_workspace_app(project_root: Path, rel_path: str) -> dict[str, Any]:
+    """Delete an uploaded app file (or .app bundle) from the workspace `apps/` folder."""
+    apps_dir = (project_root / "apps").resolve()
+    name = Path((rel_path or "").replace("\\", "/")).name
+    if not name or name.startswith("."):
+        raise ValueError("An app file name is required.")
+    raw_target = apps_dir / name
+    target = raw_target.resolve()
+    if raw_target.is_symlink() or target.parent != apps_dir or not target.exists():
+        raise ValueError(f"App '{name}' was not found in apps/.")
+    if target.is_dir():
+        if target.suffix.lower() != ".app":
+            raise ValueError(f"'{name}' is not an app bundle.")
+        shutil.rmtree(target)
+    else:
+        if target.suffix.lower() not in _ALLOWED_APP_EXTS:
+            raise ValueError(f"'{name}' is not an app file.")
+        target.unlink()
+    return {"ok": True, "deleted_path": f"apps/{name}"}
+
+
+def delete_screen_locator(project_root: Path, target: str) -> dict[str, Any]:
+    """Remove one `screen.element` entry from screens/screens.yaml."""
+    screen, _, key = (target or "").strip().partition(".")
+    if not screen or not key:
+        raise ValueError("Element name must look like 'screen.element'.")
+    screens_path = project_root / "screens" / "screens.yaml"
+    raw: dict[str, Any] = {}
+    if screens_path.is_file():
+        loaded = yaml.safe_load(screens_path.read_text(encoding="utf-8"))
+        if isinstance(loaded, dict):
+            raw = loaded
+    block = raw.get(screen)
+    if not isinstance(block, dict) or key not in block:
+        raise ValueError(f"Element '{target}' was not found.")
+    del block[key]
+    if not block:
+        del raw[screen]
+    ScreensCatalog(raw)
+    screens_path.write_text(yaml.safe_dump(raw, sort_keys=False, allow_unicode=True), encoding="utf-8")
+    return {"ok": True, "deleted": f"{screen}.{key}"}
+
+
+def delete_environment_entry(project_root: Path, env_name: str) -> dict[str, Any]:
+    """Remove an environment from config/environments.yaml. The last one cannot be removed."""
+    env_path = project_root / "config" / "environments.yaml"
+    raw: dict[str, Any] = {}
+    if env_path.is_file():
+        loaded = yaml.safe_load(env_path.read_text(encoding="utf-8"))
+        if isinstance(loaded, dict):
+            raw = loaded
+    envs_block = raw.get("environments") if isinstance(raw.get("environments"), dict) else raw
+    name = (env_name or "").strip()
+    if name not in envs_block:
+        raise ValueError(f"Environment '{name}' was not found.")
+    if len(envs_block) <= 1:
+        raise ValueError("Keep at least one environment. Add another before deleting this one.")
+    del envs_block[name]
+    env_path.write_text(yaml.safe_dump(raw, sort_keys=False, allow_unicode=True), encoding="utf-8")
+    load_environments(env_path)
+    return {"ok": True, "deleted": name}
 
 
 def reveal_in_file_manager(project_root: Path, rel_path: str = "") -> dict[str, Any]:

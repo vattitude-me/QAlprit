@@ -1174,7 +1174,7 @@
     }
     .run-proof-grid {
       display: grid;
-      grid-template-columns: 118px 1fr;
+      grid-template-columns: 118px minmax(0, 1fr);
       gap: 12px;
       align-items: start;
     }
@@ -1194,7 +1194,7 @@
       cursor: pointer;
     }
     .run-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-    .run-mini-steps { display: flex; flex-direction: column; gap: 6px; font-family: var(--mono); font-size: 12px; }
+    .run-mini-steps { min-width: 0; display: flex; flex-direction: column; gap: 6px; font-family: var(--mono); font-size: 12px; }
     .run-mini-step {
       display: flex;
       align-items: center;
@@ -1343,6 +1343,364 @@
     @media (prefers-reduced-motion: reduce) {
       .toast, .live-pill.is-busy .dot { animation: none; }
     }
+
+    /* ================================================================ */
+    /* Guided workbench: nav sub-lines, platform switch, page headers   */
+    /* ================================================================ */
+    .nav-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+    .nav-text > span:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .nav-sub {
+      font-size: 10.5px;
+      font-weight: 400;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .nav-item.nav-home { padding: 9px 10px; margin-bottom: 14px; border: 1px solid var(--border); background: var(--surface); }
+    .nav-item.nav-home[aria-current="step"] { border-color: var(--accent-border); background: var(--accent-soft); }
+    .nav-item.nav-quiet { font-size: 12px; }
+
+    .plat-seg {
+      display: inline-flex;
+      height: 28px;
+      padding: 2px;
+      border-radius: 8px;
+      border: 1px solid var(--border-strong);
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+    .plat-seg button {
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 0 11px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .plat-seg button:hover:not(:disabled) { color: var(--text); }
+    .plat-seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
+    .plat-seg button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .ctx-chip .ctx-key { color: var(--muted); font-weight: 500; }
+    .ctx-chip.is-missing { border-style: dashed; color: var(--warn); }
+
+    .page-head {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    .page-head h2 { font-size: 22px; font-weight: 700; letter-spacing: -0.015em; }
+    .page-sub { margin: 3px 0 0; color: var(--muted); font-size: 13px; max-width: 70ch; }
+    .view-hint {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 12px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text-soft);
+      font-size: 12.5px;
+    }
+    .view-hint strong { color: var(--text); }
+    .icon-btn {
+      width: 26px;
+      height: 26px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font: inherit;
+      font-size: 14px;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+    .icon-btn:hover { background: var(--surface-hover); color: var(--text); border-color: var(--border-strong); }
+    .icon-btn.is-danger:hover { color: var(--fail); border-color: rgba(248, 113, 113, 0.4); }
+    .icon-btn svg { width: 14px; height: 14px; }
+    td.cell-actions { width: 1%; white-space: nowrap; text-align: right; }
+    td.cell-actions .btn-row { flex-wrap: nowrap; }
+    .el-table code { white-space: normal; word-break: break-all; }
+    .apps-table td:nth-child(2) code { white-space: normal; }
+    .apps-table td:nth-child(3) { white-space: nowrap; }
+    .el-table td:first-child code { word-break: normal; overflow-wrap: anywhere; }
+    input[type="file"] { font: inherit; font-size: 13px; color: var(--muted); padding: 0; border: 0; background: none; }
+    input[type="file"]::file-selector-button { font: inherit; font-weight: 600; font-size: 13px; color: var(--text); background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 8px; padding: 7px 12px; margin-right: 10px; cursor: pointer; }
+    input[type="file"]::file-selector-button:hover { border-color: var(--accent-border); }
+
+    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+    /* Home / Testing space */
+    .home-pane { overflow-y: auto; padding-right: 4px; }
+    .home-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+    .stat-tile {
+      border: 1px solid var(--border);
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 13px 15px;
+      min-width: 0;
+    }
+    .stat-label { font-size: 11.5px; color: var(--muted); font-weight: 600; }
+    .stat-value { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; margin-top: 3px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .stat-value.is-ok { color: var(--ok); }
+    .stat-value.is-fail { color: var(--fail); }
+    .stat-value.is-muted { color: var(--text-soft); font-size: 17px; line-height: 33px; }
+    .stat-note { font-size: 11.5px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .home-checklist {
+      border: 1px solid var(--accent-border);
+      background: linear-gradient(180deg, rgba(45, 212, 191, 0.07), rgba(45, 212, 191, 0.02));
+      border-radius: var(--radius);
+      padding: 14px 16px;
+    }
+    .home-checklist-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+    .home-checklist-head h3 { font-size: 14px; font-weight: 700; }
+    .check-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+    .check-step {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 11px 12px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--surface);
+      min-width: 0;
+    }
+    .check-step-top { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13px; color: var(--text); }
+    .check-num {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      border: 1px solid var(--border-strong);
+      color: var(--text-soft);
+      flex-shrink: 0;
+    }
+    .check-step.is-done .check-num { background: var(--ok); border-color: var(--ok); color: #06251c; }
+    .check-step.is-next { border-color: var(--accent-border); }
+    .check-step.is-next .check-num { border-color: var(--accent); color: var(--accent); }
+    .check-step p { margin: 0; font-size: 12px; color: var(--muted); flex: 1; }
+    .check-step .btn { align-self: flex-start; }
+
+    .home-cols { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }
+    .home-section-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+    .home-section-head h3 { font-size: 15px; font-weight: 700; }
+    .test-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+    .test-card {
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 13px 14px 12px;
+      min-width: 0;
+      transition: border-color 0.12s, transform 0.12s;
+    }
+    .test-card:hover { border-color: var(--border-strong); }
+    .test-card.is-off { opacity: 0.62; }
+    .test-card-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+    .test-tags { display: flex; align-items: center; gap: 5px; min-width: 0; }
+    .tag {
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      padding: 2px 7px;
+      border-radius: 5px;
+      border: 1px solid var(--border-strong);
+      color: var(--text-soft);
+      white-space: nowrap;
+    }
+    .tag.is-flow { color: var(--accent); border-color: var(--accent-border); background: var(--accent-soft); }
+    .tag.is-journey { color: #a5b4fc; border-color: rgba(129, 140, 248, 0.4); background: rgba(129, 140, 248, 0.1); }
+    .test-name { font-size: 14.5px; font-weight: 700; color: var(--text); overflow-wrap: anywhere; line-height: 1.3; }
+    .test-title { font-size: 12px; color: var(--text-soft); margin-top: 2px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .test-meta { font-size: 12px; color: var(--muted); }
+    .test-last { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text-soft); margin-top: auto; }
+    .test-actions { display: flex; gap: 7px; }
+    .test-actions .btn { flex: 1; justify-content: center; }
+    .empty-state {
+      border: 1px dashed var(--border-strong);
+      border-radius: var(--radius);
+      padding: 34px 20px;
+      text-align: center;
+      color: var(--muted);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+    .empty-state strong { color: var(--text); font-size: 15px; }
+    .empty-state p { margin: 0; max-width: 46ch; font-size: 13px; }
+    .recent-list { display: flex; flex-direction: column; }
+    .recent-row {
+      display: grid;
+      grid-template-columns: 8px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 14px;
+      border-top: 1px solid var(--border);
+      font-size: 12.5px;
+      cursor: pointer;
+      background: transparent;
+      border-left: none;
+      border-right: none;
+      border-bottom: none;
+      color: inherit;
+      font-family: inherit;
+      text-align: left;
+      width: 100%;
+    }
+    .recent-row:hover { background: var(--surface-hover); }
+    .recent-name { color: var(--text); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .recent-note { color: var(--muted); font-size: 11.5px; }
+
+    /* Welcome */
+    .welcome {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      background:
+        radial-gradient(900px 520px at 12% -10%, rgba(45, 212, 191, 0.16), transparent 60%),
+        radial-gradient(700px 480px at 100% 110%, rgba(56, 189, 248, 0.10), transparent 60%),
+        var(--bg);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+    .welcome-top { display: flex; align-items: center; justify-content: space-between; padding: 16px 28px; flex-shrink: 0; }
+    .welcome-brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16px; }
+    .welcome-brand svg { width: 28px; height: 28px; }
+    .welcome-body {
+      flex: 1;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 520px);
+      gap: 56px;
+      align-items: center;
+      width: 100%;
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 12px 28px 40px;
+    }
+    .welcome-intro h1 { font-size: 40px; line-height: 1.1; letter-spacing: -0.03em; font-weight: 800; margin: 0 0 14px; }
+    .welcome-intro h1 em { font-style: normal; color: var(--accent); }
+    .welcome-lede { font-size: 16px; color: var(--text-soft); margin: 0 0 26px; max-width: 46ch; line-height: 1.55; }
+    .welcome-story { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+    .welcome-story li { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; align-items: start; }
+    .story-num {
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      color: var(--accent);
+      background: var(--accent-soft);
+      border: 1px solid var(--accent-border);
+    }
+    .welcome-story strong { display: block; font-size: 14.5px; color: var(--text); }
+    .welcome-story span { font-size: 13px; color: var(--muted); }
+    .welcome-returning {
+      margin-top: 26px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 13px 15px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border-strong);
+      background: var(--surface);
+      font-size: 13px;
+      color: var(--text-soft);
+    }
+    .welcome-returning strong { color: var(--text); display: block; }
+    .wizard {
+      border: 1px solid var(--border-strong);
+      background: var(--surface);
+      border-radius: 16px;
+      box-shadow: 0 30px 70px rgba(0, 0, 0, 0.45);
+      display: flex;
+      flex-direction: column;
+      min-height: 468px;
+    }
+    .wizard-steps { display: flex; gap: 6px; padding: 16px 20px 0; }
+    .wizard-step-pill {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      padding-bottom: 10px;
+      border-bottom: 2px solid var(--border);
+    }
+    .wizard-step-pill.is-current { color: var(--text); border-bottom-color: var(--accent); }
+    .wizard-step-pill.is-done { color: var(--accent); border-bottom-color: var(--accent-border); }
+    .wizard-body { padding: 20px; flex: 1; display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+    .wizard-body h2 { font-size: 19px; font-weight: 700; letter-spacing: -0.01em; }
+    .wizard-body .page-sub { margin-top: -8px; }
+    .wizard-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 20px; border-top: 1px solid var(--border); }
+    .plat-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .choice {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border-strong);
+      background: var(--surface-2);
+      color: var(--text);
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+      min-width: 0;
+    }
+    .choice:hover:not(:disabled) { border-color: #3a4a63; background: var(--surface-hover); }
+    .choice[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 1px var(--accent) inset; }
+    .choice:disabled { opacity: 0.45; cursor: not-allowed; }
+    .choice.is-tile { flex-direction: column; align-items: flex-start; padding: 18px 16px; gap: 10px; }
+    .choice.is-tile svg { width: 34px; height: 34px; color: var(--accent); }
+    .choice-main { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+    .choice-title { font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .choice-note { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .choice-list { display: flex; flex-direction: column; gap: 8px; max-height: 208px; overflow-y: auto; padding-right: 2px; }
+    .dropzone {
+      border: 1px dashed var(--border-strong);
+      border-radius: var(--radius);
+      padding: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 12.5px;
+    }
+    .dropzone.is-over { border-color: var(--accent); background: var(--accent-soft); color: var(--text); }
+    .welcome-check { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); cursor: pointer; }
+
+    @media (max-width: 1080px) {
+      .welcome-body { grid-template-columns: 1fr; gap: 26px; align-items: start; }
+      .welcome-intro h1 { font-size: 30px; }
+      .home-cols { grid-template-columns: 1fr; }
+      .home-stats, .check-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
   </style>
 </head>
 <body>
@@ -1368,35 +1726,40 @@
       </div>
 
       <div class="topbar-right">
-        <label class="ctx-chip hide-on-record" id="topEnvChip" title="Active test environment">
-          <span class="muted">Env:</span>
-          <select id="topEnvSelect" aria-label="Active environment"></select>
-        </label>
-        <button type="button" class="ctx-chip hide-on-record" id="topDevicePill" popovertarget="devicePopoverMenu" title="Boot, switch, or shut down virtual device">
-          <span class="dot" id="topDeviceDot"></span>
-          <span id="topDeviceLabel">No device booted</span>
-          <span class="muted" style="font-size:10px;">&#9662;</span>
-        </button>
-        <button type="button" class="ctx-chip hide-on-record" id="topAppPill" title="Active app binary (click to switch or upload)">
+        <div class="plat-seg hide-on-record" role="group" aria-label="Platform you are testing">
+          <button type="button" data-top-plat="android" aria-pressed="true" title="Test the Android app">Android</button>
+          <button type="button" data-top-plat="ios" aria-pressed="false" title="Test the iOS app">iOS</button>
+        </div>
+        <button type="button" class="ctx-chip hide-on-record" id="topAppPill" title="App under test. Click to change or add one.">
+          <span class="ctx-key">App</span>
           <span id="topAppLabel">No app selected</span>
         </button>
+        <button type="button" class="ctx-chip hide-on-record" id="topDevicePill" popovertarget="devicePopoverMenu" title="Start, switch or stop the device">
+          <span class="dot" id="topDeviceDot"></span>
+          <span id="topDeviceLabel">No device running</span>
+          <span class="muted" style="font-size:10px;">&#9662;</span>
+        </button>
+        <label class="ctx-chip hide-on-record" id="topEnvChip" title="Environment: which app ID and timeouts to use">
+          <span class="ctx-key">Env</span>
+          <select id="topEnvSelect" aria-label="Active environment"></select>
+        </label>
         <button type="button" class="ctx-chip" id="btnTopMore" popovertarget="topMoreMenu" aria-label="Workspace actions">&hellip;</button>
       </div>
     </header>
 
     <div id="devicePopoverMenu" class="menu-popover menu-popover-wide" popover>
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-        <span class="panel-kicker">Device &amp; Emulator</span>
+        <span class="panel-kicker" id="topDevKicker">Device</span>
         <span class="badge b-skip" id="topDevStatusBadge">Offline</span>
       </div>
       <div id="topDevBootedBox" hidden style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px;border-radius:7px;background:var(--surface);border:1px solid var(--border);">
         <span id="topDevBootedText" style="font-size:12px;font-weight:600;color:var(--text);">Booted</span>
-        <button type="button" class="btn btn-sm btn-danger" id="btnTopShutdownDevice">Shutdown</button>
+        <button type="button" class="btn btn-sm btn-danger" id="btnTopShutdownDevice">Stop</button>
       </div>
       <div>
-        <label for="topQuickPlat">Switch / Boot Target</label>
+        <label for="topQuickDevice">Device to use</label>
         <div style="display:flex;gap:6px;">
-          <select id="topQuickPlat" style="width:94px;" aria-label="Quick target platform">
+          <select id="topQuickPlat" style="width:94px;" aria-label="Quick target platform" hidden>
             <option value="android">Android</option>
             <option value="ios">iOS</option>
           </select>
@@ -1404,8 +1767,8 @@
         </div>
       </div>
       <div class="btn-row" style="justify-content:space-between;">
-        <button type="button" class="btn btn-sm btn-ghost" id="btnTopGoDeviceSetup">1-time Setup &amp; Doctor &rarr;</button>
-        <button type="button" class="btn btn-sm btn-primary" id="btnTopBootDevice">Boot</button>
+        <button type="button" class="btn btn-sm btn-ghost" id="btnTopGoDeviceSetup">Device setup &rarr;</button>
+        <button type="button" class="btn btn-sm btn-primary" id="btnTopBootDevice">Start device</button>
       </div>
     </div>
 
@@ -1414,38 +1777,58 @@
       <button type="button" id="btnOpenWorkspaceFolder">&#x1F4C2; Open workspace folder</button>
       <button type="button" id="btnQuickValidate">&#x2713; Validate workspace</button>
       <div class="menu-sep"></div>
-      <button type="button" id="btnMoreDeviceSetup">1-time Setup &amp; Doctor</button>
+      <button type="button" id="btnMoreDeviceSetup">Device setup and health check</button>
+      <button type="button" id="btnOpenWelcome">Show the welcome guide</button>
+    </div>
+
+    <div id="cardMenu" class="menu-popover" popover>
+      <button type="button" data-card-act="open">Open and edit</button>
+      <button type="button" data-card-act="rename" id="cardMenuRename">Rename</button>
+      <button type="button" data-card-act="duplicate">Duplicate</button>
+      <div class="menu-sep"></div>
+      <button type="button" data-card-act="delete" style="color:var(--fail);">Delete</button>
     </div>
 
     <!-- LEFT SIDEBAR -->
     <aside class="sidebar">
       <nav aria-label="QA Workflow Steps">
+          <button type="button" class="nav-item nav-home" data-nav="home" aria-current="step">
+            <span class="nav-item-left">
+              <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 7.5 8 3l5.5 4.5V13a.5.5 0 0 1-.5.5H9.5v-3.5h-3v3.5H3a.5.5 0 0 1-.5-.5z"/></svg>
+              <span class="nav-text"><span>Testing space</span><span class="nav-sub">Run and manage your tests</span></span>
+            </span>
+          </button>
+
         <div class="nav-group">
-          <div class="nav-group-label">Workbench</div>
-          <button type="button" class="nav-item" id="btnOpenFlowsModal" data-nav="workflows" aria-current="step">
+          <div class="nav-group-label">1. Build tests</div>
+          <button type="button" class="nav-item" data-nav="record">
+            <span class="nav-item-left">
+              <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="5.5"/><circle cx="8" cy="8" r="2" fill="currentColor" stroke="none"/></svg>
+              <span class="nav-text"><span>Record a test</span><span class="nav-sub">Use your app, save the steps</span></span>
+            </span>
+          </button>
+          <button type="button" class="nav-item" id="btnOpenFlowsModal" data-nav="workflows">
             <span class="nav-item-left">
               <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="4" cy="4" r="1.8"/><circle cx="12" cy="12" r="1.8"/><path d="M5.8 4H10a2 2 0 0 1 2 2v4.2M4 5.8v4.2a2 2 0 0 0 2 2h4.2"/></svg>
-              <span>Workflows</span>
+              <span class="nav-text"><span>Workflows</span><span class="nav-sub">Reusable steps</span></span>
             </span>
             <span class="nav-badge" id="badgeFlows">0</span>
           </button>
           <button type="button" class="nav-item" data-nav="journeys">
             <span class="nav-item-left">
               <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4.5h10M3 8h10M3 11.5h6"/></svg>
-              <span>Journeys</span>
+              <span class="nav-text"><span>Journeys</span><span class="nav-sub">Workflows chained</span></span>
             </span>
             <span class="nav-badge" id="badgeSpecs">0</span>
           </button>
-          <button type="button" class="nav-item" data-nav="record">
-            <span class="nav-item-left">
-              <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="5.5"/><circle cx="8" cy="8" r="2" fill="currentColor" stroke="none"/></svg>
-              <span>Record</span>
-            </span>
-          </button>
+        </div>
+
+        <div class="nav-group">
+          <div class="nav-group-label">2. Check results</div>
           <button type="button" class="nav-item" data-nav="runs">
             <span class="nav-item-left">
               <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="5,3.5 13,8 5,12.5"/></svg>
-              <span>Runs &amp; Reports</span>
+              <span class="nav-text"><span>Runs &amp; reports</span><span class="nav-sub">Past results</span></span>
             </span>
             <span class="nav-badge" id="badgeRuns">0</span>
           </button>
@@ -1456,7 +1839,7 @@
           <button type="button" class="nav-item" data-nav="screens">
             <span class="nav-item-left">
               <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="2" width="8" height="12" rx="1.8"/><line x1="7" y1="11.5" x2="9" y2="11.5"/></svg>
-              <span>Screens &amp; locators</span>
+              <span class="nav-text"><span>Elements</span><span class="nav-sub">Saved buttons, fields</span></span>
             </span>
             <span class="nav-badge" id="badgeScreens">0</span>
           </button>
@@ -1464,13 +1847,13 @@
       </nav>
 
       <div>
-        <button type="button" class="nav-item" data-nav="settings">
-          <span class="nav-item-left">
-            <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2.2"/><path d="M8 2v1.5M8 12.5V14M2 8h1.5M12.5 8H14M3.8 3.8l1.1 1.1M11.1 11.1l1.1 1.1M12.2 3.8l-1.1 1.1M4.9 11.1l-1.1 1.1"/></svg>
-            <span>Settings &amp; Setup</span>
-          </span>
-          <span class="nav-badge" id="badgeApps" hidden>0 apps</span>
-        </button>
+          <button type="button" class="nav-item" data-nav="settings">
+            <span class="nav-item-left">
+              <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2.2"/><path d="M8 2v1.5M8 12.5V14M2 8h1.5M12.5 8H14M3.8 3.8l1.1 1.1M11.1 11.1l1.1 1.1M12.2 3.8l-1.1 1.1M4.9 11.1l-1.1 1.1"/></svg>
+              <span class="nav-text"><span>Settings &amp; setup</span><span class="nav-sub">Apps, devices, environments</span></span>
+            </span>
+            <span class="nav-badge" id="badgeApps" hidden>0 apps</span>
+          </button>
       </div>
       <div class="split-handle is-sidebar-edge" data-split="sidebar" role="separator" aria-orientation="vertical" tabindex="0" title="Drag to resize sidebar (double-click to reset)"></div>
     </aside>
@@ -1480,9 +1863,58 @@
       <div id="corruptBanner" class="status-banner status-warn" hidden role="status" aria-live="polite" style="margin-bottom:12px;"></div>
 
       <!-- ============================================================== -->
+      <!-- VIEW: HOME / TESTING SPACE                                     -->
+      <!-- ============================================================== -->
+      <section class="view-pane home-pane" id="view-home" aria-label="Testing space">
+        <div class="page-head">
+          <div>
+            <h2>Testing space</h2>
+            <p class="page-sub" id="homeSub">Record a test once, then run it whenever your app changes.</p>
+          </div>
+          <div class="btn-row">
+            <button type="button" class="btn" id="btnHomeCustomRun" title="Pick several tests, a device and run options">Custom run&hellip;</button>
+            <button type="button" class="btn btn-primary btn-record-lg" id="btnHomeRecord"><span class="rec-btn-dot"></span> Record a new test</button>
+          </div>
+        </div>
+
+        <input id="homeAppFile" type="file" accept=".apk,.ipa,.zip" hidden />
+        <div class="home-stats" id="homeStats"></div>
+        <div class="home-checklist" id="homeChecklist" hidden></div>
+
+        <div class="home-cols">
+          <div>
+            <div class="home-section-head">
+              <h3>Your tests</h3>
+              <div class="btn-row">
+                <div class="seg" role="group" aria-label="Show test type" id="homeKindSeg">
+                  <button type="button" aria-pressed="true" data-home-kind="all">All</button>
+                  <button type="button" aria-pressed="false" data-home-kind="flow">Workflows</button>
+                  <button type="button" aria-pressed="false" data-home-kind="spec">Journeys</button>
+                </div>
+                <input id="homeFilterInput" type="search" placeholder="Search tests" style="width:190px;" aria-label="Search tests" />
+              </div>
+            </div>
+            <div class="test-grid" id="homeTestGrid"></div>
+          </div>
+
+          <aside class="panel" aria-label="Latest results">
+            <div class="panel-head">
+              <span class="panel-kicker">Latest results</span>
+              <button type="button" class="btn btn-sm btn-ghost" id="btnHomeAllRuns">See all</button>
+            </div>
+            <div class="recent-list" id="homeRecentRuns"></div>
+          </aside>
+        </div>
+      </section>
+
+      <!-- ============================================================== -->
       <!-- VIEW: RECORD (Mock 1 + Direct Device/App Launcher)             -->
       <!-- ============================================================== -->
       <section class="view-pane" id="view-record" hidden aria-label="Record App Flow">
+        <div class="view-hint" id="recIntroHint">
+          <strong>Record a test.</strong>
+          <span>Pick the device and app, name the test, then click Start recording. Click the mirrored screen to tap. Every tap and typed value becomes a step you can replay.</span>
+        </div>
         <form class="rec-toolbar" id="recStartForm" onsubmit="return false;">
           <div class="rec-toolbar-left">
             <div class="rec-field-sm">
@@ -1493,26 +1925,26 @@
               </select>
             </div>
             <div class="rec-field-dev">
-              <label for="recDeviceSelect">Target Device / Emulator</label>
+              <label for="recDeviceSelect">Device</label>
               <div class="dev-combo">
                 <select id="recDeviceSelect" aria-label="Record device"></select>
-                <button type="button" class="btn btn-sm btn-danger" id="btnRecShutdownDevice" hidden title="Shut down booted virtual device">Shutdown</button>
+                <button type="button" class="btn btn-sm btn-danger" id="btnRecShutdownDevice" hidden title="Stop the running device">Stop</button>
               </div>
             </div>
             <div class="rec-field-md">
-              <label for="recAppSelect">App Binary</label>
+              <label for="recAppSelect">App</label>
               <div class="dev-combo">
                 <select id="recAppSelect" aria-label="Record app binary"></select>
                 <input id="recQuickAppFile" type="file" accept=".apk,.ipa,.zip" hidden />
-                <button type="button" class="btn btn-sm" id="btnRecQuickUpload" title="Upload .apk / .ipa / .zip">+</button>
+                <button type="button" class="btn btn-sm" id="btnRecQuickUpload" title="Add an app (.apk, .ipa or .zip)">+</button>
               </div>
             </div>
-            <div class="rec-field-sm" style="width:88px;">
-              <label for="recEnvSelect">Env</label>
+            <div class="rec-field-sm" style="width:104px;">
+              <label for="recEnvSelect">Environment</label>
               <select id="recEnvSelect" aria-label="Record environment"></select>
             </div>
             <div class="rec-field-md" style="max-width:190px;">
-              <label for="recFlowNameInput">Flow name</label>
+              <label for="recFlowNameInput">Test name</label>
               <input id="recFlowNameInput" type="text" value="auth/recorded_flow" placeholder="auth/iphone-login-logout" />
               <input id="recScreenName" type="hidden" value="recorded_flow" />
             </div>
@@ -1687,20 +2119,20 @@
       <!-- ============================================================== -->
       <!-- VIEW: WORKFLOWS & JOURNEYS (Mock 2 Shared Pattern)             -->
       <!-- ============================================================== -->
-      <section class="view-pane" id="view-workflows" aria-label="Workflows">
+      <section class="view-pane" id="view-workflows" hidden aria-label="Workflows">
         <div class="split-library">
           <div class="library-rail">
             <div class="library-rail-head">
-              <strong style="font-size:12.5px;">Workflows (<code>flows/</code>)</strong>
+              <strong style="font-size:12.5px;" title="Saved in the flows/ folder">Workflows</strong>
               <div class="btn-row" style="gap:4px;">
                 <input id="flowRailUploadInput" type="file" accept=".md,.markdown" hidden />
                 <button type="button" class="btn btn-sm" data-reload-workspace="flows" title="Reload workflows">&#x21bb;</button>
-                <button type="button" class="btn btn-sm" id="btnFlowRailUpload" title="Import .md workflow">&#x2191;</button>
-                <button type="button" class="btn btn-sm" id="btnNewFlowRail" title="New blank workflow">+</button>
+                <button type="button" class="btn btn-sm" id="btnFlowRailUpload" title="Import a workflow (.md file)">&#x2191;</button>
+                <button type="button" class="btn btn-sm" id="btnNewFlowRail" title="New empty workflow">+</button>
               </div>
             </div>
             <div style="padding:8px 8px 4px;border-bottom:1px solid var(--border);">
-              <button type="button" class="btn btn-primary btn-record-cta" id="btnRailRecordNew" data-flow-record-new title="Open live Recorder to capture a new workflow"><span class="rec-btn-dot"></span> Record New</button>
+              <button type="button" class="btn btn-primary btn-record-cta" id="btnRailRecordNew" data-flow-record-new title="Record a new workflow on a live device"><span class="rec-btn-dot"></span> Record a test</button>
             </div>
             <div class="library-rail-list" id="workflowsRailList"></div>
           </div>
@@ -1713,11 +2145,11 @@
         <div class="split-library">
           <div class="library-rail">
             <div class="library-rail-head">
-              <strong style="font-size:12.5px;">Journeys (<code>specs/</code>)</strong>
+              <strong style="font-size:12.5px;" title="Saved in the specs/ folder">Journeys</strong>
               <div class="btn-row" style="gap:4px;">
                 <input id="specUploadInput" type="file" accept=".md,.markdown" hidden />
-                <button type="button" class="btn btn-sm" id="btnUploadSpecTrigger" title="Import .md journey">&#x2191;</button>
-                <button type="button" class="btn btn-sm btn-primary" id="btnNewSpec" title="New journey">+</button>
+                <button type="button" class="btn btn-sm" id="btnUploadSpecTrigger" title="Import a journey (.md file)">&#x2191;</button>
+                <button type="button" class="btn btn-sm btn-primary" id="btnNewSpec" title="New journey">+ New</button>
               </div>
             </div>
             <div class="library-rail-list" id="journeysRailList"></div>
@@ -1732,11 +2164,14 @@
       <!-- ============================================================== -->
       <section class="view-pane" id="view-runs" hidden aria-label="Runs and Reports">
         <div class="runs-header">
-          <h2>Runs &amp; Reports</h2>
+          <div>
+            <h2>Runs &amp; reports</h2>
+            <p class="page-sub">Every run of a test is listed here. Click a row to see each step, its screenshot and why it failed.</p>
+          </div>
           <div class="runs-actions">
-            <input id="runsFilterInput" type="search" placeholder="Filter by journey, dataset, status" style="width:240px;" />
+            <input id="runsFilterInput" type="search" placeholder="Search by test, data row or status" style="width:240px;" />
             <button type="button" class="btn" id="btnOpenCompareModal">Compare runs</button>
-            <button type="button" class="btn btn-primary" id="btnOpenNewRunModal">&#9654; New run</button>
+            <button type="button" class="btn btn-primary" id="btnOpenNewRunModal">&#9654; New run&hellip;</button>
           </div>
         </div>
 
@@ -1764,15 +2199,16 @@
                 <thead>
                   <tr>
                     <th>Run</th>
-                    <th>Journey / workflow</th>
-                    <th>Dataset</th>
-                    <th>Status</th>
+                    <th>Test</th>
+                    <th>Data row</th>
+                    <th>Result</th>
                     <th>Time</th>
-                    <th>Artifacts</th>
+                    <th>Reports</th>
+                    <th><span class="sr-only">Actions</span></th>
                   </tr>
                 </thead>
                 <tbody id="runsTable">
-                  <tr><td colspan="6" class="muted">No completed test runs yet.</td></tr>
+                  <tr><td colspan="7" class="muted">No runs yet.</td></tr>
                 </tbody>
               </table>
             </div>
@@ -1792,37 +2228,38 @@
       <section class="view-pane" id="view-screens" hidden aria-label="Screens and Locators">
         <div class="runs-header">
           <div>
-            <h2>Screens &amp; Locators (<code>screens/screens.yaml</code>)</h2>
-            <p class="muted" style="margin:2px 0 0;">Manage cross-platform locators or inspect live device / XML dumps.</p>
+            <h2>Elements</h2>
+            <p class="page-sub">The buttons, fields and labels your tests touch, and how QAlprit finds each one on Android and iOS. Recording adds them for you. Saved in <code>screens/screens.yaml</code>.</p>
           </div>
           <div class="btn-row">
+            <input id="elFilterInput" type="search" placeholder="Search elements" style="width:200px;" aria-label="Search elements" />
             <button type="button" class="btn btn-sm" data-reveal-path="screens/screens.yaml">Reveal YAML</button>
             <button type="button" class="btn btn-sm" data-reload-workspace="screens">&#x21bb; Reload</button>
           </div>
         </div>
 
         <div class="panel">
-          <div class="table-wrap" style="max-height:260px;">
-            <table>
-              <thead><tr><th>Target</th><th>Android</th><th>iOS</th><th>Sensitive</th></tr></thead>
-              <tbody id="screensTable"><tr><td colspan="4" class="muted">No screen locators mapped yet.</td></tr></tbody>
+          <div class="table-wrap" style="max-height:440px;">
+            <table class="el-table">
+              <thead><tr><th>Element</th><th>Android</th><th>iOS</th><th>Hidden in reports</th><th><span class="sr-only">Actions</span></th></tr></thead>
+              <tbody id="screensTable"><tr><td colspan="5" class="muted">No elements saved yet.</td></tr></tbody>
             </table>
           </div>
         </div>
 
         <div class="grid-2">
           <div class="panel">
-            <div class="panel-head"><span class="panel-kicker">Single Live Screen Capture</span></div>
+            <div class="panel-head"><span class="panel-kicker">Capture a live screen</span></div>
             <form id="inspectLiveForm" method="POST" class="panel-body" style="display:flex;flex-direction:column;gap:10px;">
               <div class="form-grid">
-                <div><label for="inspectScreenName">Screen Name</label><input id="inspectScreenName" type="text" value="login" required /></div>
+                <div><label for="inspectScreenName">Screen name</label><input id="inspectScreenName" type="text" value="login" required /></div>
                 <div><label for="inspectPlatform">Platform</label><select id="inspectPlatform"><option value="android">android</option><option value="ios">ios</option></select></div>
                 <div><label for="inspectDeviceSelect">Device</label><select id="inspectDeviceSelect"></select></div>
                 <div><label for="inspectEnvSelect">Environment</label><select id="inspectEnvSelect"></select></div>
-                <div><label for="inspectAppSelect">App Binary</label><select id="inspectAppSelect"></select></div>
+                <div><label for="inspectAppSelect">App</label><select id="inspectAppSelect"></select></div>
               </div>
               <div class="btn-row">
-                <button type="submit" class="btn btn-primary" id="btnCaptureLive">Capture Live Screen</button>
+                <button type="submit" class="btn btn-primary" id="btnCaptureLive">Capture screen</button>
                 <button type="button" class="btn btn-danger" id="btnStopCapture" hidden>Stop</button>
               </div>
               <div class="progress-box" id="captureProgressBox" hidden>
@@ -1833,15 +2270,15 @@
           </div>
 
           <div class="panel">
-            <div class="panel-head"><span class="panel-kicker">Inspect XML Dump</span></div>
+            <div class="panel-head"><span class="panel-kicker">Read elements from XML</span></div>
             <form id="inspectXmlForm" method="POST" class="panel-body" style="display:flex;flex-direction:column;gap:10px;">
               <div>
-                <label for="inspectXmlText">UI Hierarchy XML</label>
+                <label for="inspectXmlText">Page XML</label>
                 <textarea id="inspectXmlText" placeholder="<hierarchy><node resource-id='com.demo:id/email' ... /></hierarchy>"></textarea>
               </div>
               <div class="btn-row">
-                <button type="submit" class="btn btn-primary">Extract Elements</button>
-                <button type="button" class="btn" id="btnLoadSampleXml">Load Sample XML</button>
+                <button type="submit" class="btn btn-primary">Find elements</button>
+                <button type="button" class="btn" id="btnLoadSampleXml">Load sample XML</button>
               </div>
             </form>
           </div>
@@ -1851,12 +2288,12 @@
 
         <div class="panel">
           <div class="panel-head">
-            <span class="panel-kicker">Identified Elements</span>
-            <button type="button" class="btn btn-sm btn-primary" id="btnSaveLocators">Save Checked Locators</button>
+            <span class="panel-kicker">Elements found</span>
+            <button type="button" class="btn btn-sm btn-primary" id="btnSaveLocators">Save checked elements</button>
           </div>
           <div class="table-wrap" style="max-height:240px;">
             <table>
-              <thead><tr><th style="width:42px;">Save</th><th>Key</th><th>Strategy</th><th>Locator Value</th><th>Label</th><th style="width:82px;">Sensitive</th></tr></thead>
+              <thead><tr><th style="width:42px;">Save</th><th>Key</th><th>Strategy</th><th>Locator value</th><th>Label</th><th style="width:82px;">Sensitive</th></tr></thead>
               <tbody id="inspectCandidatesBody"><tr><td colspan="6" class="muted">Capture a live screen or extract XML above.</td></tr></tbody>
             </table>
           </div>
@@ -1869,8 +2306,8 @@
       <section class="view-pane" id="view-settings" hidden aria-label="Settings">
         <div class="runs-header">
           <div>
-            <h2>Settings &amp; 1-Time Setup</h2>
-            <p class="muted" style="margin:2px 0 0;">Configure environment profiles, app binaries, virtual emulators, toolchain checks, and storage.</p>
+            <h2>Settings &amp; setup</h2>
+            <p class="muted" style="margin:2px 0 0;">Add the apps you test, set up emulators and simulators, and choose where QAlprit keeps its files.</p>
           </div>
           <div class="btn-row">
             <span class="badge b-skip" id="osCapabilityBadge">Detecting OS...</span>
@@ -1878,39 +2315,39 @@
         </div>
 
         <div class="tablist" role="tablist" aria-label="Settings sections">
-          <button type="button" role="tab" aria-selected="true" data-settings-tab="env">Environments &amp; Apps</button>
-          <button type="button" role="tab" aria-selected="false" data-settings-tab="devices">Devices &amp; Toolchain</button>
-          <button type="button" role="tab" aria-selected="false" data-settings-tab="storage">Storage &amp; Cleanup</button>
+          <button type="button" role="tab" aria-selected="true" data-settings-tab="env">Apps &amp; environments</button>
+          <button type="button" role="tab" aria-selected="false" data-settings-tab="devices">Devices &amp; health check</button>
+          <button type="button" role="tab" aria-selected="false" data-settings-tab="storage">Storage &amp; cleanup</button>
         </div>
 
         <!-- TAB 1: ENVIRONMENTS & APPS -->
         <div class="grid-2" id="settings-pane-env">
           <div class="panel" id="envConfigCard">
             <div class="panel-head">
-              <span class="panel-kicker">Environment &amp; Package Config</span>
+              <span class="panel-kicker">Environments</span>
             </div>
             <form id="envSaveForm" method="POST" class="panel-body" style="display:flex;flex-direction:column;gap:10px;">
               <div class="form-grid">
                 <div>
-                  <label for="envPresetSelect">Saved Profile</label>
+                  <label for="envPresetSelect">Environment</label>
                   <select id="envPresetSelect"></select>
                 </div>
                 <div>
-                  <label for="envNameInput">Profile Name</label>
+                  <label for="envNameInput">Name</label>
                   <input id="envNameInput" type="text" value="qa" required />
                 </div>
                 <div>
-                  <label for="envTimeoutInput">Timeout (sec)</label>
+                  <label for="envTimeoutInput">Wait up to (seconds)</label>
                   <input id="envTimeoutInput" type="number" min="1" step="0.5" value="12" required />
                 </div>
               </div>
               <div class="form-grid">
                 <div>
-                  <label for="envAndroidPkg">Android Package ID</label>
+                  <label for="envAndroidPkg">Android app ID (package)</label>
                   <input id="envAndroidPkg" type="text" placeholder="com.example.myapp" />
                 </div>
                 <div id="envIosBundleField">
-                  <label for="envIosBundle">iOS Bundle ID</label>
+                  <label for="envIosBundle">iOS app ID (bundle)</label>
                   <input id="envIosBundle" type="text" placeholder="com.example.MyApp" />
                 </div>
               </div>
@@ -1919,7 +2356,7 @@
                   <input id="envRedactChk" type="checkbox" switch checked />
                   <span>Redact sensitive fields in screenshots</span>
                 </label>
-                <button type="submit" class="btn btn-primary" id="btnSaveEnv">Save environment</button>
+                <span class="btn-row"><button type="button" class="btn btn-danger" id="btnDeleteEnv">Delete</button><button type="submit" class="btn btn-primary" id="btnSaveEnv">Save environment</button></span>
               </div>
               <div id="envStatus" class="status-banner" hidden aria-live="polite"></div>
             </form>
@@ -1927,18 +2364,18 @@
 
           <div class="panel">
             <div class="panel-head">
-              <span class="panel-kicker">App Binaries Under Test (<code>apps/</code>)</span>
+              <span class="panel-kicker">Apps you test</span>
             </div>
             <div class="panel-body" style="display:flex;flex-direction:column;gap:10px;">
               <div>
-                <label for="activeAppSelect">Session App</label>
+                <label for="activeAppSelect">App in use</label>
                 <select id="activeAppSelect"></select>
                 <div class="muted" id="activeAppSummary" style="font-size:11.5px;margin-top:4px;">Upload or select an .apk / .ipa / .zip binary.</div>
               </div>
               <form id="uploadAppForm" method="POST" style="display:flex;flex-direction:column;gap:8px;">
                 <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
                   <input id="appFileInput" name="appFile" type="file" accept=".apk,.ipa,.zip" style="flex:1;" required />
-                  <button type="submit" class="btn btn-primary" id="btnUploadApp">Upload &amp; Activate</button>
+                  <button type="submit" class="btn btn-primary" id="btnUploadApp">Add app</button>
                   <button type="button" class="btn btn-danger" id="btnCancelUpload" hidden>Cancel</button>
                 </div>
                 <div class="progress-box" id="uploadProgressBox" hidden>
@@ -1951,9 +2388,9 @@
                 <div id="uploadStatus" class="status-banner" hidden aria-live="polite"></div>
               </form>
               <div class="table-wrap" style="max-height:220px;">
-                <table>
-                  <thead><tr><th>Binary</th><th>Package / Bundle</th><th>Size</th><th>Action</th></tr></thead>
-                  <tbody id="appsTable"><tr><td colspan="4" class="muted">No app binaries uploaded yet.</td></tr></tbody>
+                <table class="apps-table">
+                  <thead><tr><th>App</th><th>App ID</th><th>Size</th><th><span class="sr-only">Actions</span></th></tr></thead>
+                  <tbody id="appsTable"><tr><td colspan="4" class="muted">No apps added yet.</td></tr></tbody>
                 </table>
               </div>
             </div>
@@ -2123,7 +2560,7 @@
           <div><label for="runPlatformSelect">Platform</label><select id="runPlatformSelect"><option value="android">android</option><option value="ios">ios</option></select></div>
           <div><label for="runDeviceSelect">Device Profile</label><select id="runDeviceSelect"></select></div>
           <div><label for="runEnvSelect">Environment</label><select id="runEnvSelect"></select></div>
-          <div><label for="runAppSelect">App Binary</label><select id="runAppSelect"></select></div>
+          <div><label for="runAppSelect">App</label><select id="runAppSelect"></select></div>
         </div>
         <div class="form-grid">
           <div><label for="runSuiteSelect">Suite Filter</label><select id="runSuiteSelect"><option value="">All Suites</option></select></div>
@@ -2223,6 +2660,91 @@
 
   <div class="toast-host" id="toastHost" role="status" aria-live="polite"></div>
 
+    <!-- WELCOME: first screen. Pick a platform, an app and a device, then record. -->
+    <div class="welcome" id="welcomeOverlay" hidden role="dialog" aria-modal="true" aria-labelledby="wlTitle">
+      <div class="welcome-top">
+        <div class="welcome-brand">
+          <svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
+            <rect width="64" height="64" rx="14" fill="url(#qg)"/>
+            <circle cx="30" cy="30" r="15.5" fill="none" stroke="#f8fafc" stroke-width="5.4"/>
+            <path d="M41.5 41.5 L50.5 50.5" fill="none" stroke="#f8fafc" stroke-width="5.4" stroke-linecap="round"/>
+            <path d="M23.4 30.6 L28.3 35.5 L37 25.4" fill="none" stroke="#5eead4" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span>QAlprit</span>
+        </div>
+        <button type="button" class="btn btn-ghost" id="btnWelcomeSkip">Skip to Testing space &rarr;</button>
+      </div>
+
+      <div class="welcome-body">
+        <section class="welcome-intro">
+          <h1 id="wlTitle">Test your mobile app <em>without writing code</em></h1>
+          <p class="welcome-lede">Use your app once while QAlprit watches. It saves every tap as a test you can replay whenever the app changes.</p>
+          <ol class="welcome-story">
+            <li><div class="story-num">1</div><div><strong>Record</strong><span>Tap through your app on a simulator. Each tap and typed value becomes a step.</span></div></li>
+            <li><div class="story-num">2</div><div><strong>Run</strong><span>Replay the test with one click, with different logins or data if you want.</span></div></li>
+            <li><div class="story-num">3</div><div><strong>Review</strong><span>Open a report with a screenshot of every step and the reason for any failure.</span></div></li>
+          </ol>
+          <div class="welcome-returning" id="wlReturning" hidden>
+            <div><strong id="wlReturningTitle">Welcome back</strong><span id="wlReturningText"></span></div>
+            <button type="button" class="btn btn-primary" id="btnWelcomeOpenSpace">Open Testing space</button>
+          </div>
+        </section>
+
+        <section class="wizard" id="wlWizard" aria-label="Start a new test">
+          <div class="wizard-steps" aria-hidden="true">
+            <div class="wizard-step-pill" data-wl-pill="1">1. Platform</div>
+            <div class="wizard-step-pill" data-wl-pill="2">2. App</div>
+            <div class="wizard-step-pill" data-wl-pill="3">3. Device</div>
+          </div>
+
+          <div class="wizard-body" data-wl-step="1">
+            <h2>What do you want to test?</h2>
+            <p class="page-sub">You can switch at any time from the top bar.</p>
+            <div class="plat-tiles">
+              <button type="button" class="choice is-tile" data-wl-plat="android" aria-pressed="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M5 16a7 7 0 0 1 14 0v1H5z"/><path d="M8 6.5 6.5 4M16 6.5 17.500 4"/><circle cx="9" cy="12.500" r=".6" fill="currentColor"/><circle cx="15" cy="12.500" r=".6" fill="currentColor"/></svg>
+                <span class="choice-main"><span class="choice-title">Android app</span><span class="choice-note">An .apk file on an emulator or phone</span></span>
+              </button>
+              <button type="button" class="choice is-tile" data-wl-plat="ios" aria-pressed="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="6.500" y="2.500" width="11" height="19" rx="2.600"/><path d="M10.500 5h3" stroke-linecap="round"/></svg>
+                <span class="choice-main"><span class="choice-title">iPhone app</span><span class="choice-note" id="wlIosNote">An .app build on the iOS Simulator</span></span>
+              </button>
+            </div>
+          </div>
+
+          <div class="wizard-body" data-wl-step="2" hidden>
+            <h2 id="wlAppHeading">Which app?</h2>
+            <p class="page-sub" id="wlAppSub">Pick an app you added before, or add a new one.</p>
+            <div class="choice-list" id="wlAppList"></div>
+            <div class="dropzone" id="wlDropzone">
+              <span id="wlDropText">Drop a file here, or choose one from your computer.</span>
+              <input id="wlAppFile" type="file" accept=".apk,.ipa,.zip" hidden />
+              <button type="button" class="btn btn-sm" id="btnWlChooseFile">Choose file</button>
+            </div>
+            <div id="wlAppStatus" class="status-banner" hidden aria-live="polite"></div>
+          </div>
+
+          <div class="wizard-body" data-wl-step="3" hidden>
+            <h2>Where should it run?</h2>
+            <p class="page-sub">QAlprit starts the device for you if it is not running yet.</p>
+            <div class="choice-list" id="wlDeviceList"></div>
+            <div id="wlDeviceHint" class="view-hint" hidden></div>
+            <div>
+              <label for="wlTestName">Name your test</label>
+              <input id="wlTestName" type="text" value="my_first_test" placeholder="login" autocomplete="off" spellcheck="false" />
+            </div>
+          </div>
+
+          <div class="wizard-foot">
+            <button type="button" class="btn btn-ghost" id="btnWlBack" hidden>&larr; Back</button>
+            <label class="welcome-check" id="wlShowLabel"><input type="checkbox" id="wlShowAtStart" checked /> Show this when QAlprit starts</label>
+            <button type="button" class="btn btn-primary btn-record-lg" id="btnWlNext">Continue</button>
+          </div>
+        </section>
+      </div>
+    </div>
+
+
   <dialog id="uiAskDialog" aria-labelledby="uiAskTitle">
     <form method="dialog" id="uiAskForm">
       <div class="dlg-head"><h3 id="uiAskTitle">Confirm</h3></div>
@@ -2250,7 +2772,7 @@
       const STATE = {
         overview: null,
         devicesData: { android: [], ios: [] },
-        activeNav: "workflows",
+        activeNav: "home",
         settingsTab: "env",
         activeApp: "",
         hostOs: "",
@@ -2485,6 +3007,9 @@
         if (target === "settings") {
           switchSettingsTab(resolvedSub || STATE.settingsTab || "env");
         }
+        if (target === "home" && STATE.guidedReady) renderHome();
+        const mainEl = document.querySelector("main.workspace-main");
+        if (mainEl) mainEl.scrollTop = 0;
       }
       document.querySelectorAll(".nav-item[data-nav]").forEach((btn) => {
         btn.addEventListener("click", () => navigateTo(btn.dataset.nav));
@@ -2511,6 +3036,12 @@
         menuEl.style.left = "auto";
         menuEl.style.bottom = "auto";
       }
+      if ($("cardMenu")) {
+        $("cardMenu").addEventListener("beforetoggle", (e) => {
+          if (e.newState !== "open") return;
+          ["topMoreMenu", "devicePopoverMenu"].forEach((id) => { try { if ($(id).matches(":popover-open")) $(id).hidePopover(); } catch (_) {} });
+        });
+      }
       [
         { menu: "topMoreMenu", trigger: "btnTopMore" },
         { menu: "devicePopoverMenu", trigger: "topDevicePill" }
@@ -2520,7 +3051,11 @@
         if (!m || !t) return;
         t.addEventListener("click", () => anchorPopover(m, t));
         m.addEventListener("beforetoggle", (e) => {
-          if (e.newState === "open") anchorPopover(m, t);
+          if (e.newState !== "open") return;
+          anchorPopover(m, t);
+          document.querySelectorAll(".menu-popover").forEach((other) => {
+            if (other !== m) { try { if (other.matches(":popover-open")) other.hidePopover(); } catch (_) {} }
+          });
         });
         window.addEventListener("resize", () => {
           if (m.matches(":popover-open")) anchorPopover(m, t);
@@ -2577,7 +3112,7 @@
           }
         } else {
           const liveAnd = (devs.android || []).filter((x) => !String(x.identifier || "").startsWith("avd:"));
-          liveAnd.forEach((x) => addOpt(`live:android:${x.identifier}`, `${x.name} (${x.identifier}) [Booted]`));
+          liveAnd.forEach((x) => addOpt(`live:android:${x.identifier}`, `${x.name === x.identifier ? x.name : `${x.name} (${x.identifier})`} [Booted]`));
           (devs.android || [])
             .filter((x) => String(x.identifier || "").startsWith("avd:"))
             .forEach((x) => addOpt(`avd:${x.name}`, `${x.name} [Offline AVD]`));
@@ -2645,6 +3180,7 @@
           }
         });
         updateRecDeviceButtons();
+        if (STATE.guidedReady) refreshContextUi();
       }
       ["recPlatform", "inspectPlatform", "runPlatformSelect", "topQuickPlat"].forEach((id) => {
         if ($(id)) $(id).addEventListener("change", () => {
@@ -2665,44 +3201,57 @@
         $("workspacePath").textContent = wsName;
         $("workspacePath").title = ov.project_root || "";
 
+        const plat = ($("topQuickPlat") && $("topQuickPlat").value === "ios" && STATE.hostOs === "Darwin") ? "ios" : "android";
+        const platName = plat === "ios" ? "iOS" : "Android";
+        document.querySelectorAll("[data-top-plat]").forEach((btn) => {
+          btn.setAttribute("aria-pressed", btn.dataset.topPlat === plat ? "true" : "false");
+          if (btn.dataset.topPlat === "ios") {
+            btn.disabled = Boolean(STATE.hostOs) && STATE.hostOs !== "Darwin";
+            btn.title = btn.disabled ? "iOS testing needs a Mac with Xcode" : "Test the iOS app";
+          }
+        });
+
         const apps = ov.apps || [];
         const active = apps.find((a) => a.rel_path === STATE.activeApp);
-        $("topAppLabel").textContent = active ? active.name : "No app selected";
+        const appFits = active && (plat === "android" ? active.kind === "apk" : active.kind !== "apk");
+        $("topAppLabel").textContent = appFits ? active.name : `Add ${plat === "ios" ? "an iOS" : "an Android"} app`;
+        $("topAppPill").classList.toggle("is-missing", !appFits);
 
         const emu = STATE.emuStatus || {};
-        const runningAnd = emu.running_android_emulators || [];
-        const runningIos = (emu.ios_simulators || []).filter((s) => String(s.state || "").toLowerCase() === "booted");
+        const isBooted = (x) => String(x.state || "").toLowerCase() === "booted";
+        const runningAnd = (emu.running_android_emulators || []).slice();
+        if (!runningAnd.length) {
+          (STATE.devicesData.android || [])
+            .filter((d) => !String(d.identifier || "").startsWith("avd:") && d.state === "device")
+            .forEach((d) => runningAnd.push(d.name || d.identifier));
+        }
+        const runningIos = (emu.ios_simulators || []).filter(isBooted).map((x) => x.name || "iOS Simulator");
+        if (!runningIos.length) (STATE.devicesData.ios || []).filter(isBooted).forEach((d) => runningIos.push(d.name));
+        const mine = plat === "ios" ? runningIos : runningAnd;
+        const other = plat === "ios" ? runningAnd : runningIos;
         const dot = $("topDeviceDot");
         const lbl = $("topDeviceLabel");
         const popBadge = $("topDevStatusBadge");
         const popBox = $("topDevBootedBox");
         const popText = $("topDevBootedText");
-        if (runningAnd.length) {
+        if ($("topDevKicker")) $("topDevKicker").textContent = `${platName} device`;
+        if (mine.length) {
           dot.className = "dot is-ok";
-          lbl.textContent = `${runningAnd[0]} · Android`;
-          $("sbEmuText").textContent = "Android booted";
-          if (popBadge) { popBadge.className = "badge b-ok"; popBadge.textContent = "Booted"; }
-          if (popBox && popText) { popBox.hidden = false; popText.textContent = `${runningAnd[0]} (Android)`; }
-        } else if (runningIos.length) {
-          dot.className = "dot is-ok";
-          lbl.textContent = `${runningIos[0].name || "iOS Simulator"} · iOS`;
-          $("sbEmuText").textContent = "Simulator booted";
-          if (popBadge) { popBadge.className = "badge b-ok"; popBadge.textContent = "Booted"; }
-          if (popBox && popText) { popBox.hidden = false; popText.textContent = `${runningIos[0].name} (iOS)`; }
-        } else if ((emu.avds || []).length) {
-          dot.className = "dot is-warn";
-          lbl.textContent = `${emu.avds[0]} · Offline`;
-          $("sbEmuText").textContent = "Device offline";
-          if (popBadge) { popBadge.className = "badge b-warn"; popBadge.textContent = "Offline"; }
-          if (popBox) popBox.hidden = true;
+          lbl.textContent = mine[0];
+          if (popBadge) { popBadge.className = "badge b-ok"; popBadge.textContent = "Running"; }
+          if (popBox && popText) { popBox.hidden = false; popText.textContent = mine[0]; }
         } else {
-          dot.className = "dot";
-          lbl.textContent = "No device booted";
-          $("sbEmuText").textContent = "No device booted";
-          if (popBadge) { popBadge.className = "badge b-skip"; popBadge.textContent = "Offline"; }
+          dot.className = other.length ? "dot is-warn" : "dot";
+          lbl.textContent = plat === "ios" ? "No simulator running" : "No emulator running";
+          if (popBadge) { popBadge.className = "badge b-skip"; popBadge.textContent = "Stopped"; }
           if (popBox) popBox.hidden = true;
         }
+        const sbParts = [];
+        if (runningAnd.length) sbParts.push(`Android: ${runningAnd[0]}`);
+        if (runningIos.length) sbParts.push(`iOS: ${runningIos[0]}`);
+        $("sbEmuText").textContent = sbParts.length ? sbParts.join(" · ") : "No device running";
         updateRecDeviceButtons();
+        if (STATE.guidedReady) { renderHome(); renderWelcome(); }
       }
 
       // ================================================================
@@ -2924,7 +3473,7 @@
 
         // Render left rail
         if (!items.length) {
-          rail.innerHTML = `<div class="muted" style="padding:12px;font-size:12px;">No ${isFlow ? "workflows" : "journeys"} yet. Click + to create one.</div>`;
+          rail.innerHTML = `<div class="muted" style="padding:12px;font-size:12px;">${isFlow ? "No workflows yet. Record a test to create one." : "No journeys yet. Click + New to chain workflows into a longer test."}</div>`;
         } else {
           rail.innerHTML = items.map((it) => {
             const key = isFlow ? it.name : it.id;
@@ -2948,7 +3497,7 @@
         }
 
         if (!item) {
-          host.innerHTML = `<div class="panel"><div class="panel-body" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;"><p class="muted" style="margin:0;">Create a ${isFlow ? "workflow" : "test journey"} with <strong>+</strong> or import a <code>.md</code> file to begin.</p>${isFlow ? `<button type="button" class="btn btn-primary btn-record-lg" data-flow-record-new><span class="rec-btn-dot"></span> Record New</button>` : ""}</div></div>`;
+          host.innerHTML = `<div class="panel"><div class="panel-body" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;"><p class="muted" style="margin:0;">${isFlow ? "A workflow is a list of steps you recorded, like logging in. Record one, or click + for an empty one." : "A journey is a full test, often made of several workflows, with checks along the way. Click + New to make one."}</p>${isFlow ? `<button type="button" class="btn btn-primary btn-record-lg" data-flow-record-new><span class="rec-btn-dot"></span> Record a test</button>` : ""}</div></div>`;
           return;
         }
 
@@ -2986,7 +3535,8 @@
               </div>
             </div>
             <div class="btn-row">
-              ${isFlow ? `<button type="button" class="btn btn-primary btn-record-lg" id="btnWorkflowRecordNew" data-flow-record-new><span class="rec-btn-dot"></span> Record New</button>` : `<button type="button" class="btn" data-ds-tab-jump="steps">Edit steps</button>`}
+              ${isFlow ? `<button type="button" class="btn btn-record-lg" id="btnWorkflowRecordNew" data-flow-record-new title="Record another workflow"><span class="rec-btn-dot"></span> Record new</button>` : `<button type="button" class="btn" data-ds-tab-jump="steps">Edit steps</button>`}
+              ${isFlow ? `<button type="button" class="btn btn-sm" data-ds-rename>Rename</button>` : ""}
               <button type="button" class="btn btn-sm" data-ds-dup>Duplicate</button>
               <button type="button" class="btn btn-sm btn-danger" data-ds-del>Delete</button>
             </div>
@@ -3301,7 +3851,7 @@
                 const val = !c ? "" : (c.kind === "secret_literal" ? "" : c.display);
                 const ph = isSec ? (c && c.kind === "secret_literal" ? "•••••• (leave blank to keep, or enter ${ENV_VAR})" : "${QA_PASS} or secret") : "value";
                 return `<div>
-                  <label>${esc(v)}${isSec ? ' <span class="muted">(secret — use ${ENV_VAR} when possible)</span>' : ""}</label>
+                  <label>${esc(v)}${isSec ? ' <span class="muted">(secret, use ${ENV_VAR} when possible)</span>' : ""}</label>
                   <input type="text" data-ds-field="${esc(v)}" data-ds-had-secret="${c && c.kind === "secret_literal" ? "1" : "0"}" value="${esc(val)}" placeholder="${esc(ph)}" />
                 </div>`;
               }).join("")
@@ -3350,7 +3900,7 @@
               if (isDry) {
                 const dsText = res.dataset_count ? ` × ${res.dataset_count} dataset(s): ${res.datasets.join(", ")}` : "";
                 banner.className = "status-banner status-ok";
-                banner.textContent = `Dry run OK — ${res.specs.length} target(s)${dsText} on ${res.platform}/${res.env_name}.`;
+                banner.textContent = `Dry run passed for ${res.specs.length} test(s)${dsText} on ${res.platform}/${res.env_name}.`;
               } else {
                 navigateTo("runs");
                 startRunPolling();
@@ -3478,28 +4028,10 @@
         }
 
         // Duplicate / Delete
-        host.querySelector("[data-ds-dup]").addEventListener("click", async () => {
-          if (isFlow) {
-            const res = await apiJson("/api/flows/duplicate", { name: item.name });
-            STATE.selectedFlowName = res.name;
-          } else {
-            const res = await apiJson("/api/specs/duplicate", { source_path: item.source_path, suite: item.suite });
-            STATE.selectedSpecId = res.id;
-          }
-          await loadOverview({ skipAutoSync: true, preserveFormInputs: true });
-        });
-        host.querySelector("[data-ds-del]").addEventListener("click", async () => {
-          const label = isFlow ? item.name : item.id;
-          if (!(await uiConfirm(`Delete '${label}' from disk? This cannot be undone.`, { title: "Delete", okLabel: "Delete", danger: true }))) return;
-          if (isFlow) {
-            await apiJson("/api/flows/delete", { name: item.name });
-            STATE.selectedFlowName = "";
-          } else {
-            await apiJson("/api/specs/delete", { source_path: item.source_path });
-            STATE.selectedSpecId = "";
-          }
-          await loadOverview({ skipAutoSync: true, preserveFormInputs: true });
-        });
+        host.querySelector("[data-ds-dup]").addEventListener("click", () => duplicateTest(isFlow ? "flow" : "spec", item));
+        host.querySelector("[data-ds-del]").addEventListener("click", () => deleteTest(isFlow ? "flow" : "spec", item));
+        const renameBtn = host.querySelector("[data-ds-rename]");
+        if (renameBtn) renameBtn.addEventListener("click", () => renameFlow(item.name));
       }
 
       // Dataset row dialog submit
@@ -3642,6 +4174,7 @@
                 <td>${passFailText}</td>
                 <td>${fmtDuration(s.duration_ms || 0)}</td>
                 <td>${b.has_html ? `<a class="art-link" href="/results/${esc(b.dir_name)}/batch_report.html" target="_blank" rel="noopener">Batch report</a>` : "-"}</td>
+                <td class="cell-actions"><button type="button" class="icon-btn is-danger" data-run-del="${esc(b.dir_name)}" data-run-batch="1" title="Delete this batch and its results" aria-label="Delete batch">${TRASH_SVG}</button></td>
               </tr>
             `);
             if (expanded) {
@@ -3663,6 +4196,7 @@
                     <td style="color:${stColor};font-weight:600;">${stText}</td>
                     <td>${fmtDuration(rs.duration_ms || 0)}</td>
                     <td>${arts || "-"}</td>
+                    <td></td>
                   </tr>
                 `);
               });
@@ -3689,6 +4223,7 @@
                 <td style="color:${stColor};font-weight:600;">${stText}</td>
                 <td>${fmtDuration(rs.duration_ms || 0)}</td>
                 <td>${arts || "-"}</td>
+                <td class="cell-actions"><button type="button" class="icon-btn is-danger" data-run-del="${esc(r.dir_name)}" title="Delete this run and its report" aria-label="Delete run">${TRASH_SVG}</button></td>
               </tr>
             `);
           }
@@ -3696,8 +4231,16 @@
 
         $("runsTable").innerHTML = rowsHtml.length
           ? rowsHtml.join("")
-          : '<tr><td colspan="6" class="muted" style="padding:18px 14px;">No runs match filter yet. Click <strong>New run</strong> to execute tests.</td></tr>';
+          : (q
+            ? '<tr><td colspan="7" class="muted" style="padding:18px 14px;">No runs match your search.</td></tr>'
+            : '<tr><td colspan="7" class="muted" style="padding:18px 14px;">No runs yet. Click <strong>Run</strong> on any test in the Testing space, or use <strong>New run</strong> above.</td></tr>');
 
+        $("runsTable").querySelectorAll("[data-run-del]").forEach((btn) => {
+          btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            deleteRunResults(btn.dataset.runDel, btn.dataset.runBatch === "1").catch((err) => toastError(err, "Could not delete"));
+          });
+        });
         $("runsTable").querySelectorAll("[data-toggle-batch]").forEach((tr) => {
           tr.addEventListener("click", (e) => {
             if (e.target.closest("a")) return;
@@ -3829,12 +4372,12 @@
               const act = a.rel_path === STATE.activeApp;
               return `<tr class="${act ? "tr-active" : ""}">
                 <td><strong>${esc(a.name)}</strong></td>
-                <td><code>${esc(a.detected_package || "unknown")}</code></td>
+                <td><code>${esc(a.detected_package || "unknown").replace(/\./g, ".<wbr>")}</code></td>
                 <td>${fmtBytes(a.size_bytes)}</td>
-                <td>${act ? '<span class="badge b-ok">Active</span>' : `<button type="button" class="btn btn-sm" data-select-app="${esc(a.rel_path)}">Use</button>`}</td>
+                <td class="cell-actions"><span class="btn-row" style="justify-content:flex-end;gap:4px;">${act ? '<span class="badge b-ok">In use</span>' : `<button type="button" class="btn btn-sm" data-select-app="${esc(a.rel_path)}">Use</button>`}<button type="button" class="icon-btn is-danger" data-del-app="${esc(a.rel_path)}" title="Remove this app from the workspace" aria-label="Remove ${esc(a.name)}">${TRASH_SVG}</button></span></td>
               </tr>`;
             }).join("")
-          : '<tr><td colspan="4" class="muted">No app binaries uploaded yet.</td></tr>';
+          : '<tr><td colspan="4" class="muted">No apps added yet.</td></tr>';
       }
 
       function defaultRedactForEnv(n) {
@@ -3937,7 +4480,7 @@
         const warnings = [];
         if ((data.corrupt_runs || []).length) warnings.push(`Skipped ${data.corrupt_runs.length} corrupt results folder(s)`);
         if ((data.parse_warnings || []).length) warnings.push(data.parse_warnings.join(" | "));
-        showBanner("corruptBanner", warnings.join(" — "), warnings.length ? "warn" : "");
+        showBanner("corruptBanner", warnings.join(". "), warnings.length ? "warn" : "");
 
         const apps = data.apps || [];
         const appOpts = apps.map((a) => ({ value: a.rel_path, label: `${a.name}${a.detected_package ? " · " + a.detected_package : ""}` }));
@@ -3972,13 +4515,15 @@
         const screens = data.screens || [];
         $("screenTargetOptions").innerHTML = screens.map((s) => `<option value="${esc(s.target)}"></option>`).join("");
         $("screensTable").innerHTML = screens.length
-          ? screens.map((s) => `<tr>
+          ? screens.map((s) => `<tr data-el-row="${esc((s.target + " " + JSON.stringify(s.platforms || {})).toLowerCase())}">
               <td><code>${esc(s.target)}</code></td>
               <td>${s.platforms.android ? `<code>${esc(s.platforms.android.strategy)}=${esc(s.platforms.android.value)}</code>` : '<span class="muted">-</span>'}</td>
               <td>${s.platforms.ios ? `<code>${esc(s.platforms.ios.strategy)}=${esc(s.platforms.ios.value)}</code>` : '<span class="muted">-</span>'}</td>
-              <td>${s.sensitive ? '<span class="badge b-warn">masked</span>' : '<span class="muted">no</span>'}</td>
+              <td>${s.sensitive ? '<span class="badge b-warn">Hidden</span>' : '<span class="muted">No</span>'}</td>
+              <td class="cell-actions"><button type="button" class="icon-btn is-danger" data-el-del="${esc(s.target)}" title="Delete this element" aria-label="Delete ${esc(s.target)}">${TRASH_SVG}</button></td>
             </tr>`).join("")
-          : '<tr><td colspan="4" class="muted">No screen locators mapped yet.</td></tr>';
+          : '<tr><td colspan="5" class="muted">No elements saved yet. Recording a test adds the elements you tap.</td></tr>';
+        filterElementRows();
 
         const flows = data.flows || [];
         $("flowNameOptions").innerHTML = flows.map((f) => `<option value="${esc(f.name)}"></option>`).join("");
@@ -4024,8 +4569,39 @@
       // ================================================================
       $("activeAppSelect").addEventListener("change", () => selectSessionApp($("activeAppSelect").value, { autoSave: true }));
       $("appsTable").addEventListener("click", (e) => {
+        const del = e.target.closest("[data-del-app]");
+        if (del) {
+          (async () => {
+            const rel = del.dataset.delApp;
+            const name = rel.split("/").pop();
+            if (!(await uiConfirm(`Remove ${name} from this workspace? The file is deleted from the apps folder. Your tests stay.`, { title: "Remove app", okLabel: "Remove", danger: true }))) return;
+            await apiJson("/api/apps/delete", { rel_path: rel });
+            if (STATE.activeApp === rel) {
+              STATE.activeApp = "";
+              try { localStorage.removeItem("qalprit.activeApp"); } catch (_) {}
+            }
+            await loadOverview(RELOAD_OPTS);
+            toast(`Removed ${name}.`, "ok");
+          })().catch((err) => toastError(err, "Could not remove the app"));
+          return;
+        }
         const b = e.target.closest("[data-select-app]");
         if (b) selectSessionApp(b.dataset.selectApp, { autoSave: true });
+      });
+      $("btnDeleteEnv").addEventListener("click", async () => {
+        const name = $("envNameInput").value.trim();
+        const envs = (STATE.overview && STATE.overview.environments) || {};
+        if (!name || !envs[name]) { showBanner("envStatus", "Pick a saved environment to delete.", "error"); return; }
+        if (!(await uiConfirm(`Delete the '${name}' environment?`, { title: "Delete environment", okLabel: "Delete", danger: true }))) return;
+        try {
+          await apiJson("/api/environments/delete", { env_name: name });
+          STATE.envFormLoaded = false;
+          $("envNameInput").value = Object.keys(envs).find((k) => k !== name) || "qa";
+          await loadOverview(RELOAD_OPTS);
+          showBanner("envStatus", `Deleted environment '${name}'.`, "ok");
+        } catch (err) {
+          showBanner("envStatus", err.message, "error");
+        }
       });
       $("envPresetSelect").addEventListener("change", () => {
         if ($("envPresetSelect").value === "__new__") { $("envNameInput").value = ""; $("envNameInput").focus(); }
@@ -4125,6 +4701,8 @@
           if (matchingApp) selectSessionApp(matchingApp.rel_path, { autoSave: false, preserveFormInputs: true });
         }
         syncDeviceSelects({ preferBooted: false });
+        try { localStorage.setItem("qalprit.platform", plat); } catch (_) {}
+        updateTopbarSummary();
       }
 
       async function resolveSelectedDeviceForAction(plat, rawVal) {
@@ -4975,7 +5553,7 @@
         const allSpecs = (STATE.overview && STATE.overview.specs) || [];
         const matched = allSpecs.filter((s) => (!suiteF || s.suite === suiteF) && (!platF || !s.platforms.length || s.platforms.includes(platF)));
         const prev = preferredId !== undefined ? preferredId : sel.value;
-        populateSelect("runSpecFilter", matched.map((s) => ({ value: s.id, label: `[${s.suite}] ${s.id} — ${s.title}` })), `All Journeys (${matched.length})`);
+        populateSelect("runSpecFilter", matched.map((s) => ({ value: s.id, label: `[${s.suite}] ${s.id}: ${s.title}` })), `All journeys (${matched.length})`);
         if (prev && Array.from(sel.options).some((o) => o.value === prev)) sel.value = prev;
         $("runMatchHint").textContent = flowF
           ? `Workflow '${flowF}' on '${platF}'.`
@@ -5309,8 +5887,681 @@
       }
       initSplitResizers();
 
-      // Boot
+      // ================================================================
+      // GUIDED WORKBENCH: platform context, Home, welcome, shared CRUD
+      // ================================================================
+      const PLAT_LABEL = { android: "Android", ios: "iOS" };
+      const TRASH_SVG = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M3 4.500h10M6.500 4.500V3h3v1.500M4.500 4.500l.600 8.500h5.800l.600-8.500"/></svg>';
+      const RELOAD_OPTS = { skipAutoSync: true, preserveFormInputs: true };
+
+      function currentPlatform() {
+        const v = $("topQuickPlat") ? $("topQuickPlat").value : "android";
+        return v === "ios" && STATE.hostOs === "Darwin" ? "ios" : "android";
+      }
+      function appMatchesPlatform(app, plat) {
+        return Boolean(app) && (plat === "android" ? app.kind === "apk" : app.kind !== "apk");
+      }
+      function appsForPlatform(plat) {
+        return ((STATE.overview && STATE.overview.apps) || []).filter((a) => appMatchesPlatform(a, plat));
+      }
+      function activeAppForPlatform(plat) {
+        const apps = (STATE.overview && STATE.overview.apps) || [];
+        const active = apps.find((a) => a.rel_path === STATE.activeApp);
+        return appMatchesPlatform(active, plat) ? active : null;
+      }
+      function bootedDeviceNames(plat) {
+        const emu = STATE.emuStatus || {};
+        const devs = STATE.devicesData || {};
+        const isBooted = (x) => String(x.state || "").toLowerCase() === "booted";
+        const names = [];
+        if (plat === "ios") {
+          (emu.ios_simulators || []).filter(isBooted).forEach((s) => names.push(s.name || "iOS Simulator"));
+          (devs.ios || []).filter(isBooted).forEach((d) => { if (!names.includes(d.name)) names.push(d.name); });
+        } else {
+          (emu.running_android_emulators || []).forEach((n) => names.push(String(n)));
+          if (!names.length) {
+            (devs.android || [])
+              .filter((d) => !String(d.identifier || "").startsWith("avd:") && d.state === "device")
+              .forEach((d) => names.push(d.name || d.identifier));
+          }
+        }
+        return names;
+      }
+      function setHtmlIfChanged(id, html) {
+        const el = $(id);
+        if (!el || el.dataset.sig === html) return;
+        el.innerHTML = html;
+        el.dataset.sig = html;
+      }
+      function hidePopovers() {
+        document.querySelectorAll(".menu-popover").forEach((m) => {
+          try { if (m.matches(":popover-open")) m.hidePopover(); } catch (_) {}
+        });
+      }
+      function fmtAgo(iso) {
+        const t = Date.parse(String(iso || ""));
+        if (!Number.isFinite(t)) return "";
+        const s = Math.max(0, (Date.now() - t) / 1000);
+        if (s < 60) return "just now";
+        if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+        if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
+        if (s < 86400 * 30) return `${Math.floor(s / 86400)} d ago`;
+        return new Date(t).toLocaleDateString();
+      }
+      function plural(n, word) {
+        return `${n} ${word}${n === 1 ? "" : "s"}`;
+      }
+      function summaryStatus(s) {
+        const x = s || {};
+        return x.failed > 0 ? "failed" : (x.passed > 0 ? "passed" : "skipped");
+      }
+      const STATUS_WORD = { passed: "Passed", failed: "Failed", skipped: "Skipped" };
+      const STATUS_DOT = { passed: "is-ok", failed: "is-fail", skipped: "is-warn" };
+
+      // Newest first: one entry per batch or standalone run.
+      function topLevelResults() {
+        const ov = STATE.overview || {};
+        const runs = ov.runs || [];
+        const out = [];
+        (ov.batches || []).forEach((b) => {
+          const s = b.summary || {};
+          const kids = runs.filter((r) => r.batch_id === b.batch_id);
+          const focus = kids.find((r) => (r.summary || {}).failed > 0) || kids[0];
+          out.push({
+            when: b.started_at || "",
+            status: summaryStatus(s),
+            label: b.target_label || "Batch run",
+            note: `${s.passed || 0} of ${s.total || kids.length} data rows passed`,
+            runDir: focus ? focus.dir_name : "",
+            report: b.has_html ? `/results/${b.dir_name}/batch_report.html` : ""
+          });
+        });
+        runs.filter((r) => !r.batch_id).forEach((r) => {
+          const s = r.summary || {};
+          const tests = r.tests || [];
+          const isFlow = String(r.suite || "").startsWith("workflow:");
+          out.push({
+            when: r.started_at || "",
+            status: summaryStatus(s),
+            label: isFlow ? String(r.suite).slice("workflow:".length) : (tests.length === 1 ? tests[0].id : `${r.suite || "all"} suite`),
+            note: tests.length > 1 ? `${s.passed || 0} of ${s.total || tests.length} tests passed` : fmtDuration(s.duration_ms || 0),
+            runDir: r.dir_name,
+            report: r.has_html ? `/results/${r.dir_name}/report.html` : ""
+          });
+        });
+        out.sort((a, b) => String(b.when).localeCompare(String(a.when)));
+        return out;
+      }
+      function lastResultFor(kind, item) {
+        const ov = STATE.overview || {};
+        let best = null;
+        const consider = (when, status, report) => {
+          if (!best || String(when || "") > String(best.when || "")) best = { when, status, report };
+        };
+        if (kind === "flow") {
+          (ov.batches || []).forEach((b) => {
+            if (b.target_label === item.name && (b.target_kind || "flow") === "flow") {
+              consider(b.started_at, summaryStatus(b.summary), b.has_html ? `/results/${b.dir_name}/batch_report.html` : "");
+            }
+          });
+          (ov.runs || []).forEach((r) => {
+            if (!r.batch_id && r.suite === "workflow:" + item.name) {
+              consider(r.started_at, summaryStatus(r.summary), r.has_html ? `/results/${r.dir_name}/report.html` : "");
+            }
+          });
+        } else {
+          (ov.runs || []).forEach((r) => {
+            const t = (r.tests || []).find((x) => x.id === item.id);
+            if (!t) return;
+            const st = String(t.status || "").toLowerCase();
+            consider(r.started_at, st === "passed" || st === "failed" ? st : "skipped", r.has_html ? `/results/${r.dir_name}/report.html` : "");
+          });
+        }
+        return best;
+      }
+
+      // ---------------- Shared actions (used by Home cards and detail views) ----------------
+      async function uploadAppFile(file) {
+        const resp = await fetch("/api/apps/upload?filename=" + encodeURIComponent(file.name), {
+          method: "POST",
+          headers: { "Content-Type": "application/octet-stream" },
+          body: file
+        });
+        let res = {};
+        try { res = await resp.json(); } catch (_) {}
+        if (!resp.ok) throw new Error(res.error || "Upload failed");
+        STATE.activeApp = res.rel_path;
+        await loadOverview({ skipAutoSync: true });
+        await selectSessionApp(res.rel_path, { autoSave: true });
+        return res;
+      }
+      function openTest(kind, key) {
+        if (kind === "flow") STATE.selectedFlowName = key;
+        else STATE.selectedSpecId = key;
+        renderDetailWorkspace(kind);
+        navigateTo(kind === "flow" ? "workflows" : "journeys");
+      }
+      function findTest(kind, key) {
+        const ov = STATE.overview || {};
+        return kind === "flow"
+          ? (ov.flows || []).find((f) => f.name === key)
+          : (ov.specs || []).find((s) => s.id === key);
+      }
+      async function renameFlow(name) {
+        const raw = await uiPrompt("Tests that use this workflow are updated to the new name.", name, { title: "Rename workflow", okLabel: "Rename" });
+        const next = String(raw || "").trim();
+        if (!next || next === name) return;
+        const res = await apiJson("/api/flows/rename", { name, new_name: next });
+        STATE.selectedFlowName = res.name || next;
+        await loadOverview(RELOAD_OPTS);
+        const refs = Number(res.updated_references || 0);
+        toast(`Renamed to ${res.name || next}.${refs ? ` Updated ${plural(refs, "file")} that use it.` : ""}`, "ok");
+      }
+      async function duplicateTest(kind, item) {
+        if (kind === "flow") {
+          const res = await apiJson("/api/flows/duplicate", { name: item.name });
+          STATE.selectedFlowName = res.name;
+          toast(`Created a copy named ${res.name}.`, "ok");
+        } else {
+          const res = await apiJson("/api/specs/duplicate", { source_path: item.source_path, suite: item.suite });
+          STATE.selectedSpecId = res.id;
+          toast(`Created a copy with ID ${res.id}.`, "ok");
+        }
+        await loadOverview(RELOAD_OPTS);
+      }
+      async function deleteTest(kind, item) {
+        const label = kind === "flow" ? item.name : item.id;
+        const extra = kind === "flow" ? " Its data rows are deleted too." : "";
+        if (!(await uiConfirm(`Delete '${label}'?${extra} This cannot be undone.`, { title: kind === "flow" ? "Delete workflow" : "Delete journey", okLabel: "Delete", danger: true }))) return false;
+        if (kind === "flow") {
+          await apiJson("/api/flows/delete", { name: item.name });
+          if (STATE.selectedFlowName === item.name) STATE.selectedFlowName = "";
+        } else {
+          await apiJson("/api/specs/delete", { source_path: item.source_path });
+          if (STATE.selectedSpecId === item.id) STATE.selectedSpecId = "";
+        }
+        await loadOverview(RELOAD_OPTS);
+        toast(`Deleted ${label}.`, "ok");
+        return true;
+      }
+      async function deleteRunResults(dirName, isBatch) {
+        const msg = isBatch
+          ? "Delete this batch and the results of every data row in it? Reports and screenshots are removed from disk."
+          : "Delete this run? Its report and screenshots are removed from disk.";
+        if (!(await uiConfirm(msg, { title: "Delete results", okLabel: "Delete", danger: true }))) return;
+        const res = await apiJson("/api/runs/delete", { dir_name: dirName });
+        if ((res.deleted || []).includes(STATE.selectedRunDir)) STATE.selectedRunDir = "";
+        await loadOverview(RELOAD_OPTS);
+        toast(`Deleted ${plural((res.deleted || []).length || 1, "result folder")}.`, "ok");
+      }
+      async function quickRunTest(kind, key, btn) {
+        const item = findTest(kind, key);
+        if (!item) return;
+        const isFlow = kind === "flow";
+        const plat = currentPlatform();
+        const app = activeAppForPlatform(plat);
+        if (!app) {
+          toast(`Add ${plat === "ios" ? "an iOS" : "an Android"} app first. Open Settings & setup, or click the app chip in the top bar.`, "error");
+          return;
+        }
+        const rows = ((item.datasets || {}).rows || []);
+        const prevText = btn ? btn.textContent : "";
+        if (btn) { btn.disabled = true; btn.textContent = "Starting..."; }
+        try {
+          const device = await resolveSelectedDeviceForAction(plat, $("topQuickDevice") ? $("topQuickDevice").value : "");
+          await apiJson("/api/runs/start", {
+            platform: plat,
+            device_profile: device,
+            env_name: $("topEnvSelect").value || "qa",
+            suite: isFlow ? "" : item.suite,
+            spec_id: isFlow ? "" : item.id,
+            flow_name: isFlow ? item.name : "",
+            app_path: app.rel_path,
+            retries: 0,
+            reset_mode: "",
+            run_datasets: rows.length > 0,
+            dataset_names: rows.filter((r) => r.selected).map((r) => r.name),
+            dry_run: false
+          });
+          navigateTo("runs");
+          startRunPolling();
+        } catch (err) {
+          toastError(err, "Could not start the run");
+        } finally {
+          if (btn) { btn.disabled = false; btn.textContent = prevText; }
+        }
+      }
+
+      // ---------------- Home / Testing space ----------------
+      STATE.homeKind = "all";
+      function renderHome() {
+        if (!$("view-home") || !STATE.overview) return;
+        const ov = STATE.overview;
+        const flows = ov.flows || [];
+        const specs = ov.specs || [];
+        const plat = currentPlatform();
+        const platLabel = PLAT_LABEL[plat];
+        const app = activeAppForPlatform(plat);
+        const booted = bootedDeviceNames(plat);
+        const results = topLevelResults();
+
+        // Stat tiles
+        const latest = results[0];
+        const recent = results.slice(0, 10);
+        const passRate = recent.length ? Math.round((recent.filter((r) => r.status === "passed").length / recent.length) * 100) : null;
+        const tile = (label, value, note, cls) => `<div class="stat-tile"><div class="stat-label">${label}</div><div class="stat-value ${cls || ""}">${value}</div><div class="stat-note">${note}</div></div>`;
+        setHtmlIfChanged("homeStats", [
+          tile("Tests", String(flows.length + specs.length), `${plural(flows.length, "workflow")}, ${plural(specs.length, "journey")}`),
+          latest
+            ? tile("Last run", STATUS_WORD[latest.status], `${esc(latest.label)} &middot; ${esc(fmtAgo(latest.when))}`, latest.status === "passed" ? "is-ok" : (latest.status === "failed" ? "is-fail" : ""))
+            : tile("Last run", "None yet", "Run a test to see results", "is-muted"),
+          passRate === null
+            ? tile("Pass rate", "-", "No runs yet", "is-muted")
+            : tile("Pass rate", passRate + "%", `Last ${plural(recent.length, "run")}`, passRate === 100 ? "is-ok" : (passRate < 50 ? "is-fail" : "")),
+          app
+            ? tile(`${platLabel} target`, "Ready", `${esc(app.name)} &middot; ${booted.length ? esc(booted[0]) + " running" : "device starts on first run"}`, "is-ok")
+            : tile(`${platLabel} target`, "Needs an app", `Add ${plat === "ios" ? "an iOS" : "an Android"} app to record or run`, "is-muted")
+        ].join(""));
+
+        // Getting started checklist, shown until the first run exists
+        const hasAppForPlat = appsForPlatform(plat).length > 0;
+        const steps = [
+          { done: hasAppForPlat, title: `Add your ${platLabel} app`, text: plat === "ios" ? "A simulator build (.app in a .zip) or an .ipa file." : "The .apk file you want to test.", action: "app", label: "Add app" },
+          { done: booted.length > 0, optional: true, title: "Start a device", text: booted.length ? `${booted[0]} is running.` : "Optional. QAlprit starts one when you record or run.", action: "device", label: "Start device" },
+          { done: flows.length > 0, title: "Record your first test", text: "Use the app while QAlprit saves each tap as a step.", action: "record", label: "Record" },
+          { done: results.length > 0, title: "Run it and read the report", text: "Replay the test and see a screenshot of every step.", action: "run", label: "Run a test" }
+        ];
+        const pending = steps.filter((s) => !s.done && !s.optional);
+        const box = $("homeChecklist");
+        box.hidden = pending.length === 0;
+        if (pending.length) {
+          const nextIdx = steps.findIndex((s) => !s.done && !s.optional);
+          setHtmlIfChanged("homeChecklist", `
+            <div class="home-checklist-head">
+              <h3>Get to your first test result</h3>
+              <button type="button" class="btn btn-sm btn-ghost" data-home-action="welcome">Open the guided start</button>
+            </div>
+            <div class="check-steps">${steps.map((s, i) => `
+              <div class="check-step${s.done ? " is-done" : ""}${i === nextIdx ? " is-next" : ""}">
+                <div class="check-step-top"><span class="check-num">${s.done ? "&#10003;" : i + 1}</span><span>${esc(s.title)}</span></div>
+                <p>${esc(s.text)}</p>
+                ${s.done ? "" : `<button type="button" class="btn btn-sm${i === nextIdx ? " btn-primary" : ""}" data-home-action="${s.action}">${esc(s.label)}</button>`}
+              </div>`).join("")}
+            </div>`);
+        }
+
+        // Test cards
+        const q = ($("homeFilterInput").value || "").trim().toLowerCase();
+        const all = [];
+        flows.forEach((f) => all.push({ kind: "flow", key: f.name, title: "", item: f }));
+        specs.forEach((s) => all.push({ kind: "spec", key: s.id, title: s.title || "", item: s }));
+        const shown = all.filter((t) => (STATE.homeKind === "all" || STATE.homeKind === t.kind)
+          && (!q || [t.key, t.title, t.item.suite || "", (t.item.tags || []).join(" ")].join(" ").toLowerCase().includes(q)));
+        let gridHtml;
+        if (!all.length) {
+          gridHtml = `<div class="empty-state" style="grid-column:1/-1;">
+            <strong>No tests yet</strong>
+            <p>Record your first test by using your app on a simulator. It takes about two minutes.</p>
+            <button type="button" class="btn btn-primary btn-record-lg" data-home-action="welcome"><span class="rec-btn-dot"></span> Record my first test</button>
+          </div>`;
+        } else if (!shown.length) {
+          gridHtml = `<div class="empty-state" style="grid-column:1/-1;"><strong>No tests match</strong><p>Clear the search or switch the filter back to All.</p></div>`;
+        } else {
+          gridHtml = shown.map((t) => {
+            const plats = (t.item.platforms || []).map((p) => String(p).toLowerCase());
+            const fits = !plats.length || plats.includes(plat);
+            const rows = ((t.item.datasets || {}).rows || []).length;
+            const last = lastResultFor(t.kind, t.item);
+            const lastHtml = last
+              ? `<span class="dot ${STATUS_DOT[last.status]}"></span><span>${STATUS_WORD[last.status]} ${esc(fmtAgo(last.when))}</span>${last.report ? `<a class="art-link" href="${esc(last.report)}" target="_blank" rel="noopener" style="margin-left:auto;">Report</a>` : ""}`
+              : `<span class="dot"></span><span>Not run yet</span>`;
+            const runTitle = fits ? `Run on ${platLabel} now` : `Runs on ${plats.map((p) => PLAT_LABEL[p] || p).join(", ")} only. Switch platform in the top bar.`;
+            return `<article class="test-card${fits ? "" : " is-off"}" data-kind="${t.kind}" data-key="${esc(t.key)}">
+              <div class="test-card-top">
+                <div class="test-tags">
+                  <span class="tag ${t.kind === "flow" ? "is-flow" : "is-journey"}">${t.kind === "flow" ? "Workflow" : "Journey"}</span>
+                  ${plats.map((p) => `<span class="tag">${esc(PLAT_LABEL[p] || p)}</span>`).join("")}
+                </div>
+                <button type="button" class="icon-btn" data-home-menu aria-label="More actions for ${esc(t.key)}" title="Rename, duplicate, delete">&#8943;</button>
+              </div>
+              <div>
+                <div class="test-name">${esc(t.key)}</div>
+                ${t.title ? `<div class="test-title">${esc(t.title)}</div>` : ""}
+              </div>
+              <div class="test-meta">${plural(t.item.step_count || 0, "step")}${rows ? ` &middot; ${plural(rows, "data row")}` : ""}</div>
+              <div class="test-last">${lastHtml}</div>
+              <div class="test-actions">
+                <button type="button" class="btn btn-sm btn-primary" data-home-run title="${esc(runTitle)}"${fits ? "" : " disabled"}>&#9654; Run</button>
+                <button type="button" class="btn btn-sm" data-home-open>Open</button>
+              </div>
+            </article>`;
+          }).join("");
+        }
+        setHtmlIfChanged("homeTestGrid", gridHtml);
+
+        // Latest results
+        setHtmlIfChanged("homeRecentRuns", results.length
+          ? results.slice(0, 7).map((r) => `<button type="button" class="recent-row" data-home-result="${esc(r.runDir)}">
+              <span class="dot ${STATUS_DOT[r.status]}"></span>
+              <span style="min-width:0;"><span class="recent-name" style="display:block;">${esc(r.label)}</span><span class="recent-note">${STATUS_WORD[r.status]} &middot; ${esc(r.note)}</span></span>
+              <span class="recent-note">${esc(fmtAgo(r.when))}</span>
+            </button>`).join("")
+          : '<div class="muted" style="padding:16px 14px;font-size:12.5px;border-top:1px solid var(--border);">Results show up here after your first run.</div>');
+      }
+
+      function startGuidedRecording() {
+        navigateTo("record");
+        const inp = $("recFlowNameInput");
+        if (inp) { inp.focus(); if (typeof inp.select === "function") inp.select(); }
+      }
+      function runHomeAction(action, btn) {
+        if (action === "welcome") { openWelcome(); return; }
+        if (action === "app") { $("homeAppFile").click(); return; }
+        if (action === "device") { $("btnTopBootDevice").click(); return; }
+        if (action === "record") { startGuidedRecording(); return; }
+        if (action === "run") {
+          const plat = currentPlatform();
+          const flow = ((STATE.overview && STATE.overview.flows) || []).find((f) => {
+            const plats = (f.platforms || []).map((p) => String(p).toLowerCase());
+            return !plats.length || plats.includes(plat);
+          });
+          if (flow) quickRunTest("flow", flow.name, btn);
+          else toast(`No workflow runs on ${PLAT_LABEL[plat]} yet. Record one first.`, "error");
+        }
+      }
+      $("view-home").addEventListener("click", (e) => {
+        if (e.target.closest("a")) return;
+        const act = e.target.closest("[data-home-action]");
+        if (act) { runHomeAction(act.dataset.homeAction, act); return; }
+        const res = e.target.closest("[data-home-result]");
+        if (res) {
+          if (res.dataset.homeResult) { STATE.selectedRunDir = res.dataset.homeResult; STATE.selectedRunStepIdx = null; }
+          renderRunsAndInspector();
+          navigateTo("runs");
+          return;
+        }
+        const card = e.target.closest(".test-card");
+        if (!card) return;
+        const kind = card.dataset.kind;
+        const key = card.dataset.key;
+        const runBtn = e.target.closest("[data-home-run]");
+        if (runBtn) { quickRunTest(kind, key, runBtn); return; }
+        if (e.target.closest("[data-home-open]")) { openTest(kind, key); return; }
+        const menuBtn = e.target.closest("[data-home-menu]");
+        if (menuBtn) {
+          STATE.cardMenuCtx = { kind, key };
+          const menu = $("cardMenu");
+          $("cardMenuRename").hidden = kind !== "flow";
+          hidePopovers();
+          anchorPopover(menu, menuBtn);
+          try { menu.showPopover(); } catch (_) {}
+        }
+      });
+      $("cardMenu").addEventListener("click", async (e) => {
+        const b = e.target.closest("[data-card-act]");
+        const ctx = STATE.cardMenuCtx;
+        if (!b || !ctx) return;
+        hidePopovers();
+        const item = findTest(ctx.kind, ctx.key);
+        if (!item) return;
+        const act = b.dataset.cardAct;
+        if (act === "open") openTest(ctx.kind, ctx.key);
+        else if (act === "rename") await renameFlow(item.name);
+        else if (act === "duplicate") await duplicateTest(ctx.kind, item);
+        else if (act === "delete") await deleteTest(ctx.kind, item);
+      });
+      $("homeFilterInput").addEventListener("input", renderHome);
+      document.querySelectorAll("[data-home-kind]").forEach((b) => {
+        b.addEventListener("click", () => {
+          STATE.homeKind = b.dataset.homeKind;
+          document.querySelectorAll("[data-home-kind]").forEach((x) => x.setAttribute("aria-pressed", x === b ? "true" : "false"));
+          renderHome();
+        });
+      });
+      $("btnHomeRecord").addEventListener("click", startGuidedRecording);
+      $("btnHomeCustomRun").addEventListener("click", () => { refreshRunSpecDropdown(); $("newRunDialog").showModal(); });
+      $("btnHomeAllRuns").addEventListener("click", () => navigateTo("runs"));
+      $("homeAppFile").addEventListener("change", async () => {
+        const file = $("homeAppFile").files[0];
+        if (!file) return;
+        try {
+          toast(`Adding ${file.name}...`, "info");
+          const res = await uploadAppFile(file);
+          toast(`${res.name} is ready to test.`, "ok");
+        } catch (err) {
+          toastError(err, "Could not add the app");
+        } finally {
+          $("homeAppFile").value = "";
+        }
+      });
+
+      // ---------------- Top bar platform switch ----------------
+      document.querySelectorAll("[data-top-plat]").forEach((b) => {
+        b.addEventListener("click", () => switchTargetPlatformAndApp(b.dataset.topPlat));
+      });
+
+      // ---------------- Welcome ----------------
+      STATE.welcome = { open: false, step: 1, platform: "", app: "", device: "", busy: false };
+      function welcomeWanted() {
+        try { return localStorage.getItem("qalprit.skipWelcome") !== "1"; } catch (_) { return true; }
+      }
+      function openWelcome() {
+        const w = STATE.welcome;
+        w.open = true;
+        w.step = 1;
+        w.platform = "";
+        w.app = "";
+        w.device = "";
+        $("wlShowAtStart").checked = welcomeWanted();
+        showBanner("wlAppStatus", "", "");
+        $("welcomeOverlay").hidden = false;
+        hidePopovers();
+        renderWelcome();
+      }
+      function closeWelcome() {
+        STATE.welcome.open = false;
+        $("welcomeOverlay").hidden = true;
+        try { localStorage.setItem("qalprit.skipWelcome", $("wlShowAtStart").checked ? "0" : "1"); } catch (_) {}
+      }
+      function deviceChoiceParts(label) {
+        const running = /\[Booted\]/.test(label);
+        const name = String(label).replace(/\s*\[(Booted|Shutdown|Offline AVD)\]\s*$/, "").replace(/\s*\([a-z0-9_]+\)$/, "");
+        return { name, running };
+      }
+      function renderWelcome() {
+        const w = STATE.welcome;
+        if (!w.open) return;
+        const ov = STATE.overview || {};
+        const isMac = STATE.hostOs === "Darwin";
+        const hostKnown = Boolean(STATE.hostOs);
+
+        // Returning users can skip straight to their tests
+        const flows = (ov.flows || []).length;
+        const specs = (ov.specs || []).length;
+        const hasWork = flows + specs > 0;
+        $("wlReturning").hidden = !hasWork;
+        if (hasWork) {
+          $("wlReturningText").textContent = `You have ${plural(flows, "workflow")} and ${plural(specs, "journey")} ready to run.`;
+        }
+        $("btnWelcomeSkip").textContent = hasWork ? "Skip to Testing space →" : "Look around first →";
+
+        document.querySelectorAll("[data-wl-step]").forEach((el) => { el.hidden = Number(el.dataset.wlStep) !== w.step; });
+        document.querySelectorAll("[data-wl-pill]").forEach((el) => {
+          const n = Number(el.dataset.wlPill);
+          el.classList.toggle("is-current", n === w.step);
+          el.classList.toggle("is-done", n < w.step);
+        });
+        $("btnWlBack").hidden = w.step === 1;
+        $("wlShowLabel").hidden = w.step !== 1;
+
+        // Step 1
+        const iosBtn = document.querySelector('[data-wl-plat="ios"]');
+        iosBtn.disabled = hostKnown && !isMac;
+        $("wlIosNote").textContent = hostKnown && !isMac ? "Needs a Mac with Xcode" : "An .app build on the iOS Simulator";
+        document.querySelectorAll("[data-wl-plat]").forEach((b) => b.setAttribute("aria-pressed", b.dataset.wlPlat === w.platform ? "true" : "false"));
+
+        // Step 2
+        const plat = w.platform || "android";
+        const apps = appsForPlatform(plat);
+        if (w.app && !apps.some((a) => a.rel_path === w.app)) w.app = "";
+        if (!w.app && apps.length) {
+          const active = activeAppForPlatform(plat);
+          w.app = active ? active.rel_path : apps[0].rel_path;
+        }
+        $("wlAppHeading").textContent = `Which ${PLAT_LABEL[plat]} app?`;
+        $("wlAppSub").textContent = apps.length ? "Pick an app you added before, or add a new one." : "Add the app you want to test. It stays on this computer.";
+        $("wlDropText").textContent = plat === "ios"
+          ? "Drop a simulator build (.app in a .zip) or an .ipa here."
+          : "Drop an .apk file here.";
+        $("wlAppFile").accept = plat === "ios" ? ".zip,.ipa" : ".apk";
+        setHtmlIfChanged("wlAppList", apps.map((a) => `
+          <button type="button" class="choice" data-wl-app="${esc(a.rel_path)}" aria-pressed="${a.rel_path === w.app}">
+            <span class="choice-main"><span class="choice-title">${esc(a.name)}</span><span class="choice-note">${esc(a.detected_package || "App ID not detected")} &middot; ${esc(fmtBytes(a.size_bytes))}</span></span>
+          </button>`).join(""));
+        $("wlAppList").hidden = !apps.length;
+
+        // Step 3
+        const devices = getDeviceOptionsForPlatform(plat);
+        if (w.device && !devices.some((d) => d.value === w.device)) w.device = "";
+        if (!w.device && devices.length) {
+          const live = devices.find((d) => d.value.startsWith("live:"));
+          w.device = (live || devices[0]).value;
+        }
+        setHtmlIfChanged("wlDeviceList", devices.map((d) => {
+          const parts = deviceChoiceParts(d.label);
+          return `<button type="button" class="choice" data-wl-device="${esc(d.value)}" aria-pressed="${d.value === w.device}">
+            <span class="choice-main"><span class="choice-title">${esc(parts.name)}</span><span class="choice-note">${parts.running ? "Running now" : (/_device$/.test(d.value) ? (plat === "ios" ? "A real iPhone plugged in by USB" : "A real phone plugged in with USB debugging on") : "Starts automatically")}</span></span>
+            ${parts.running ? '<span class="badge b-ok">Running</span>' : ""}
+          </button>`;
+        }).join(""));
+        const emu = STATE.emuStatus || {};
+        const noAndroidDevice = plat === "android"
+          && !(emu.avds || []).length
+          && !(STATE.devicesData.android || []).length;
+        $("wlDeviceHint").hidden = !noAndroidDevice;
+        if (noAndroidDevice) {
+          setHtmlIfChanged("wlDeviceHint", 'No Android emulator found yet. <button type="button" class="btn btn-sm" id="btnWlDeviceSetup">Set one up</button>');
+        }
+
+        // Footer button
+        const next = $("btnWlNext");
+        if (w.step === 1) { next.textContent = "Continue"; next.disabled = !w.platform; }
+        else if (w.step === 2) { next.textContent = "Continue"; next.disabled = !w.app || w.busy; }
+        else { next.innerHTML = '<span class="rec-btn-dot"></span> Start recording'; next.disabled = !w.device || w.busy; }
+      }
+      async function welcomeAddApp(file) {
+        const w = STATE.welcome;
+        if (!file || w.busy) return;
+        const plat = w.platform || "android";
+        const ext = (file.name.split(".").pop() || "").toLowerCase();
+        const okExt = plat === "ios" ? ["zip", "ipa"] : ["apk"];
+        if (!okExt.includes(ext)) {
+          showBanner("wlAppStatus", plat === "ios" ? "For iOS, add a .zip that holds the .app build, or an .ipa file." : "For Android, add an .apk file.", "error");
+          return;
+        }
+        w.busy = true;
+        showBanner("wlAppStatus", `Adding ${file.name}. Large apps can take a minute.`, "info");
+        renderWelcome();
+        try {
+          const res = await uploadAppFile(file);
+          w.app = res.rel_path;
+          showBanner("wlAppStatus", `${res.name} added.`, "ok");
+        } catch (err) {
+          showBanner("wlAppStatus", err.message, "error");
+        } finally {
+          w.busy = false;
+          $("wlAppFile").value = "";
+          renderWelcome();
+        }
+      }
+      async function startRecordingFromWelcome() {
+        const w = STATE.welcome;
+        const name = ($("wlTestName").value || "").trim().replace(/\s+/g, "_") || "my_first_test";
+        w.busy = true;
+        renderWelcome();
+        try {
+          switchTargetPlatformAndApp(w.platform);
+          await selectSessionApp(w.app, { autoSave: true });
+          $("recPlatform").value = w.platform;
+          syncDeviceSelects();
+          if (Array.from($("recDeviceSelect").options).some((o) => o.value === w.device)) $("recDeviceSelect").value = w.device;
+          $("recAppSelect").value = w.app;
+          syncFlowNameFields(name, "welcome");
+          updateRecDeviceButtons();
+        } finally {
+          w.busy = false;
+        }
+        closeWelcome();
+        navigateTo("record");
+        $("btnRecStart").click();
+      }
+      $("welcomeOverlay").addEventListener("click", (e) => {
+        const w = STATE.welcome;
+        const p = e.target.closest("[data-wl-plat]");
+        if (p && !p.disabled) { w.platform = p.dataset.wlPlat; w.app = ""; w.device = ""; w.step = 2; showBanner("wlAppStatus", "", ""); renderWelcome(); return; }
+        const a = e.target.closest("[data-wl-app]");
+        if (a) { w.app = a.dataset.wlApp; renderWelcome(); return; }
+        const d = e.target.closest("[data-wl-device]");
+        if (d) { w.device = d.dataset.wlDevice; renderWelcome(); return; }
+        if (e.target.closest("#btnWlDeviceSetup")) { closeWelcome(); navigateTo("settings", "devices"); }
+      });
+      $("btnWlBack").addEventListener("click", () => { STATE.welcome.step = Math.max(1, STATE.welcome.step - 1); renderWelcome(); });
+      $("btnWlNext").addEventListener("click", () => {
+        const w = STATE.welcome;
+        if (w.step < 3) { w.step += 1; renderWelcome(); if (w.step === 3) $("wlTestName").select(); return; }
+        startRecordingFromWelcome();
+      });
+      $("btnWelcomeSkip").addEventListener("click", () => { closeWelcome(); navigateTo("home"); });
+      $("btnWelcomeOpenSpace").addEventListener("click", () => { closeWelcome(); navigateTo("home"); });
+      $("btnWlChooseFile").addEventListener("click", () => $("wlAppFile").click());
+      $("wlAppFile").addEventListener("change", () => welcomeAddApp($("wlAppFile").files[0]));
+      ["dragenter", "dragover"].forEach((ev) => $("wlWizard").addEventListener(ev, (e) => {
+        if (STATE.welcome.step !== 2) return;
+        e.preventDefault();
+        $("wlDropzone").classList.add("is-over");
+      }));
+      ["dragleave", "drop"].forEach((ev) => $("wlWizard").addEventListener(ev, (e) => {
+        if (STATE.welcome.step !== 2) return;
+        e.preventDefault();
+        $("wlDropzone").classList.remove("is-over");
+        if (ev === "drop" && e.dataTransfer && e.dataTransfer.files[0]) welcomeAddApp(e.dataTransfer.files[0]);
+      }));
+      $("wlTestName").addEventListener("keydown", (e) => { if (e.key === "Enter" && !$("btnWlNext").disabled) startRecordingFromWelcome(); });
+      if ($("btnOpenWelcome")) $("btnOpenWelcome").addEventListener("click", openWelcome);
+
+      // Called whenever the platform, app, devices or workspace data change.
+      function refreshContextUi() {
+        updateTopbarSummary();
+        renderHome();
+        renderWelcome();
+      }
+
+      $("screensTable").addEventListener("click", async (e) => {
+        const b = e.target.closest("[data-el-del]");
+        if (!b) return;
+        const target = b.dataset.elDel;
+        if (!(await uiConfirm(`Delete the element '${target}'? Steps that use it stop working until you record or add it again.`, { title: "Delete element", okLabel: "Delete", danger: true }))) return;
+        try {
+          await apiJson("/api/screens/delete", { target });
+          await loadOverview(RELOAD_OPTS);
+          toast(`Deleted ${target}.`, "ok");
+        } catch (err) {
+          toastError(err, "Could not delete the element");
+        }
+      });
+      function filterElementRows() {
+        const q = ($("elFilterInput").value || "").trim().toLowerCase();
+        document.querySelectorAll("#screensTable tr[data-el-row]").forEach((tr) => { tr.hidden = Boolean(q) && !tr.dataset.elRow.includes(q); });
+      }
+      $("elFilterInput").addEventListener("input", filterElementRows);
+
+      STATE.guidedReady = true;
+
+      // Boot: welcome guide first (unless turned off), Testing space behind it.
+      navigateTo("home");
       loadOverview().then(() => {
+        refreshContextUi();
+        if (welcomeWanted()) openWelcome();
         pollEmulatorStatus();
         pollRecorderStatus();
         pollRunStatus();

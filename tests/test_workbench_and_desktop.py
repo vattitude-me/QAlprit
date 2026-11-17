@@ -828,7 +828,14 @@ def test_workspace_apps_detect_android_and_ios_packages_and_ui_layout(tmp_path: 
         encoding="utf-8"
     )
     assert "[hidden] { display: none !important; }" in ui_html
-    assert ui_html.index('data-nav="workflows"') < ui_html.index('data-nav="journeys"') < ui_html.index('data-nav="record"') < ui_html.index('data-nav="runs"')
+    # Sidebar follows the story: Testing space, then record, workflows, journeys, results.
+    assert (
+        ui_html.index('data-nav="home"')
+        < ui_html.index('data-nav="record"')
+        < ui_html.index('data-nav="workflows"')
+        < ui_html.index('data-nav="journeys"')
+        < ui_html.index('data-nav="runs"')
+    )
     assert 'id="activeAppSelect"' in ui_html
     assert 'id="recStartForm"' in ui_html
 
