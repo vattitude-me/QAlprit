@@ -157,3 +157,18 @@ def test_delete_screen_locator_and_environment(tmp_path: Path) -> None:
     assert list(left_envs["environments"]) == ["qa"]
     with pytest.raises(ValueError, match="at least one"):
         delete_environment_entry(tmp_path, "qa")
+
+
+def test_flow_remembers_the_app_per_platform_and_keeps_it_on_edit(tmp_path: Path) -> None:
+    from qalprit.spec_loader import load_flows
+    from qalprit.workbench_api import save_flow_spec
+
+    steps = [{"tap": "login.button"}]
+    save_flow_spec(tmp_path, name="auth/login", params=[], steps=steps, platforms=["android"], apps={"android": "apps/demo.apk"})
+    save_flow_spec(tmp_path, name="auth/login", params=[], steps=steps, platforms=["ios"], apps={"ios": "apps/Demo.app"})
+    # A plain edit from the Workbench passes no apps and must not drop them.
+    save_flow_spec(tmp_path, name="auth/login", params=[], steps=steps)
+
+    flows, errors = load_flows(tmp_path / "flows")
+    assert not errors
+    assert flows["auth/login"].apps == {"android": "apps/demo.apk", "ios": "apps/Demo.app"}

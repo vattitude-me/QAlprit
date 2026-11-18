@@ -609,6 +609,7 @@ def save_flow_spec(
     steps: list[Any],
     notes: str = "",
     platforms: list[str] | None = None,
+    apps: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Save a reusable workflow (`flows/<name>.md`) and validate it parses cleanly.
 
@@ -630,10 +631,13 @@ def save_flow_spec(
     dest.parent.mkdir(parents=True, exist_ok=True)
 
     kept_platforms: list[str] = []
+    kept_apps: dict[str, str] = {}
     if dest.is_file():
         try:
             old_meta = frontmatter.loads(dest.read_text(encoding="utf-8")).metadata
             kept_platforms = [str(p).strip().lower() for p in (old_meta.get("platforms") or [])]
+            if isinstance(old_meta.get("apps"), dict):
+                kept_apps = {str(k).lower(): str(v) for k, v in old_meta["apps"].items()}
         except Exception:
             kept_platforms = []
     merged_platforms = [
@@ -646,6 +650,12 @@ def save_flow_spec(
     }
     if merged_platforms:
         meta["platforms"] = sorted(merged_platforms)
+    merged_apps = {
+        k: v for k, v in {**kept_apps, **{str(k).strip().lower(): str(v).strip() for k, v in (apps or {}).items()}}.items()
+        if k in ("android", "ios") and v
+    }
+    if merged_apps:
+        meta["apps"] = dict(sorted(merged_apps.items()))
     meta["steps"] = steps
     dest.write_text(_dump_frontmatter_md(meta, notes or f"Reusable workflow `{rel_name}`."), encoding="utf-8")
     flows, errors = load_flows(flows_dir)

@@ -2919,6 +2919,7 @@
         activeNav: "home",
         settingsTab: "env",
         activeApp: "",
+        runCardChoice: {},
         hostOs: "",
         stepVocab: ["launch", "reset_app", "background", "tap", "tap_if_visible", "type", "clear", "swipe", "scroll_until_visible", "wait", "wait_for_visible", "wait_for_enabled", "wait_for_text", "wait_for_keyboard", "assert_visible", "assert_not_visible", "assert_text", "assert_enabled", "assert_disabled", "back", "hide_keyboard", "enter_otp", "set_toggle", "assert_toggle", "biometric", "run_flow", "screenshot", "visual_compare"],
         emuStatus: null,
@@ -2986,8 +2987,14 @@
         if (!el) return;
         if (!msg) { el.hidden = true; el.textContent = ""; return; }
         el.hidden = false;
-        el.className = "status-banner" + (kind ? " status-" + kind : "");
+        setBannerKind(el, "") + (kind ? " status-" + kind : "");
         el.textContent = msg;
+      }
+
+      // Banners are found later by a marker class (ds-steps-banner), so change only the status class.
+      function setBannerKind(el, kind) {
+        el.classList.remove("status-ok", "status-error");
+        if (kind) el.classList.add("status-" + kind);
       }
 
       function toast(msg, kind, ms) {
@@ -3233,6 +3240,31 @@
           if (iosOpt) { iosOpt.disabled = !isMac; iosOpt.textContent = isMac ? "iOS" : "iOS (macOS)"; }
           if (!isMac && sel.value === "ios") sel.value = "android";
         });
+      }
+
+      // Apps that can run on the given platform: .apk for Android, .app/.zip/.ipa for iOS.
+      function appsForPlatform(plat) {
+        const apps = (STATE.overview && STATE.overview.apps) || [];
+        return apps.filter((a) => (plat === "android" ? a.kind === "apk" : a.kind !== "apk"));
+      }
+
+      // App saved with a workflow (or with the first workflow a journey runs) for this platform.
+      function savedAppFor(item, isFlow, plat) {
+        const flows = (STATE.overview && STATE.overview.flows) || [];
+        if (isFlow) return (item.apps && item.apps[plat]) || "";
+        for (const st of item.steps || []) {
+          const fname = st && st.type === "run_flow" && st.params ? st.params.flow : "";
+          const f = fname ? flows.find((x) => x.name === fname) : null;
+          if (f && f.apps && f.apps[plat]) return f.apps[plat];
+        }
+        return "";
+      }
+
+      // Run card default: the app saved with the test, else the top-right app if it fits, else the first that fits.
+      function defaultAppFor(plat, savedRel) {
+        const fit = appsForPlatform(plat);
+        const byRel = (rel) => rel ? fit.find((a) => a.rel_path === rel || a.name === rel || a.rel_path.endsWith("/" + rel)) : null;
+        return byRel(savedRel) || byRel(STATE.activeApp) || fit[0] || null;
       }
 
       function getDeviceOptionsForPlatform(plat) {
@@ -3710,6 +3742,11 @@
         const plat = isFlow ? STATE.flowPlatform : STATE.specPlatform;
         const isMac = STATE.hostOs === "Darwin";
         const devOpts = getDeviceOptionsForPlatform(plat);
+        const appOpts = appsForPlatform(plat);
+        const choiceKey = `${kind}:${isFlow ? item.name : item.id}:${plat}`;
+        const savedChoice = STATE.runCardChoice[choiceKey] || {};
+        const chosenDev = devOpts.some((d) => d.value === savedChoice.device) ? savedChoice.device : "";
+        const chosenApp = appOpts.find((a) => a.rel_path === savedChoice.app) || defaultAppFor(plat, savedAppFor(item, isFlow, plat));
         const previewIdx = Math.min(Math.max(0, isFlow ? STATE.flowPreviewRowIdx : STATE.specPreviewRowIdx), Math.max(0, rows.length - 1));
         const previewRow = rows[previewIdx] || null;
         const paramCount = variables.length;
@@ -3808,7 +3845,13 @@
               <div>
                 <label>Device</label>
                 <select class="ds-run-device">
-                  ${devOpts.map((d) => `<option value="${esc(d.value)}">${esc(d.label)}</option>`).join("")}
+                  ${devOpts.map((d) => `<option value="${esc(d.value)}" ${d.value === chosenDev ? "selected" : ""}>${esc(d.label)}</option>`).join("")}
+                </select>
+              </div>
+              <div>
+                <label>App</label>
+                <select class="ds-run-app">
+                  ${appOpts.length ? appOpts.map((a) => `<option value="${esc(a.rel_path)}" ${chosenApp && a.rel_path === chosenApp.rel_path ? "selected" : ""}>${esc(a.name)}</option>`).join("") : `<option value="">No ${plat === "ios" ? "iOS" : "Android"} app added</option>`}
                 </select>
               </div>
               <div class="form-grid" style="grid-template-columns:1fr 78px;">
@@ -3950,6 +3993,15 @@
           });
         });
 
+        ["ds-run-device", "ds-run-app"].forEach((cls) => {
+          const sel = host.querySelector("." + cls);
+          if (!sel) return;
+          sel.addEventListener("change", () => {
+            const cur = STATE.runCardChoice[choiceKey] || {};
+            cur[cls === "ds-run-app" ? "app" : "device"] = sel.value;
+            STATE.runCardChoice[choiceKey] = cur;
+          });
+        });
         host.querySelectorAll("[data-ds-plat]").forEach((btn) => {
           btn.addEventListener("click", () => {
             if (isFlow) STATE.flowPlatform = btn.dataset.dsPlat;
@@ -4082,15 +4134,21 @@
           btn.addEventListener("click", async () => {
             const isDry = btn.dataset.dsRun === "dry";
             const banner = host.querySelector(".ds-run-banner");
-            const activeApp = STATE.activeApp || ((ov.apps && ov.apps[0] && ov.apps[0].rel_path) || "");
+            const appSel = host.querySelector(".ds-run-app");
+            const activeApp = appSel ? appSel.value : "";
             const envName = $("topEnvSelect").value || "qa";
             const devSel = host.querySelector(".ds-run-device");
             const rstSel = host.querySelector(".ds-run-reset");
             const retInp = host.querySelector(".ds-run-retries");
             const dsNames = selectedRows.map((r) => r.name);
             banner.hidden = false;
-            banner.className = "status-banner";
+            setBannerKind(banner, "");
             banner.textContent = isDry ? "Validating execution plan..." : "Launching batch run...";
+            if (!isDry && !activeApp) {
+              setBannerKind(banner, "error");
+              banner.textContent = `Add ${plat === "ios" ? "an iOS" : "an Android"} app first, then pick it under App.`;
+              return;
+            }
             try {
               const rawDev = devSel ? devSel.value : "";
               const resolvedDev = isDry
@@ -4112,14 +4170,14 @@
               });
               if (isDry) {
                 const dsText = res.dataset_count ? ` × ${res.dataset_count} dataset(s): ${res.datasets.join(", ")}` : "";
-                banner.className = "status-banner status-ok";
+                setBannerKind(banner, "ok");
                 banner.textContent = `Dry run passed for ${res.specs.length} test(s)${dsText} on ${res.platform}/${res.env_name}.`;
               } else {
                 navigateTo("runs");
                 startRunPolling();
               }
             } catch (err) {
-              banner.className = "status-banner status-error";
+              setBannerKind(banner, "error");
               banner.textContent = err.message;
             }
           });
@@ -4167,11 +4225,11 @@
                 });
               }
               clearStepsDirty();
-              b.hidden = false; b.className = "status-banner status-ok"; b.textContent = "Saved steps cleanly.";
+              b.hidden = false; setBannerKind(b, "ok"); b.textContent = "Saved steps cleanly.";
               toast(`Saved ${isFlow ? "workflow '" + item.name : "journey '" + item.id}'.`, "ok");
               await loadOverview({ skipAutoSync: true, preserveFormInputs: true });
             } catch (err) {
-              b.hidden = false; b.className = "status-banner status-error"; b.textContent = err.message;
+              b.hidden = false; setBannerKind(b, "error"); b.textContent = err.message;
             }
           });
         }
@@ -4182,12 +4240,12 @@
             try {
               const res = await apiJson("/api/validate", { env_name: $("topEnvSelect").value || "qa", platform: plat });
               b.hidden = false;
-              b.className = "status-banner " + (res.ok ? "status-ok" : "status-error");
+              setBannerKind(b, res.ok ? "ok" : "error");
               b.textContent = res.ok
                 ? `Validation PASSED (${res.specs_count} journey(s), ${res.flows_count} flow(s)).`
                 : `Validation FAILED: ${(res.errors || []).slice(0, 3).map((e) => e.location + ": " + e.message).join(" | ")}`;
             } catch (err) {
-              b.hidden = false; b.className = "status-banner status-error"; b.textContent = err.message;
+              b.hidden = false; setBannerKind(b, "error"); b.textContent = err.message;
             }
           });
         }
@@ -4223,11 +4281,11 @@
                 });
                 STATE.selectedSpecId = newId;
               }
-              b.hidden = false; b.className = "status-banner status-ok"; b.textContent = "Saved settings.";
+              b.hidden = false; setBannerKind(b, "ok"); b.textContent = "Saved settings.";
               toast("Saved settings.", "ok");
               await loadOverview({ skipAutoSync: true, preserveFormInputs: true });
             } catch (err) {
-              b.hidden = false; b.className = "status-banner status-error"; b.textContent = err.message;
+              b.hidden = false; setBannerKind(b, "error"); b.textContent = err.message;
             }
           });
         }
@@ -4552,7 +4610,8 @@
         if (rerunBtn) {
           rerunBtn.addEventListener("click", async () => {
             const ov = STATE.overview || {};
-            const activeApp = STATE.activeApp || ((ov.apps && ov.apps[0] && ov.apps[0].rel_path) || "");
+            const rerunApp = defaultAppFor(run.platform || "android", "");
+            const activeApp = rerunApp ? rerunApp.rel_path : "";
             const isFlowRun = String(run.suite || "").startsWith("workflow:");
             const flowName = isFlowRun ? String(run.suite).slice("workflow:".length) : "";
             const testId = !isFlowRun && focusTest ? focusTest.id : "";

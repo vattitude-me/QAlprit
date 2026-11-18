@@ -12,6 +12,24 @@ Ideas planned for a later release. Nothing here ships yet.
 
 ---
 
+## [v0.1.37] - 2026-11-18
+
+### Fixed
+
+- Saving a journey after "Validate workspace" no longer fails with "null is not an object (evaluating 'b.hidden = false')". The editor finds its status banner by a marker class, and the status updates replaced the whole class list, so the next Save could not find the banner. A `setBannerKind()` helper now changes only the status class. Nine places had the same pattern, including the settings and run banners.
+- Runs from a workflow or journey page use the app chosen in the Run Configuration card. They used to take the app from the top-right pill, so an iOS app picked there could launch for an Android run. "Re-run" on the Runs page now picks an app that fits the run's platform.
+
+### Added
+
+- Run Configuration has an **App** picker, filtered to the chosen platform. It starts on the app the workflow was recorded against, then the top-right app if it fits, then the first app that fits. The device and app you pick stay selected while you browse rows.
+- Recorded workflows remember their app. `flows/*.md` gains an optional `apps:` map (`android: apps/x.apk`, `ios: apps/X.app`), saved by the recorder and kept when you edit the workflow. A journey uses the app of the first workflow it runs.
+
+### Lessons learned
+
+- Do not assign `className` on an element other code looks up by class. Toggle only the classes that change.
+
+---
+
 ## [v0.1.36] - 2026-11-17
 
 ### Fixed
