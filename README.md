@@ -151,7 +151,7 @@ npm install -g appium
 appium driver install uiautomator2   # Android
 appium driver install xcuitest       # iOS, macOS only
 
-qalprit ui                           # the same Workbench, in your browser
+qalprit ui                           # the same Workbench, in your browser (workspace: ~/Documents/QAlpritWorkspace)
 qalprit doctor                       # check Python, Node, Appium and device tools
 qalprit validate --suite mda --env mda
 qalprit run --platform android --device android_emulator --app apps/mda-2.3.0-27.apk --env mda --suite mda
@@ -201,7 +201,7 @@ pytest -v
 | `qalprit validate --suite <name> --env <name>` | Checks specs, flows, locators, and `.env` without a phone (`--app` optional) |
 | `qalprit run --platform android\|ios --device <name> --app <path>` | Runs tests (`--id`, `--exclude-tags`, `--rerun-failed`, `--dry-run`, `--update-baselines`) |
 | `qalprit report <results-dir>` | Rebuilds `report.html`, `summary.md`, and `junit.xml` from `results.json` |
-| `qalprit ui` | Opens the Workbench in your browser: record flows, edit datasets, run, and compare reports |
+| `qalprit ui` | Opens the Workbench in your browser: record flows, edit datasets, run, and compare reports. It uses the workspace saved in Settings (default `~/Documents/QAlpritWorkspace`), never the current folder. Pass `--workspace <folder>` to open another one |
 
 ### More docs
 

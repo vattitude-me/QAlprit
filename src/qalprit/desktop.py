@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 import threading
 import webbrowser
@@ -101,11 +102,16 @@ QA_PASS=DemoPassword!2026
 """
 
 
-def resolve_default_workspace() -> Path:
-    """Resolve active workspace: CWD, QALPRIT_WORKSPACE, saved settings, legacy ~/QAlpritWorkspace, or ~/Documents/QAlpritWorkspace."""
-    cwd = Path.cwd().resolve()
-    if (cwd / "config" / "devices.yaml").is_file() and (cwd / "config" / "environments.yaml").is_file():
-        return cwd
+def resolve_default_workspace(*, use_cwd: bool = True) -> Path:
+    """Resolve active workspace: CWD, QALPRIT_WORKSPACE, saved settings, legacy ~/QAlpritWorkspace, or ~/Documents/QAlpritWorkspace.
+
+    Pass `use_cwd=False` to skip the current-folder rule. The browser `qalprit ui` does this so
+    that running it from a source checkout never turns the checkout into the workspace.
+    """
+    if use_cwd:
+        cwd = Path.cwd().resolve()
+        if (cwd / "config" / "devices.yaml").is_file() and (cwd / "config" / "environments.yaml").is_file():
+            return cwd
     env_ws = os.environ.get("QALPRIT_WORKSPACE")
     if env_ws:
         return Path(env_ws).expanduser().resolve()
@@ -116,6 +122,53 @@ def resolve_default_workspace() -> Path:
     if legacy_ws.is_dir():
         return legacy_ws
     return get_standard_workspace_dir()
+
+
+def _enclosing_git_root(path: Path) -> Path | None:
+    """Return the nearest parent folder (not `path` itself) that holds a `.git` entry."""
+    for parent in path.parents:
+        if (parent / ".git").exists():
+            return parent
+    return None
+
+
+def ensure_workspace_git_ignored(root: Path) -> bool:
+    """Keep a workspace that sits inside a git checkout out of that checkout's `git status`.
+
+    Writes a `.gitignore` containing `*` inside the workspace, so the outer repository's own
+    files stay untouched. Does nothing when the workspace is not inside a repository, is a
+    repository itself, already has a `.gitignore`, or already holds files that git tracks.
+    Returns True when the workspace is now ignored by its enclosing repository.
+    """
+    root = root.resolve()
+    if (root / ".git").exists():
+        return False
+    repo = _enclosing_git_root(root)
+    if repo is None:
+        return False
+    ignore_file = root / ".gitignore"
+    if ignore_file.exists():
+        return True
+    try:
+        tracked = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "--", "."],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+        if tracked.returncode == 0 and tracked.stdout.strip():
+            return False
+    except (OSError, subprocess.SubprocessError):
+        pass
+    try:
+        ignore_file.write_text(
+            "# QAlprit workspace inside a git checkout. Keep its files out of the repository.\n*\n",
+            encoding="utf-8",
+        )
+    except OSError:
+        return False
+    return True
 
 
 def ensure_workspace(project_root: Path | None = None) -> Path:
@@ -133,6 +186,7 @@ def ensure_workspace(project_root: Path | None = None) -> Path:
     for file_path, content in defaults.items():
         if not file_path.exists():
             file_path.write_text(content, encoding="utf-8")
+    ensure_workspace_git_ignored(root)
     return root
 
 

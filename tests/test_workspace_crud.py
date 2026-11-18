@@ -137,6 +137,24 @@ def test_delete_workspace_app_only_touches_app_files(tmp_path: Path) -> None:
     assert (apps / "notes.txt").is_file()
 
 
+def test_apps_in_subfolders_are_listed_and_deletable(tmp_path: Path) -> None:
+    from qalprit.workbench_api import list_workspace_apps
+
+    nested = tmp_path / "apps" / "android"
+    nested.mkdir(parents=True)
+    (nested / "tng.apk").write_bytes(b"apk")
+    (tmp_path / "apps" / "top.apk").write_bytes(b"apk")
+    (nested / "notes.txt").write_text("skip", encoding="utf-8")
+
+    listed = {a["rel_path"] for a in list_workspace_apps(tmp_path)}
+    assert listed == {"apps/android/tng.apk", "apps/top.apk"}
+
+    assert delete_workspace_app(tmp_path, "apps/android/tng.apk")["deleted_path"] == "apps/android/tng.apk"
+    assert not (nested / "tng.apk").exists()
+    with pytest.raises(ValueError):
+        delete_workspace_app(tmp_path, "apps/android/../../outside.apk")
+
+
 def test_delete_screen_locator_and_environment(tmp_path: Path) -> None:
     (tmp_path / "screens").mkdir()
     screens = {"login": {"user": {"accessibility_id": "user"}}, "home": {"title": {"accessibility_id": "t"}, "menu": {"accessibility_id": "m"}}}

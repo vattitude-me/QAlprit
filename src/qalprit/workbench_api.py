@@ -206,37 +206,37 @@ def _detect_app_identifier(app_path: Path, kind: str) -> str:
     return ident
 
 
+def _iter_app_entries(apps_dir: Path):
+    """Yield app files and .app bundles under `apps/`, including subfolders such as `apps/android/`."""
+    for entry in sorted(apps_dir.iterdir(), key=lambda p: p.name.lower()):
+        if entry.name.startswith(".") or entry.is_symlink():
+            continue
+        ext = entry.suffix.lower()
+        if entry.is_file() and ext in {".apk", ".ipa", ".zip"}:
+            yield entry, ext.lstrip(".")
+        elif entry.is_dir() and ext == ".app":
+            yield entry, "app"
+        elif entry.is_dir():
+            yield from _iter_app_entries(entry)
+
+
 def list_workspace_apps(project_root: Path) -> list[dict[str, Any]]:
-    """List mobile binaries placed in workspace `apps/`."""
+    """List mobile binaries placed in workspace `apps/` (subfolders included)."""
     apps_dir = project_root / "apps"
     if not apps_dir.is_dir():
         return []
     items: list[dict[str, Any]] = []
-    for entry in sorted(apps_dir.iterdir(), key=lambda p: p.name.lower()):
-        if entry.name.startswith("."):
-            continue
-        ext = entry.suffix.lower()
-        if entry.is_file() and ext in {".apk", ".ipa", ".zip"}:
-            kind = ext.lstrip(".")
-            items.append(
-                {
-                    "name": entry.name,
-                    "rel_path": f"apps/{entry.name}",
-                    "kind": kind,
-                    "size_bytes": entry.stat().st_size,
-                    "detected_package": _detect_app_identifier(entry, kind),
-                }
-            )
-        elif entry.is_dir() and ext == ".app":
-            items.append(
-                {
-                    "name": entry.name,
-                    "rel_path": f"apps/{entry.name}",
-                    "kind": "app",
-                    "size_bytes": 0,
-                    "detected_package": _detect_app_identifier(entry, "app"),
-                }
-            )
+    for entry, kind in _iter_app_entries(apps_dir):
+        rel = entry.relative_to(apps_dir).as_posix()
+        items.append(
+            {
+                "name": entry.name,
+                "rel_path": f"apps/{rel}",
+                "kind": kind,
+                "size_bytes": 0 if kind == "app" else entry.stat().st_size,
+                "detected_package": _detect_app_identifier(entry, kind),
+            }
+        )
     return items
 
 
@@ -1057,14 +1057,17 @@ def delete_run_results(results_dir: Path, dir_name: str) -> dict[str, Any]:
 
 
 def delete_workspace_app(project_root: Path, rel_path: str) -> dict[str, Any]:
-    """Delete an uploaded app file (or .app bundle) from the workspace `apps/` folder."""
+    """Delete an uploaded app file (or .app bundle) from `apps/` or one of its subfolders."""
     apps_dir = (project_root / "apps").resolve()
-    name = Path((rel_path or "").replace("\\", "/")).name
+    clean = (rel_path or "").replace("\\", "/").strip()
+    if clean.startswith("apps/"):
+        clean = clean[len("apps/"):]
+    name = Path(clean).name
     if not name or name.startswith("."):
         raise ValueError("An app file name is required.")
-    raw_target = apps_dir / name
+    raw_target = apps_dir / clean
     target = raw_target.resolve()
-    if raw_target.is_symlink() or target.parent != apps_dir or not target.exists():
+    if raw_target.is_symlink() or not target.is_relative_to(apps_dir) or target == apps_dir or not target.exists():
         raise ValueError(f"App '{name}' was not found in apps/.")
     if target.is_dir():
         if target.suffix.lower() != ".app":
@@ -1074,7 +1077,7 @@ def delete_workspace_app(project_root: Path, rel_path: str) -> dict[str, Any]:
         if target.suffix.lower() not in _ALLOWED_APP_EXTS:
             raise ValueError(f"'{name}' is not an app file.")
         target.unlink()
-    return {"ok": True, "deleted_path": f"apps/{name}"}
+    return {"ok": True, "deleted_path": f"apps/{target.relative_to(apps_dir).as_posix()}"}
 
 
 def delete_screen_locator(project_root: Path, target: str) -> dict[str, Any]:
@@ -1152,6 +1155,50 @@ def reveal_in_file_manager(project_root: Path, rel_path: str = "") -> dict[str, 
     return {"ok": True, "opened_path": str(target)}
 
 
+def pick_folder(initial: str = "", prompt: str = "Choose a folder") -> dict[str, Any]:
+    """Open the operating system's folder chooser on this machine and return the chosen path.
+
+    The Workbench server runs on the user's own computer, so the dialog appears on their screen
+    whether they use the desktop window or a browser tab.
+    """
+    start = Path(initial).expanduser() if initial.strip() else Path.home()
+    while not start.is_dir() and start != start.parent:
+        start = start.parent
+    try:
+        if sys.platform == "darwin":
+            cmd = [
+                "osascript",
+                "-e", "on run argv",
+                "-e", f'set f to choose folder with prompt "{prompt}" default location (POSIX file (item 1 of argv))',
+                "-e", "return POSIX path of f",
+                "-e", "end run",
+                str(start),
+            ]
+        elif sys.platform.startswith("win"):
+            script = (
+                "Add-Type -AssemblyName System.Windows.Forms; "
+                "$d = New-Object System.Windows.Forms.FolderBrowserDialog; "
+                f"$d.Description = '{prompt}'; $d.SelectedPath = $args[0]; "
+                "if ($d.ShowDialog() -eq 'OK') { $d.SelectedPath }"
+            )
+            cmd = ["powershell", "-NoProfile", "-STA", "-Command", script, str(start)]
+        elif shutil.which("zenity"):
+            cmd = ["zenity", "--file-selection", "--directory", f"--title={prompt}", f"--filename={start}/"]
+        elif shutil.which("kdialog"):
+            cmd = ["kdialog", "--getexistingdirectory", str(start), "--title", prompt]
+        else:
+            raise ValueError("No folder chooser is available here. Type the folder path instead.")
+        done = subprocess.run(cmd, capture_output=True, text=True, timeout=600, check=False)
+    except subprocess.TimeoutExpired:
+        return {"ok": True, "cancelled": True, "path": ""}
+    except OSError as exc:
+        raise ValueError(f"Could not open the folder chooser ({exc}). Type the folder path instead.") from exc
+    chosen = done.stdout.strip()
+    if done.returncode != 0 or not chosen:
+        return {"ok": True, "cancelled": True, "path": ""}
+    return {"ok": True, "cancelled": False, "path": str(Path(chosen).resolve())}
+
+
 def update_storage_preferences(current_workspace: Path, payload: dict[str, Any]) -> dict[str, Any]:
     """Save user-approved storage directories / system SDK preference and ensure workspace folders."""
     from qalprit.desktop import ensure_workspace
@@ -1183,10 +1230,13 @@ def update_storage_preferences(current_workspace: Path, payload: dict[str, Any])
         updates["show_device_window"] = bool(payload.get("show_device_window"))
 
     saved = save_user_settings(updates)
+    from qalprit.desktop import _enclosing_git_root
+
     return {
         "ok": True,
         "settings": saved,
         "workspace_dir": str(new_workspace),
+        "inside_git_repo": _enclosing_git_root(new_workspace) is not None,
         "preflight": discover_system_software(new_workspace),
     }
 
