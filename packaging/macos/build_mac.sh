@@ -215,6 +215,26 @@ fi
 rm -rf "${DIST_APP}" "${REPO_ROOT}/dist/QAlprit"
 "${PYTHON_BIN}" -m PyInstaller --clean --noconfirm "${SCRIPT_DIR}/qalprit.spec"
 
+# 5b. Raise the SDK version recorded in the app's executable.
+# WKWebView turns off newer web features (the Popover API, for one) for an executable linked against an
+# old macOS SDK, and the prebuilt PyInstaller bootloader was linked against SDK 12.1. With the feature
+# off, every [popover] menu in the Workbench renders as an open box on top of the page.
+SDK_VER="$(xcrun --show-sdk-version)"
+for exe in "${DIST_APP}/Contents/MacOS/"*; do
+  [ -f "${exe}" ] || continue
+  if file "${exe}" | grep -q "Mach-O"; then
+    vtool -set-build-version macos 11.0 "${SDK_VER}" -replace -output "${exe}.sdk" "${exe}" >/dev/null 2>&1
+    mv "${exe}.sdk" "${exe}"
+    chmod +x "${exe}"
+  fi
+done
+APP_SDK="$(vtool -show-build "${DIST_APP}/Contents/MacOS/QAlprit" | awk '/sdk /{print $2; exit}')"
+echo "==> QAlprit executable SDK: ${APP_SDK}"
+if [ "${APP_SDK%%.*}" -lt 17 ]; then
+  echo "ERROR: QAlprit executable is linked against SDK ${APP_SDK}. WKWebView would disable the Popover API." >&2
+  exit 1
+fi
+
 # 6. Attach bundled runtime/ inside QAlprit.app/Contents/Resources/runtime/
 RUNTIME_TARGET="${DIST_APP}/Contents/Resources/runtime"
 rm -rf "${RUNTIME_TARGET}"

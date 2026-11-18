@@ -94,3 +94,10 @@ These project rules and architecture notes govern git workflow, codebase navigat
 - **Inspect before editing locators**: Never guess element IDs or XPaths. Inspect live screens with `qalprit inspect` or failure dumps (`results/<run-id>/page_sources/*/attempt_*/*_FAIL.xml`). Keep `android:` and `ios:` overrides independent in `screens/screens.yaml`.
 - **Do not mask real app bugs**: When `results/<run-id>/screenshots/*/attempt_*/*_FAIL.png` shows an actual product regression or wrong app behavior, report the failure with proof instead of loosening assertions to make tests green. Scope genuinely missing platform features explicitly (`platforms: [android]` or `[ios]`).
 - **Protect secrets & redaction**: Keep `secret: true` on credential/PII `type` steps and `sensitive: true` on sensitive locators in `screens/screens.yaml`. Never run destructive `xcrun simctl erase` or delete files without explicit user confirmation.
+
+## 7. Embedded browser compatibility (desktop app)
+
+- **The desktop UI runs in WKWebView (macOS) and Edge WebView2 (Windows), not only in a modern browser.** A feature that works in Chrome or Safari can be switched off in the app. The Popover API broke the top menus in the macOS app more than once because the CI bootloader is linked against macOS SDK 12.1 and WKWebView hides newer web features from apps linked that way.
+- **Never call `el.matches(":popover-open")` or rely on `popover` alone.** Use `isPopOpen(el)` and the fallback in `src/qalprit/ui/index.html` (`installPopoverFallback`). Any new `popover` menu needs the `menu-popover` class so the fallback covers it. `tests/test_webview_compat.py` enforces this.
+- **Keep the SDK relink in `packaging/macos/build_mac.sh`.** After building, run `vtool -show-build dist-mac/QAlprit.app/Contents/MacOS/QAlprit`. The `sdk` value must be 17 or higher, or the build fails.
+- **Test newer web features with the feature off.** Before relying on a recent browser API in `src/qalprit/ui/index.html`, add a fallback and check it in the packaged app or a frozen pywebview probe, not only in a local browser.
