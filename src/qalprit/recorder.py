@@ -261,6 +261,16 @@ def _connect_phase_text(platform: str, profile: Any) -> str:
     return "Connecting to the device and opening the app..."
 
 
+def _workspace_rel(project_root: Path, app: Path | None) -> str:
+    """Workspace-relative POSIX path of the app, or the bare file name if it lives elsewhere."""
+    if app is None:
+        return ""
+    try:
+        return app.resolve().relative_to(project_root.resolve()).as_posix()
+    except ValueError:
+        return app.name
+
+
 class RecorderManager:
     """Manages a single live interactive recording session against an Android Emulator / iOS Simulator."""
 
@@ -282,6 +292,7 @@ class RecorderManager:
         self._rev = 0
         self._project_root: Path | None = None
         self._platform = "android"
+        self._app_rel = ""
         self._env_name = "qa"
         self._device_profile = ""
         self._serial = ""
@@ -777,6 +788,7 @@ class RecorderManager:
             self._error = ""
             self._project_root = project_root
             self._platform = platform
+            self._app_rel = _workspace_rel(project_root, resolved_app)
             self._env_name = env_name
             self._device_profile = device_profile
             self._serial = profile.udid or ""
@@ -1239,6 +1251,7 @@ class RecorderManager:
         with self._lock:
             project_root = self._project_root
             platform = self._platform
+            app_rel = self._app_rel
             steps = list(self._steps)
             locators = dict(self._locators)
         if project_root is None:
@@ -1281,6 +1294,7 @@ class RecorderManager:
             name=flow_name or "recorded_flow",
             params=variables,
             platforms=[platform] if platform in ("android", "ios") else None,
+            apps={platform: app_rel} if app_rel and platform in ("android", "ios") else None,
             steps=yaml_steps,
             notes=f"Recorded live on {platform} emulator ({len(yaml_steps)} steps).",
         )

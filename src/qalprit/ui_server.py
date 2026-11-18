@@ -240,6 +240,7 @@ def collect_workspace_overview(
                 "params": merged_params,
                 "declared_params": f.params,
                 "platforms": list(f.platforms),
+                "apps": dict(f.apps),
                 "body": f.body,
                 "step_count": len(f.steps),
                 "steps": [st.model_dump() for st in f.steps],
