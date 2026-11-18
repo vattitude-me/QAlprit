@@ -713,6 +713,8 @@
     .dev-combo select { flex: 1; min-width: 0; }
     .menu-popover-wide { min-width: 290px; max-width: 340px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
     .menu-popover-wide:not(:popover-open) { display: none; }
+    /* Fallback for webviews without the Popover API (see installPopoverFallback). */
+    html.no-native-popover .menu-popover:not(.popover-open) { display: none; }
     .menu-popover-wide label { margin-bottom: 2px; }
     .rec-grid {
       display: grid;
@@ -2913,6 +2915,52 @@
   </android.widget.FrameLayout>
 </hierarchy>`;
 
+      // The Popover API is missing in some webviews. A macOS app linked against an old SDK gets
+      // WKWebView with it switched off, and then every [popover] element renders as an open box.
+      // This keeps the three menus working without it. Use isPopOpen(), never the raw :popover-open selector.
+      const NATIVE_POPOVER = "popover" in HTMLElement.prototype;
+      function isPopOpen(el) {
+        if (!el) return false;
+        if (!NATIVE_POPOVER) return el.classList.contains("popover-open");
+        try { return el.matches(":popover-open"); } catch (_) { return false; }
+      }
+      (function installPopoverFallback() {
+        if (NATIVE_POPOVER) return;
+        document.documentElement.classList.add("no-native-popover");
+        const menus = () => Array.from(document.querySelectorAll(".menu-popover"));
+        const fire = (el, type, state) => {
+          const ev = new Event(type);
+          ev.newState = state;
+          ev.oldState = state === "open" ? "closed" : "open";
+          el.dispatchEvent(ev);
+        };
+        menus().forEach((el) => {
+          el.showPopover = () => {
+            if (isPopOpen(el)) return;
+            menus().forEach((o) => { if (o !== el) o.hidePopover(); });
+            fire(el, "beforetoggle", "open");
+            el.classList.add("popover-open");
+            fire(el, "toggle", "open");
+          };
+          el.hidePopover = () => {
+            if (!isPopOpen(el)) return;
+            fire(el, "beforetoggle", "closed");
+            el.classList.remove("popover-open");
+            fire(el, "toggle", "closed");
+          };
+          el.togglePopover = () => (isPopOpen(el) ? el.hidePopover() : el.showPopover());
+        });
+        document.addEventListener("click", (e) => {
+          const trig = e.target.closest ? e.target.closest("[popovertarget]") : null;
+          const tgt = trig ? document.getElementById(trig.getAttribute("popovertarget")) : null;
+          if (tgt && tgt.togglePopover) { tgt.togglePopover(); return; }
+          menus().forEach((m) => { if (isPopOpen(m) && !m.contains(e.target)) m.hidePopover(); });
+        });
+        document.addEventListener("keydown", (e) => {
+          if (e.key === "Escape") menus().forEach((m) => m.hidePopover());
+        });
+      })();
+
       const STATE = {
         overview: null,
         devicesData: { android: [], ios: [] },
@@ -3021,7 +3069,7 @@
         // Re-show as a popover so the toast sits in the top layer, above any open dialog and its backdrop.
         try {
           if (host.showPopover) {
-            if (host.matches(":popover-open")) host.hidePopover();
+            if (isPopOpen(host)) host.hidePopover();
             host.showPopover();
           }
         } catch (_) {}
@@ -3197,7 +3245,7 @@
       if ($("cardMenu")) {
         $("cardMenu").addEventListener("beforetoggle", (e) => {
           if (e.newState !== "open") return;
-          ["topMoreMenu", "devicePopoverMenu"].forEach((id) => { try { if ($(id).matches(":popover-open")) $(id).hidePopover(); } catch (_) {} });
+          ["topMoreMenu", "devicePopoverMenu"].forEach((id) => { try { if (isPopOpen($(id))) $(id).hidePopover(); } catch (_) {} });
         });
       }
       [
@@ -3212,11 +3260,11 @@
           if (e.newState !== "open") return;
           anchorPopover(m, t);
           document.querySelectorAll(".menu-popover").forEach((other) => {
-            if (other !== m) { try { if (other.matches(":popover-open")) other.hidePopover(); } catch (_) {} }
+            if (other !== m) { try { if (isPopOpen(other)) other.hidePopover(); } catch (_) {} }
           });
         });
         window.addEventListener("resize", () => {
-          if (m.matches(":popover-open")) anchorPopover(m, t);
+          if (isPopOpen(m)) anchorPopover(m, t);
         });
       });
 
@@ -6510,7 +6558,7 @@
       }
       function hidePopovers() {
         document.querySelectorAll(".menu-popover").forEach((m) => {
-          try { if (m.matches(":popover-open")) m.hidePopover(); } catch (_) {}
+          try { if (isPopOpen(m)) m.hidePopover(); } catch (_) {}
         });
       }
       function fmtAgo(iso) {

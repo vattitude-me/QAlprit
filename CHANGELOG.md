@@ -12,6 +12,23 @@ Ideas planned for a later release. Nothing here ships yet.
 
 ---
 
+## [v0.1.38] - 2026-11-18
+
+### Fixed
+
+- The top menus (More, device and the run-card menu) no longer sit open on top of the page in the macOS app. They are native `popover` elements, and WKWebView turns that feature off for an app linked against an old macOS SDK. The CI build used SDK 12.1, so every menu showed as a permanent box. This happened in earlier releases too, and it came back because the local build used a new SDK and hid the problem.
+- `build_mac.sh` now relinks the app's executables against the current SDK with `vtool` and stops the build if the result is older than SDK 17.
+- The UI no longer depends on the Popover API alone. If the browser lacks it, a small fallback gives the three menus the same open, close, outside-click and Escape behavior.
+
+### Lessons learned
+
+- A UI that works from `qalprit ui` in a browser, or from a locally built app, can still break in the released app. The CI PyInstaller bootloader is linked against SDK 12.1, and WKWebView hides newer web features (the Popover API here) from apps linked that way. Check a released DMG, not only a local build.
+- Never ask the browser for `:popover-open` directly. Use `isPopOpen(el)`, which also works when the Popover API is missing.
+- Run `vtool -show-build QAlprit.app/Contents/MacOS/QAlprit` on every macOS build. The `sdk` line must be 17 or higher.
+- When a new web platform feature drives visible UI, add a fallback and test it with the feature switched off. `tests/test_webview_compat.py` guards the menus.
+
+---
+
 ## [v0.1.37] - 2026-11-18
 
 ### Fixed
