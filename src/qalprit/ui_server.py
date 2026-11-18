@@ -49,6 +49,7 @@ from qalprit.workbench_api import (
     inspect_xml_payload,
     list_workspace_apps,
     list_workspace_configs,
+    pick_folder,
     next_journey_id,
     rename_flow_spec,
     reveal_in_file_manager,
@@ -775,6 +776,17 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
                     reveal_in_file_manager(
                         self.project_root,
                         rel_path=str(body.get("rel_path") or ""),
+                    )
+                )
+                return
+
+            if req_path == "/api/system/pick-folder":
+                if str(self.client_address[0]) not in {"127.0.0.1", "::1", "::ffff:127.0.0.1"}:
+                    raise ValueError("The folder chooser only works from the computer running QAlprit.")
+                self._send_json(
+                    pick_folder(
+                        str(body.get("initial") or ""),
+                        prompt=str(body.get("prompt") or "Choose a folder"),
                     )
                 )
                 return

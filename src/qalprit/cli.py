@@ -667,7 +667,15 @@ def report(results_dir: Path, external_assets: bool) -> None:
 @click.option("--port", type=int, default=8765, show_default=True, help="Port to serve the local workbench UI.")
 @click.option("--results-dir", type=click.Path(path_type=Path), default=None, help="Directory containing run results.")
 @click.option("--no-open", is_flag=True, help="Do not automatically open the browser.")
-@click.option("--project-root", type=click.Path(path_type=Path), default=None, hidden=True)
+@click.option(
+    "--workspace",
+    "--project-root",
+    "project_root",
+    type=click.Path(path_type=Path),
+    default=None,
+    help="Workspace folder to open. Default: the folder saved in Settings, else ~/Documents/QAlpritWorkspace. "
+    "The current folder is never used, so running this from a source checkout leaves the checkout alone.",
+)
 def ui(
     host: str,
     port: int,
@@ -682,10 +690,16 @@ def ui(
             "Test artifacts and screenshots will be reachable over the network.",
             err=True,
         )
-    root = _resolve_root(project_root)
+    if project_root is not None:
+        root = _resolve_root(project_root)
+    else:
+        from qalprit.desktop import ensure_workspace, resolve_default_workspace
+
+        root = ensure_workspace(resolve_default_workspace(use_cwd=False))
     server = create_ui_server(root, results_dir=results_dir, host=host, port=port)
     bound_host, bound_port = server.server_address[:2]
     url = f"http://{bound_host}:{bound_port}"
+    click.echo(f"Workspace: {root} (change it in Settings > Storage & cleanup)")
     click.echo(f"QAlprit Workbench running at {url} (Ctrl+C to stop)")
     if not no_open:
         webbrowser.open(url)

@@ -2663,13 +2663,16 @@
                     <label for="prefWorkspaceDirInput">Workspace Folder (specs, flows, datasets, apps, results)</label>
                     <div style="display:flex;gap:6px;">
                       <input id="prefWorkspaceDirInput" type="text" placeholder="~/Documents/QAlpritWorkspace" />
+                      <button type="button" class="btn btn-sm" data-pick-folder="prefWorkspaceDirInput">Choose folder</button>
                       <button type="button" class="btn btn-sm" data-reveal-path="">Open</button>
                     </div>
+                    <div class="muted" style="font-size:11px;margin-top:4px;">Pick a folder, then press Save &amp; Apply. Your specs, workflows, apps and results live there. If it sits inside a git repository, QAlprit adds a .gitignore so the repository stays clean.</div>
                   </div>
                   <div>
                     <label for="prefDataDirInput">SDK &amp; Virtual Emulator Data Folder</label>
                     <div style="display:flex;gap:6px;">
                       <input id="prefDataDirInput" type="text" placeholder="%LOCALAPPDATA%\QAlprit" />
+                      <button type="button" class="btn btn-sm" data-pick-folder="prefDataDirInput">Choose folder</button>
                       <button type="button" class="btn btn-sm" data-reveal-path="@data_dir">Open</button>
                     </div>
                   </div>
@@ -6374,15 +6377,31 @@
           }).join("");
         } catch (_) {}
       }
+      document.querySelectorAll("[data-pick-folder]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const input = $(btn.getAttribute("data-pick-folder"));
+          btn.disabled = true;
+          try {
+            const res = await apiJson("/api/system/pick-folder", { initial: input.value.trim(), prompt: "Choose a folder for QAlprit" });
+            if (!res.cancelled && res.path) {
+              input.value = res.path;
+              showBanner("prefStatusBanner", "Folder chosen. Press Save & Apply Storage Folders to switch to it.", "ok");
+            }
+          } catch (err) { showBanner("prefStatusBanner", err.message, "error"); }
+          finally { btn.disabled = false; }
+        });
+      });
       $("storagePrefsForm").addEventListener("submit", async (e) => {
         e.preventDefault();
         try {
-          await apiJson("/api/system/preferences", {
+          const saved = await apiJson("/api/system/preferences", {
             workspace_dir: $("prefWorkspaceDirInput").value.trim(),
             data_dir: $("prefDataDirInput").value.trim(),
             prefer_existing_system_sdk: $("prefReuseSystemSdk").checked
           });
-          showBanner("prefStatusBanner", "Storage preferences saved.", "ok");
+          showBanner("prefStatusBanner", saved.inside_git_repo
+            ? "Storage preferences saved. The workspace is inside a git repository, so it is ignored by git."
+            : "Storage preferences saved.", "ok");
           await loadOverview({ skipAutoSync: true });
         } catch (err) { showBanner("prefStatusBanner", err.message, "error"); }
       });

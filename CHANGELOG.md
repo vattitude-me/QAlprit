@@ -12,6 +12,27 @@ Ideas planned for a later release. Nothing here ships yet.
 
 ---
 
+## [v0.1.39] - 2026-11-18
+
+### Changed
+
+- `qalprit ui` in a browser no longer uses the folder you run it from. It opens the workspace saved in Settings, else `~/Documents/QAlpritWorkspace`, the same as the desktop app. Running it inside a source checkout used to turn the checkout into the workspace, so recorded workflows, screens, datasets and results landed in tracked files. Pass `--workspace <folder>` (alias `--project-root`) to open a specific folder. QAlprit does not add files to a folder you pass this way.
+
+### Added
+
+- Settings > Storage & cleanup has a **Choose folder** button for the workspace and the SDK data folder. It opens the operating system's folder chooser (macOS, Windows, and Linux with zenity or kdialog), then Save & Apply switches the workspace without a restart.
+- A workspace inside a git repository gets a `.gitignore` containing `*`, so its files never show up in the repository's `git status`. QAlprit skips this when the folder is a repository itself, already has a `.gitignore`, or holds files git tracks. The Settings message says when this applies.
+
+### Fixed
+
+- Apps in subfolders of `apps/` (for example `apps/android/tng-non-prod.apk`) now appear in the app lists, and can be removed from the UI.
+
+### Lessons learned
+
+- A tool that edits files must never treat the current folder as its data folder by default. Keep user data in a folder the tool owns, and take a source checkout only when asked with an explicit flag.
+
+---
+
 ## [v0.1.38] - 2026-11-18
 
 ### Fixed

@@ -101,3 +101,9 @@ These project rules and architecture notes govern git workflow, codebase navigat
 - **Never call `el.matches(":popover-open")` or rely on `popover` alone.** Use `isPopOpen(el)` and the fallback in `src/qalprit/ui/index.html` (`installPopoverFallback`). Any new `popover` menu needs the `menu-popover` class so the fallback covers it. `tests/test_webview_compat.py` enforces this.
 - **Keep the SDK relink in `packaging/macos/build_mac.sh`.** After building, run `vtool -show-build dist-mac/QAlprit.app/Contents/MacOS/QAlprit`. The `sdk` value must be 17 or higher, or the build fails.
 - **Test newer web features with the feature off.** Before relying on a recent browser API in `src/qalprit/ui/index.html`, add a fallback and check it in the packaged app or a frozen pywebview probe, not only in a local browser.
+
+## 8. Workspace location
+
+- **The Workbench never uses the repo folder as its workspace by default.** `qalprit ui` resolves the workspace with `resolve_default_workspace(use_cwd=False)` (saved Settings folder, else `~/Documents/QAlpritWorkspace`) so recording, saving and runs do not change tracked files. To work on the sample suites in this repo, run `qalprit ui --workspace .` on purpose and review `git status` before committing.
+- **A workspace inside a git repo must be ignored.** `ensure_workspace()` calls `ensure_workspace_git_ignored()`. Keep that call when changing workspace setup, and never write a `*` ignore file into a folder that is itself a repository.
+- **Switching folders goes through Settings > Storage & cleanup** (`/api/system/preferences`, with `/api/system/pick-folder` for the chooser). Do not add other code paths that move the workspace.
