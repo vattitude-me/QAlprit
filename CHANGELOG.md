@@ -18,8 +18,15 @@ Ideas planned for a later release. Nothing here ships yet.
 
 - Android locators with a bare resource id, such as `id: Button`, now find their element. Appium's `id` strategy turns a bare id into `<package>:id/Button`, so apps that expose bare ids (Jetpack Compose test tags, for one) never matched and the step timed out with `locator_not_found`. QAlprit now matches both `Button` and `<package>:id/Button`. Fully qualified ids and iOS are unchanged.
 
+- Choosing an app on the Record, Inspect or Run page no longer snaps back to the Settings app. A silent workspace reload (window focus, save, upload) copied the Settings "App in use" into every page picker. A reload now only fills a picker that is still empty.
+
+### Changed
+
+- The recorder step list, its edit bar and the run step trace show the element name without the screen prefix (`toggle_toggle`, not `recorded_flow.toggle_toggle`). The full name is in the tooltip, the editors and the saved files.
+
 ### Lessons learned
 
+- A shared "current app" setting must only seed page pickers. If a periodic refresh writes it back into them, it overrides what the user chose.
 - When a locator times out but the element is visible in the failure screenshot, compare the locator with `resource-id` in `page_sources/*_FAIL.xml`. A missing package prefix in the XML explains it.
 
 ---
