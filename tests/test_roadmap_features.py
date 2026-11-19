@@ -293,6 +293,22 @@ def test_locator_single_strategy_validator_and_text_escaping() -> None:
     assert ios_val == "label == 'O\\'Brien \\\\ test' OR name == 'O\\'Brien \\\\ test' OR value == 'O\\'Brien \\\\ test'"
 
 
+def test_android_bare_resource_id_matches_with_and_without_package_prefix() -> None:
+    android = AppiumDriverAdapter(raw_driver=object(), platform="android")
+    by, val = android._to_by_and_val("id", "Button")
+    assert by == "-android uiautomator"
+    assert val == 'new UiSelector().resourceIdMatches("^(.*:id/)?Button$")'
+
+    _, dotted = android._to_by_and_val("id", "a.b")
+    assert dotted == 'new UiSelector().resourceIdMatches("^(.*:id/)?a\\\\.b$")'
+
+    # Fully qualified ids and iOS keep the plain id strategy.
+    by_full, val_full = android._to_by_and_val("id", "com.app:id/login")
+    assert (by_full, val_full) == ("id", "com.app:id/login")
+    ios = AppiumDriverAdapter(raw_driver=object(), platform="ios")
+    assert ios._to_by_and_val("id", "Button") == ("id", "Button")
+
+
 # ---------------------------------------------------------------------------
 # 4. Expanded step vocabulary, wait diagnostics & stale element 1x retry
 # ---------------------------------------------------------------------------

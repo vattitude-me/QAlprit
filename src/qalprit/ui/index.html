@@ -4629,7 +4629,7 @@
               ${steps.length ? steps.slice(0, 10).map((s) => {
                 const icon = s.status === "failed" ? '<span class="st-fail">&times;</span>' : (s.status === "passed" ? '<span class="st-ok">&#10003;</span>' : '<span class="muted">-</span>');
                 return `<div class="run-mini-step${s.status === "failed" ? " is-fail" : ""}" data-insp-step="${s.index}">
-                  <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${s.index} ${esc(s.action)} ${esc(s.target || "")}</span>
+                  <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${s.index} ${esc(s.action)} <span title="${esc(s.target || "")}">${esc(shortTarget(s.target))}</span></span>
                   ${icon}
                 </div>`;
               }).join("") : '<span class="muted">No step trace recorded.</span>'}
@@ -4747,9 +4747,15 @@
         const app = apps.find((a) => a.rel_path === relPath) || null;
         STATE.activeApp = app ? app.rel_path : "";
         try { if (STATE.activeApp) localStorage.setItem("qalprit.activeApp", STATE.activeApp); } catch (_) {}
+        // A silent workspace reload (window focus, save, upload) must not overwrite the app a page
+        // already has. Only fill a page picker that is still empty, unless the user changed the
+        // Settings app on purpose.
+        const keepPageChoices = Boolean(options.fromReload);
         ["activeAppSelect", "recAppSelect", "inspectAppSelect", "runAppSelect"].forEach((id) => {
           const s = $(id);
-          if (s && Array.from(s.options).some((o) => o.value === STATE.activeApp)) s.value = STATE.activeApp;
+          if (!s) return;
+          if (keepPageChoices && id !== "activeAppSelect" && s.value) return;
+          if (Array.from(s.options).some((o) => o.value === STATE.activeApp)) s.value = STATE.activeApp;
         });
         renderAppsTable(apps);
         updateTopbarSummary();
@@ -4837,7 +4843,7 @@
           if (!desiredApp || !apps.some((a) => a.rel_path === desiredApp)) desiredApp = apps[0] ? apps[0].rel_path : "";
         }
         const needAutoSync = Boolean(desiredApp && !options.skipAutoSync && (!envs.qa || envs.qa.android_package === "com.example.app"));
-        selectSessionApp(desiredApp, { autoSave: needAutoSync, preserveFormInputs: Boolean(options.preserveFormInputs) });
+        selectSessionApp(desiredApp, { autoSave: needAutoSync, preserveFormInputs: Boolean(options.preserveFormInputs), fromReload: true });
         syncDeviceSelects();
 
         const screens = data.screens || [];
@@ -5367,6 +5373,14 @@
           : '<div class="muted" style="padding:8px;">No matching elements.</div>';
       }
 
+      // Steps are saved as "screen.element". The screen part repeats the recording name, so lists show the
+      // element only. The full name stays in the saved file, in tooltips and in the editors.
+      function shortTarget(target) {
+        const t = String(target || "");
+        const i = t.indexOf(".");
+        return i > 0 && i < t.length - 1 ? t.slice(i + 1) : t;
+      }
+
       function renderRecorderSteps(steps) {
         const list = steps || [];
         $("recStepCount").textContent = String(list.length);
@@ -5388,7 +5402,7 @@
           return `<div class="rec-step-row${STATE.recSelectedStepIdx === idx ? " is-selected" : ""}" data-rec-step-idx="${idx}" draggable="true" title="Click to edit/reorder, or drag to rearrange">
             <span class="rec-step-num">${idx + 1}</span>
             <span class="rec-step-act${actCls}">${esc(actLabel)}</span>
-            <span class="rec-step-target">${esc(s.target || s.label || "")}</span>
+            <span class="rec-step-target" title="${esc(s.target || "")}">${esc(shortTarget(s.target) || s.label || "")}</span>
             <span class="rec-step-val">${esc(valParts.join(" · "))}</span>
           </div>`;
         }).join("");
@@ -5846,7 +5860,8 @@
         }
         STATE.recSelectedStepIdx = idx;
         $("recStepEditBar").hidden = false;
-        $("recStepEditLabel").textContent = `#${idx + 1} ${st.action}${st.target ? " " + st.target : ""}`;
+        $("recStepEditLabel").textContent = `#${idx + 1} ${st.action}${st.target ? " " + shortTarget(st.target) : ""}`;
+        $("recStepEditLabel").title = st.target || "";
         const act = String(st.action || "").toLowerCase();
         const needsValue = ["type", "assert_text", "wait", "swipe"].includes(act);
         const isType = act === "type";
