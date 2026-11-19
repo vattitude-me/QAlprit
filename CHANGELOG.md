@@ -12,6 +12,18 @@ Ideas planned for a later release. Nothing here ships yet.
 
 ---
 
+## [v0.1.40] - 2026-11-18
+
+### Fixed
+
+- Android locators with a bare resource id, such as `id: Button`, now find their element. Appium's `id` strategy turns a bare id into `<package>:id/Button`, so apps that expose bare ids (Jetpack Compose test tags, for one) never matched and the step timed out with `locator_not_found`. QAlprit now matches both `Button` and `<package>:id/Button`. Fully qualified ids and iOS are unchanged.
+
+### Lessons learned
+
+- When a locator times out but the element is visible in the failure screenshot, compare the locator with `resource-id` in `page_sources/*_FAIL.xml`. A missing package prefix in the XML explains it.
+
+---
+
 ## [v0.1.39] - 2026-11-18
 
 ### Changed

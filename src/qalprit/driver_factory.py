@@ -96,6 +96,16 @@ class AppiumDriverAdapter:
         if strategy == "accessibility_id":
             return AppiumBy.ACCESSIBILITY_ID, value
         if strategy == "id":
+            if self.platform == "android" and ":" not in value and "/" not in value:
+                # UiAutomator2 rewrites a bare id to "<package>:id/<id>". Apps that
+                # expose bare resource ids (for example Compose test tags) never
+                # match that, so accept the bare form and the prefixed form.
+                pattern = f"^(.*:id/)?{re.escape(value)}$"
+                java = pattern.replace("\\", "\\\\").replace('"', '\\"')
+                return (
+                    AppiumBy.ANDROID_UIAUTOMATOR,
+                    f'new UiSelector().resourceIdMatches("{java}")',
+                )
             return AppiumBy.ID, value
         if strategy == "xpath":
             return AppiumBy.XPATH, value
