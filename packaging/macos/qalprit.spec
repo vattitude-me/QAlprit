@@ -32,6 +32,8 @@ wv_datas, wv_binaries, wv_hiddenimports = collect_all("webview")
 objc_submodules = collect_submodules("objc")
 ap_datas, ap_binaries, ap_hiddenimports = collect_all("appium")
 se_datas, se_binaries, se_hiddenimports = collect_all("selenium")
+# The AI screenshot check (qalprit.ai_review) imports the Anthropic SDK lazily.
+an_datas, an_binaries, an_hiddenimports = collect_all("anthropic")
 
 meta_datas = _safe_copy_metadata(
     [
@@ -51,17 +53,19 @@ meta_datas = _safe_copy_metadata(
         "pydantic",
         "Pillow",
         "python-frontmatter",
+        "anthropic",
     ]
 )
 
-datas = collect_data_files("qalprit") + meta_datas + wv_datas + ap_datas + se_datas
-binaries = wv_binaries + ap_binaries + se_binaries
+datas = collect_data_files("qalprit") + meta_datas + wv_datas + ap_datas + se_datas + an_datas
+binaries = wv_binaries + ap_binaries + se_binaries + an_binaries
 hiddenimports = (
     collect_submodules("qalprit")
     + wv_hiddenimports
     + objc_submodules
     + ap_hiddenimports
     + se_hiddenimports
+    + an_hiddenimports
     + [
         "appium",
         "appium.webdriver",

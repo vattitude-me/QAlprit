@@ -152,6 +152,20 @@ class StepResult(BaseModel):
     diagnostics: dict[str, Any] = Field(default_factory=dict)
     visual_diff_path: str = ""
     visual_diff_score: float | None = None
+    # Screenshot saved when the flow was recorded, and how much the replay differs from it.
+    flow_index: int | None = None
+    reference_screenshot_path: str = ""
+    reference_diff_path: str = ""
+    reference_mismatch: float | None = None
+    reference_label: str = ""
+    reference_note: str = ""
+    # AI check of the replay screenshot against the test's references (Jira, Confluence).
+    ai_verdict: str = ""  # pass | fail | unclear | ''
+    ai_reason: str = ""
+    ai_requirement: str = ""
+    # Reviewer decision recorded in the Workbench: accepted | rejected | ''
+    review: str = ""
+    review_note: str = ""
 
 
 class AttemptResult(BaseModel):
@@ -183,6 +197,7 @@ class TestResult(BaseModel):
     targets: list[str] = Field(default_factory=list)
     priority: str = "medium"
     expected: str = ""
+    references: list[str] = Field(default_factory=list)
     status: Literal["passed", "failed", "skipped"]
     flaky: bool = False
     skip_reason: str | None = None
@@ -198,6 +213,10 @@ class TestResult(BaseModel):
     webview_detected: bool = False
     attempts: list[AttemptResult] = Field(default_factory=list)
     steps: list[StepResult] = Field(default_factory=list)
+    # AI check of the whole test against its references.
+    ai_summary: str = ""
+    ai_uncovered: list[str] = Field(default_factory=list)
+    ai_error: str = ""
 
 
 class RunSummary(BaseModel):

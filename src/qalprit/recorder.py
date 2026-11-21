@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import io
 import os
+import uuid
 import queue
 import platform as py_platform
 import re
@@ -16,6 +18,7 @@ from typing import Any
 
 from PIL import Image, ImageDraw
 
+from qalprit.recorder_paths import step_references_dir
 from qalprit.runner import apply_app_reset
 from qalprit.steps.base import read_toggle_state
 from qalprit.appium_manager import AppiumManager, build_appium_env
@@ -234,7 +237,9 @@ def _step_to_yaml_dict(step: dict[str, Any]) -> Any:
             hold = 0
         return {"long_press": {"target": target, "duration": hold}} if hold > 0 else {"long_press": target}
     if action == "launch":
-        return {"launch": {"app": value, "restart": True}}
+        if step.get("restart", True):
+            return {"launch": {"app": value, "restart": True}}
+        return {"launch": value}
     if action == "wait":
         try:
             sec = float(value or 1.0)
@@ -270,8 +275,24 @@ def _connect_phase_text(platform: str, profile: Any) -> str:
     return "Connecting to the device and opening the app..."
 
 
-def _foreground_app_id(driver: Any, platform: str) -> str:
-    """Return the package (Android) or bundle id (iOS) of the app in front, or ''."""
+_HOME_APPS = {
+    "com.android.systemui",
+    "com.apple.springboard",
+    "com.miui.home",
+    "com.android.quickstep",
+    "com.google.android.apps.nexuslauncher",
+    "com.sec.android.app.launcher",
+}
+
+
+def is_home_app(app_id: str) -> bool:
+    """True for the home screen, recents and system UI, which are not apps under test."""
+    low = (app_id or "").strip().lower()
+    return bool(low) and (low in _HOME_APPS or "launcher" in low)
+
+
+def _current_app(driver: Any, platform: str) -> str:
+    """Package (Android) or bundle id (iOS) of whatever is in front, home screen included, or ''."""
     script = "mobile: getCurrentPackage" if platform == "android" else "mobile: activeAppInfo"
     try:
         res = driver.execute_script(script, {})
@@ -279,11 +300,56 @@ def _foreground_app_id(driver: Any, platform: str) -> str:
         res = None
     if isinstance(res, dict):
         res = res.get("bundleId") or res.get("package") or ""
-    app_id = str(res or "").strip()
-    # The launcher or system UI is not an app under test.
-    if not app_id or "launcher" in app_id.lower() or app_id in {"com.android.systemui", "com.apple.springboard"}:
-        return ""
-    return app_id
+    return str(res or "").strip()
+
+
+def _foreground_app_id(driver: Any, platform: str) -> str:
+    """Return the app in front, or '' when it is the home screen or unknown."""
+    app_id = _current_app(driver, platform)
+    return "" if is_home_app(app_id) else app_id
+
+
+def save_step_references(
+    project_root: Path,
+    flow_name: str,
+    platform: str,
+    steps: list[dict[str, Any]],
+    shots: dict[str, bytes],
+) -> dict[str, Any]:
+    """Write each step's screenshot and a manifest.json that ties it to the flow step.
+
+    The manifest records action and target per step, so a run can tell when the flow was
+    edited after recording and skip a screenshot that no longer belongs to that step.
+    """
+    out_dir = step_references_dir(project_root, flow_name)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for old in out_dir.glob("step_*.png"):
+        old.unlink()
+    entries: list[dict[str, Any]] = []
+    for idx, step in enumerate(steps):
+        png = shots.get(str(step.get("uid") or ""), b"")
+        name = ""
+        if png:
+            name = f"step_{idx:02d}.png"
+            (out_dir / name).write_bytes(png)
+        entries.append({
+            "index": idx,
+            "action": str(step.get("action") or ""),
+            "target": str(step.get("target") or ""),
+            "label": str(step.get("label") or ""),
+            "screenshot": name,
+        })
+    manifest = {
+        "flow": flow_name,
+        "platform": platform,
+        "recorded_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "steps": entries,
+    }
+    (out_dir / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    return {
+        "dir": out_dir.relative_to(project_root).as_posix(),
+        "screenshots": sum(1 for e in entries if e["screenshot"]),
+    }
 
 
 def _workspace_rel(project_root: Path, app: Path | None) -> str:
@@ -294,6 +360,10 @@ def _workspace_rel(project_root: Path, app: Path | None) -> str:
         return app.resolve().relative_to(project_root.resolve()).as_posix()
     except ValueError:
         return app.name
+
+
+# Screen state kept when a finger lands: elements, screen name, keyboard top, redacted PNG, app in front.
+_Before = tuple[list[dict[str, Any]], str, "int | None", bytes, str]
 
 
 class RecorderManager:
@@ -314,6 +384,13 @@ class RecorderManager:
         self._real_device = False
         self._start_mode = "clear_data"
         self._launch_app_id = ""
+        # App in front at the last capture, so switching apps on the device becomes a step.
+        self._front_app = ""
+        self._apps_seen: set[str] = set()
+        # Screenshot of the screen each step left behind, keyed by step uid.
+        self._step_shots: dict[str, bytes] = {}
+        self._shot_owner = ""
+        self._last_ref_png: bytes = b""
 
         self._active = False
         self._starting = False
@@ -385,13 +462,21 @@ class RecorderManager:
                 "notice_rev": self._notice_rev,
                 "elements": list(self._elements[:250]),
                 "locators": list(self._locators.values()),
-                "steps": [dict(s, yaml_step=_step_to_yaml_dict(s)) for s in self._steps],
+                "steps": [
+                    dict(s, yaml_step=_step_to_yaml_dict(s), has_shot=s.get("uid") in self._step_shots)
+                    for s in self._steps
+                ],
                 "logs": list(self._logs[-40:]),
             }
 
     def screenshot_bytes(self) -> bytes:
         with self._lock:
             return self._screenshot_png
+
+    def step_shot_bytes(self, uid: str) -> bytes:
+        """The redacted screenshot a recorded step left on screen, or b''."""
+        with self._lock:
+            return self._step_shots.get(uid, b"")
 
     def _set_notice(self, msg: str) -> None:
         with self._lock:
@@ -508,7 +593,12 @@ class RecorderManager:
         with self._lock:
             redact_enabled = self._redact_sensitive
         png_safe = _redact_sensitive_png(png_raw, ranked) if redact_enabled else png_raw
+        # Saved step screenshots are always redacted, whatever the mirror shows.
+        ref_png = png_safe if redact_enabled else _redact_sensitive_png(png_raw, ranked)
         with self._lock:
+            self._last_ref_png = ref_png
+            if self._shot_owner:
+                self._step_shots[self._shot_owner] = ref_png
             self._elements = ranked
             self._screenshot_png = png_safe
             self._last_raw_hash = hashlib.sha1(png_raw).hexdigest()
@@ -518,6 +608,7 @@ class RecorderManager:
             self._gesture_height = win_h
             self._rev += 1
         self._update_keyboard_locked()
+        self._track_front_app_locked()
 
     def _mark_session_lost(self, exc: BaseException) -> None:
         with self._lock:
@@ -650,6 +741,37 @@ class RecorderManager:
             return None
         return pick_touch_device(lp.stdout or "")
 
+    def _track_front_app_locked(self) -> None:
+        """Record opening another app from the home screen or recents as a `launch` step.
+
+        A switch the app makes on its own (a browser sign-in, a permission dialog) follows a
+        tap that is already recorded, so it is not a step.
+        """
+        if self._driver is None or self._platform != "android":
+            return
+        now = _current_app(self._driver, self._platform)
+        if not now:
+            return
+        with self._lock:
+            before = self._front_app
+            self._front_app = now
+            first_time = now not in self._apps_seen
+            if not is_home_app(now):
+                self._apps_seen.add(now)
+        if now == before or is_home_app(now):
+            return
+        if before and not is_home_app(before):
+            return
+        self._append_or_merge_step({
+            "action": "launch",
+            "target": "",
+            "value": now,
+            "restart": first_time,
+            "secret": False,
+            "label": f"{'Open' if first_time else 'Switch to'} {now}",
+        })
+        self._log(f"Recorded opening {now}.")
+
     def _update_keyboard_locked(self) -> None:
         """Remember where the on-screen keyboard starts, so key presses are not recorded as taps."""
         if self._platform != "android" or not self._direct_tap_watch or self._driver is None:
@@ -705,7 +827,7 @@ class RecorderManager:
         self._update_keyboard_locked()
 
         def _reader() -> None:
-            before: tuple[list[dict[str, Any]], str, int | None] | None = None
+            before: _Before | None = None
             assert proc.stdout is not None
             for raw_line in proc.stdout:
                 if self._stop_event.is_set() or self._session_token != token:
@@ -715,7 +837,13 @@ class RecorderManager:
                         # Keep the screen as it was when the finger landed. By the time the
                         # finger lifts, the app may already show the next screen.
                         with self._lock:
-                            before = (list(self._elements), self._screen_name, self._keyboard_top)
+                            before = (
+                                list(self._elements),
+                                self._screen_name,
+                                self._keyboard_top,
+                                self._last_ref_png,
+                                self._front_app,
+                            )
                         continue
                     if time.monotonic() - self._last_ui_action_ts < 1.8:
                         # The recorder itself just drove the device; this is not a new step.
@@ -744,7 +872,7 @@ class RecorderManager:
         self,
         kind: str,
         gesture: Gesture | None,
-        before: tuple[list[dict[str, Any]], str, int | None] | None,
+        before: _Before | None,
         *,
         token: int,
     ) -> None:
@@ -758,8 +886,14 @@ class RecorderManager:
             if not self._active or self._driver is None:
                 return
             with self._lock:
-                prev_elems, screen_name, kb_top = before or (list(self._elements), self._screen_name, self._keyboard_top)
+                prev_elems, screen_name, kb_top, before_png, front = before or (
+                    list(self._elements), self._screen_name, self._keyboard_top, self._last_ref_png, self._front_app,
+                )
                 self._device_gestures += 1
+                prev_owner = self._shot_owner
+                if before_png and prev_owner:
+                    # The screen right before this gesture is what the previous step led to.
+                    self._step_shots[prev_owner] = before_png
 
             step: dict[str, Any] | None = None
             if kind == "back_key" or (gesture is not None and gesture.kind == "back"):
@@ -768,6 +902,10 @@ class RecorderManager:
                 self._set_notice("Skipped a system gesture (Home, recents or notifications). It is not part of the app's flow.")
             elif gesture is not None and kb_top is not None and gesture.y >= kb_top:
                 # A key press on the on-screen keyboard. The typed text is read from the field instead.
+                pass
+            elif gesture is not None and is_home_app(front) and gesture.kind != "swipe":
+                # Opening an app from the home screen is recorded as a `launch` step once it is
+                # in front; the icon's position on the home screen is not part of the test.
                 pass
             elif gesture is not None and gesture.kind == "swipe":
                 step = {
@@ -816,20 +954,29 @@ class RecorderManager:
                 if step is not None:
                     self._append_or_merge_step(step)
                 return
+            with self._lock:
+                # This capture shows what the gesture led to, not the previous step's result.
+                self._shot_owner = ""
             self._capture_snapshot_locked()
             with self._lock:
                 new_elems = list(self._elements)
+                if not self._shot_owner:
+                    self._shot_owner = prev_owner
             # Text typed on the device right before this gesture (the field may now be gone).
             for changed_el, typed_val in detect_changed_editable_inputs(prev_elems, new_elems):
                 loc = self._register_locator_locked(changed_el, screen_name)
                 step_val = "${SECRET_VALUE}" if loc["sensitive"] else typed_val
-                self._append_or_merge_step({
+                typed_step = {
                     "action": "type",
                     "target": loc["target"],
                     "value": step_val,
                     "secret": loc["sensitive"],
                     "label": f"Type '{SecretMasker.REPLACEMENT if loc['sensitive'] else step_val}' into {loc['display_label']}",
-                })
+                }
+                self._append_or_merge_step(typed_step)
+                if before_png:
+                    with self._lock:
+                        self._step_shots[typed_step["uid"]] = before_png
             if step is not None:
                 self._append_or_merge_step(step)
                 self._log(f"Recorded from the device: {step['label']}")
@@ -845,9 +992,16 @@ class RecorderManager:
                 and self._steps[-1]["action"] == "type"
                 and self._steps[-1]["target"] == step["target"]
             ):
+                step["uid"] = self._steps[-1].get("uid") or uuid.uuid4().hex[:12]
                 self._steps[-1] = step
             else:
+                step.setdefault("uid", uuid.uuid4().hex[:12])
                 self._steps.append(step)
+            # Captures from now until the next step show what this step led to. Until one
+            # comes, the latest screen stands in.
+            self._shot_owner = step["uid"]
+            if self._last_ref_png:
+                self._step_shots[step["uid"]] = self._last_ref_png
             self._rev += 1
 
     def start(
@@ -931,6 +1085,11 @@ class RecorderManager:
             self._real_device = real_device
             self._start_mode = mode
             self._launch_app_id = ""
+            self._front_app = ""
+            self._apps_seen = set()
+            self._step_shots = {}
+            self._shot_owner = ""
+            self._last_ref_png = b""
             self._keyboard_top = None
             self._device_gestures = 0
             self._gesture_queue = queue.Queue()
@@ -959,6 +1118,11 @@ class RecorderManager:
                 if _cancelled():
                     raise InterruptedError("Recorder start cancelled.")
                 app_id = configured_app_id or ""
+                front = _current_app(driver, platform)
+                with self._lock:
+                    self._front_app = app_id or front
+                    if self._front_app and not is_home_app(self._front_app):
+                        self._apps_seen.add(self._front_app)
                 if not app_id and mode != "clear_data":
                     # No app named in the environment: use the one open on the device, so the
                     # saved test can reopen it.
@@ -1337,6 +1501,8 @@ class RecorderManager:
                 self._screen_name = _safe_slug(self._flow_name.split("/")[-1], "screen")
             self._steps = []
             self._locators = {}
+            self._step_shots = {}
+            self._shot_owner = ""
             self._notice = ""
             self._rev += 1
             if had:
@@ -1362,6 +1528,9 @@ class RecorderManager:
                 selected_idx = None
             elif duplicate:
                 cloned = dict(self._steps[index])
+                cloned["uid"] = uuid.uuid4().hex[:12]
+                if self._steps[index].get("uid") in self._step_shots:
+                    self._step_shots[cloned["uid"]] = self._step_shots[self._steps[index]["uid"]]
                 target_idx = index + 1
                 self._steps.insert(target_idx, cloned)
                 selected_idx = target_idx
@@ -1405,6 +1574,7 @@ class RecorderManager:
             start_mode = self._start_mode
             launch_app_id = self._launch_app_id
             real_device = self._real_device
+            shots = dict(self._step_shots)
         if project_root is None:
             raise RuntimeError("No active recording workspace.")
         if not steps:
@@ -1439,9 +1609,9 @@ class RecorderManager:
         recorded_values: dict[str, str] = {}
         if parameterize:
             steps, variables, secret_vars, recorded_values = parameterize_typed_steps(steps)
-        if start_mode == "restart" and launch_app_id:
+        if start_mode == "restart" and launch_app_id and not (steps and steps[0].get("action") == "launch"):
             # The environment names no app, so the flow reopens the one it was recorded on.
-            steps = [{"action": "launch", "target": "", "value": launch_app_id}] + steps
+            steps = [{"action": "launch", "target": "", "value": launch_app_id, "label": f"Open {launch_app_id}"}] + steps
         yaml_steps = [_step_to_yaml_dict(s) for s in steps]
         where = "USB device" if real_device else ("emulator" if platform == "android" else "simulator")
         flow_res = save_flow_spec(
@@ -1453,6 +1623,9 @@ class RecorderManager:
             steps=yaml_steps,
             notes=f"Recorded live on {platform} {where} ({len(yaml_steps)} steps).",
         )
+
+        # Keep what each step left on screen, so replays can be checked against the recording.
+        references = save_step_references(project_root, flow_res["name"], platform, steps, shots)
 
         # 3. Save repeatable Test Journey (`specs/<suite>/<id>.md`)
         spec_res: dict[str, Any] | None = None
@@ -1497,6 +1670,7 @@ class RecorderManager:
             "spec": spec_res,
             "variables": variables,
             "secret_variables": secret_vars,
+            "references": references,
         }
 
     @staticmethod

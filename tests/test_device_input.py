@@ -195,9 +195,9 @@ def test_gestures_on_the_phone_become_steps(tmp_path: Path, monkeypatch) -> None
     tok = rm._session_token
 
     def _do(kind: str, x: int = 0, y: int = 0, *, ex: int | None = None, ey: int | None = None,
-            dur: float = 0.08, kb: int | None = None) -> None:
+            dur: float = 0.08, kb: int | None = None, front: str = "com.shop.app") -> None:
         g = classify_gesture(x, y, x if ex is None else ex, y if ey is None else ey, dur, 1080, 2400) if kind == "gesture" else None
-        rm._handle_device_gesture(kind, g, (list(_ELEMENTS), "home", kb), token=tok)
+        rm._handle_device_gesture(kind, g, (list(_ELEMENTS), "home", kb, b"", front), token=tok)
 
     _do("gesture", 900, 160)  # tap Cart
     _do("gesture", 500, 360)  # tap on the search field: the type step taps it, so no tap step

@@ -88,6 +88,23 @@ Tick the rows you want, choose Android or iOS, and click **Run**. Each row runs 
   <img src="https://raw.githubusercontent.com/vattitude-me/QAlprit/main/web/screenshots/runs.png" alt="Runs and reports view showing two dataset runs passed with report links" width="900" />
 </p>
 
+### 6. Check the screenshots against Jira or Confluence
+
+Every recorded step keeps a screenshot of the screen it led to (`references/flows/<workflow>/`). Each replay puts its own screenshot next to the recorded one, with how much the screen changed.
+
+To check them against your requirements, add the Jira issue or Confluence page to the journey under **Settings → References** (for example `SHOP-142`, or a page link), and put your Atlassian details in the workspace `.env`:
+
+```bash
+ATLASSIAN_BASE_URL=https://your-site.atlassian.net
+ATLASSIAN_EMAIL=you@example.com
+ATLASSIAN_API_TOKEN=...
+ANTHROPIC_API_KEY=...
+```
+
+Then tick **Check screenshots with AI** when you run, or click **Review → Check with AI** on a finished run. Claude compares each step's replay with the recording and with the Jira or Confluence text, and gives each step *pass*, *fail* or *unclear* with a reason. You confirm or correct each one with **Looks right** or **Wrong**. The AI check never changes a test's pass or fail, and its verdicts and your decisions go into the HTML report. Screenshots are sent to the Anthropic API with secret fields already blacked out. From the command line: `qalprit run ... --ai-review`, or `qalprit review results/<run-id>` afterwards. `qalprit refs --id <TEST-ID>` fetches the references on their own.
+
+When you record on a USB phone you can open any app from the home screen: opening an app becomes a `launch` step, so the replay opens it the same way.
+
 ---
 
 ## What the Workbench gives you

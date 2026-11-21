@@ -29,6 +29,7 @@ Every test lives in a `.md` file under `specs/`. The YAML front matter between `
 | `steps` | Yes | — | Non-empty list of steps (`phase: steps`) |
 | `teardown` | No | `[]` | Always runs even if a step above fails (`phase: teardown`) |
 | `expected` | No | `""` | Summary of expected outcome shown in reports |
+| `references` | No | `[]` | Jira issue keys or Jira/Confluence links. `qalprit refs` fetches them into `references/docs/`, and the AI check (`--ai-review`) judges each step's screenshot against them |
 
 ---
 

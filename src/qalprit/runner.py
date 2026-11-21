@@ -16,6 +16,7 @@ from qalprit.config_loader import DeviceProfile, EnvironmentConfig, ScreensCatal
 from qalprit.doctor import find_android_tool
 from qalprit.env_loader import EnvContext
 from qalprit.evidence import EvidenceCollector, ScreenshotCaptureResult
+from qalprit.reference_check import ReferenceLibrary
 from qalprit.results import (
     TRANSIENT_FAILURE_CATEGORIES,
     AttemptResult,
@@ -180,8 +181,12 @@ class TestRunner:
         dataset_name: str = "",
         dataset_expected: str = "",
         reset_override: str | None = None,
+        project_root: Path | None = None,
     ) -> None:
         self.driver_factory = driver_factory
+        # Results live in <workspace>/results/<run-id> unless --results-dir moved them.
+        self.project_root = project_root or run_dir.parent.parent
+        self.references = ReferenceLibrary(self.project_root)
         self.profile = profile
         self.profile_name = profile_name or profile.device_name
         self.env_name = env_name
@@ -350,6 +355,20 @@ class TestRunner:
                     aborted = True
 
             duration_ms = int((time.monotonic() - t0) * 1000)
+            ref = None
+            if step.flow_name and step.flow_index is not None and shot_res.rel_path:
+                try:
+                    ref = self.references.compare(
+                        run_dir=self.run_dir,
+                        replay_rel=shot_res.rel_path,
+                        flow_name=step.flow_name,
+                        flow_index=step.flow_index,
+                        action=step.type,
+                        target=target,
+                    )
+                except Exception as exc:  # a missing or broken reference never fails the step
+                    ref = None
+                    step_diag = dict(step_diag, reference_error=str(exc))
             results.append(
                 StepResult(
                     index=step_idx,
@@ -373,6 +392,12 @@ class TestRunner:
                     diagnostics=step_diag,
                     visual_diff_path=visual_diff_path,
                     visual_diff_score=visual_diff_score,
+                    flow_index=step.flow_index,
+                    reference_screenshot_path=ref.screenshot_path if ref else "",
+                    reference_diff_path=ref.diff_path if ref else "",
+                    reference_mismatch=ref.mismatch if ref else None,
+                    reference_label=ref.label if ref else "",
+                    reference_note=ref.note if ref else "",
                 )
             )
 
@@ -450,6 +475,7 @@ class TestRunner:
                             targets=list(spec.targets),
                             priority=spec.priority,
                             expected=spec.expected,
+                            references=list(spec.references),
                             retriable=spec.retriable,
                             reset_mode=spec.reset,
                             status="skipped",
@@ -694,6 +720,7 @@ class TestRunner:
                         targets=list(spec.targets),
                         priority=spec.priority,
                         expected=spec.expected,
+                        references=list(spec.references),
                         status=final_attempt.status,
                         flaky=flaky,
                         failure_reason=final_attempt.error,

@@ -25,6 +25,8 @@ pn_datas, pn_binaries, pn_hiddenimports = collect_all("pythonnet")
 cl_datas, cl_binaries, cl_hiddenimports = collect_all("clr_loader")
 ap_datas, ap_binaries, ap_hiddenimports = collect_all("appium")
 se_datas, se_binaries, se_hiddenimports = collect_all("selenium")
+# The AI screenshot check (qalprit.ai_review) imports the Anthropic SDK lazily.
+an_datas, an_binaries, an_hiddenimports = collect_all("anthropic")
 
 meta_datas = _safe_copy_metadata(
     [
@@ -40,6 +42,7 @@ meta_datas = _safe_copy_metadata(
         "pydantic",
         "Pillow",
         "python-frontmatter",
+        "anthropic",
     ]
 )
 
@@ -51,8 +54,9 @@ datas = (
     + cl_datas
     + ap_datas
     + se_datas
+    + an_datas
 )
-binaries = wv_binaries + pn_binaries + cl_binaries + ap_binaries + se_binaries
+binaries = wv_binaries + pn_binaries + cl_binaries + ap_binaries + se_binaries + an_binaries
 hiddenimports = (
     collect_submodules("qalprit")
     + wv_hiddenimports
@@ -60,6 +64,7 @@ hiddenimports = (
     + cl_hiddenimports
     + ap_hiddenimports
     + se_hiddenimports
+    + an_hiddenimports
     + [
         "appium",
         "appium.webdriver",
