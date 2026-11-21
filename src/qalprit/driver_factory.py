@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
 from qalprit import background_devices
+from qalprit.camera_injection import get_android_camera_args_string
 from qalprit.config_loader import DeviceProfile, EnvironmentConfig
 from qalprit.devices import _macos_xcode_env, list_android_devices, list_ios_simulators
 from qalprit.doctor import find_xcode_developer_dir
@@ -559,8 +560,11 @@ def create_appium_driver(
             opts.avd = resolved_avd
             opts.set_capability("appium:avdLaunchTimeout", 120000)
             opts.set_capability("appium:avdReadyTimeout", 120000)
-            if hidden and not any(k in profile.capabilities for k in ("appium:avdArgs", "avdArgs")):
-                opts.set_capability("appium:avdArgs", " ".join(background_devices.ANDROID_HIDDEN_ARGS))
+            if not any(k in profile.capabilities for k in ("appium:avdArgs", "avdArgs")):
+                avd_args = [get_android_camera_args_string()]
+                if hidden:
+                    avd_args.append(" ".join(background_devices.ANDROID_HIDDEN_ARGS))
+                opts.set_capability("appium:avdArgs", " ".join(avd_args))
             emulators_before = _online_emulator_serials()
         if app_path is not None:
             opts.app = str(app_path.resolve())

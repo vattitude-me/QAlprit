@@ -2972,7 +2972,7 @@
         activeApp: "",
         runCardChoice: {},
         hostOs: "",
-        stepVocab: ["launch", "reset_app", "background", "tap", "tap_if_visible", "type", "clear", "swipe", "scroll_until_visible", "wait", "wait_for_visible", "wait_for_enabled", "wait_for_text", "wait_for_keyboard", "assert_visible", "assert_not_visible", "assert_text", "assert_enabled", "assert_disabled", "back", "hide_keyboard", "enter_otp", "set_toggle", "assert_toggle", "biometric", "run_flow", "screenshot", "visual_compare"],
+        stepVocab: ["launch", "reset_app", "background", "tap", "tap_if_visible", "type", "clear", "swipe", "scroll_until_visible", "wait", "wait_for_visible", "wait_for_enabled", "wait_for_text", "wait_for_keyboard", "assert_visible", "assert_not_visible", "assert_text", "assert_enabled", "assert_disabled", "back", "hide_keyboard", "enter_otp", "set_toggle", "assert_toggle", "biometric", "set_camera_image", "run_flow", "screenshot", "visual_compare"],
         emuStatus: null,
         emuPollTimer: null,
         recState: null,
@@ -3589,17 +3589,18 @@
         function applyFieldModes() {
           const t = typeSel.value;
           const isFlow = t === "run_flow";
-          const noTarget = ["wait", "background", "swipe", "back", "hide_keyboard", "biometric", "screenshot", "visual_compare", "launch", "reset_app", "wait_for_keyboard"].includes(t);
+          const noTarget = ["wait", "background", "swipe", "back", "hide_keyboard", "biometric", "set_camera_image", "screenshot", "visual_compare", "launch", "reset_app", "wait_for_keyboard"].includes(t);
           targetIn.hidden = noTarget;
           targetIn.setAttribute("list", isFlow ? "flowNameOptions" : "screenTargetOptions");
           targetIn.placeholder = isFlow ? "flow/name" : "screen.element";
 
-          const needsValue = ["type", "wait", "background", "swipe", "biometric", "screenshot", "visual_compare", "assert_text", "wait_for_text", "launch", "run_flow"].includes(t);
+          const needsValue = ["type", "wait", "background", "swipe", "biometric", "set_camera_image", "screenshot", "visual_compare", "assert_text", "wait_for_text", "launch", "run_flow"].includes(t);
           valueIn.hidden = !needsValue;
           if (t === "run_flow") valueIn.placeholder = 'params JSON (e.g. {"username":"${username}"})';
           else if (t === "assert_text" || t === "wait_for_text") valueIn.placeholder = "expected text or ${expected}";
           else if (t === "wait" || t === "background") valueIn.placeholder = "seconds (e.g. 2)";
           else if (t === "swipe") valueIn.placeholder = "up / down / left / right";
+          else if (t === "set_camera_image") valueIn.placeholder = "image path (e.g. fixtures/id_card.png)";
           else valueIn.placeholder = "text or ${var}";
 
           const isToggle = t === "set_toggle" || t === "assert_toggle";
@@ -3623,7 +3624,7 @@
             } else {
               initTarget = p.target || "";
               initState = asState(p.state);
-              initValue = p.value ?? p.equals ?? p.contains ?? p.seconds ?? p.direction ?? p.action ?? p.name ?? p.baseline ?? p.app ?? "";
+              initValue = p.value ?? p.equals ?? p.contains ?? p.seconds ?? p.direction ?? p.action ?? p.image ?? p.path ?? p.name ?? p.baseline ?? p.app ?? "";
             }
             initSecret = Boolean(initial.secret || p.secret);
           } else {
@@ -3636,10 +3637,10 @@
             } else if (v && typeof v === "object") {
               initTarget = v.target || "";
               initState = asState(v.state);
-              initValue = v.value ?? v.equals ?? v.contains ?? v.seconds ?? v.direction ?? v.action ?? v.name ?? v.baseline ?? v.app ?? "";
+              initValue = v.value ?? v.equals ?? v.contains ?? v.seconds ?? v.direction ?? v.action ?? v.image ?? v.path ?? v.name ?? v.baseline ?? v.app ?? "";
               initSecret = Boolean(v.secret);
             } else if (v !== undefined && v !== null && typeof v !== "boolean") {
-              if (["wait", "background", "swipe", "biometric", "screenshot", "visual_compare", "launch"].includes(initType)) initValue = String(v);
+              if (["wait", "background", "swipe", "biometric", "set_camera_image", "screenshot", "visual_compare", "launch"].includes(initType)) initValue = String(v);
               else initTarget = String(v);
             }
           }
@@ -3680,7 +3681,7 @@
             steps.push(t);
           } else if (["wait", "background"].includes(t)) {
             steps.push({ [t]: Number(val || 1) });
-          } else if (["swipe", "biometric", "screenshot", "visual_compare", "launch"].includes(t)) {
+          } else if (["swipe", "biometric", "set_camera_image", "screenshot", "visual_compare", "launch"].includes(t)) {
             steps.push({ [t]: val.trim() || (t === "swipe" ? "up" : "screen") });
           } else if (t === "reset_app") {
             steps.push("reset_app");

@@ -37,6 +37,7 @@ STEP_VOCABULARY: frozenset[str] = frozenset(
         "set_toggle",
         "assert_toggle",
         "biometric",
+        "set_camera_image",
         "run_flow",
         "screenshot",
         "visual_compare",
@@ -164,6 +165,8 @@ def normalize_step(raw_step: Any) -> StepItem:
         params = {"direction": str(val)}
     elif step_type == "biometric":
         params = {"action": str(val)}
+    elif step_type == "set_camera_image":
+        params = {"image": str(val), "camera": "back"}
     elif step_type == "screenshot":
         params = {"name": str(val)}
     elif step_type == "visual_compare":

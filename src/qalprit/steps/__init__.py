@@ -7,7 +7,7 @@ from collections.abc import Callable
 from qalprit.spec_loader import StepItem
 from qalprit.steps.app_steps import exec_background, exec_launch, exec_reset_app
 from qalprit.steps.base import StepContext, StepOutcome, format_step_description
-from qalprit.steps.device_steps import exec_biometric
+from qalprit.steps.device_steps import exec_biometric, exec_set_camera_image
 from qalprit.steps.interaction_steps import (
     exec_back,
     exec_clear,
@@ -61,6 +61,7 @@ STEP_EXECUTORS: dict[str, Callable[[StepContext, StepItem], StepOutcome]] = {
     "set_toggle": exec_set_toggle,
     "assert_toggle": exec_assert_toggle,
     "biometric": exec_biometric,
+    "set_camera_image": exec_set_camera_image,
     "screenshot": exec_screenshot,
     "visual_compare": exec_visual_compare,
 }

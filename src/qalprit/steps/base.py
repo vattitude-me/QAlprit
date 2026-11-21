@@ -395,6 +395,10 @@ def format_step_description(step: StepItem, masker: SecretMasker | None = None) 
         desc = "Enter one-time code" + (f" into {p.get('target')}" if p.get("target") else "")
     elif t == "biometric":
         desc = f"Simulate biometric {p.get('action')}"
+    elif t == "set_camera_image":
+        cam = p.get("camera", "back")
+        img = p.get("image") or p.get("path") or ""
+        desc = f"Set {cam} camera image to '{img}'"
     elif t == "screenshot":
         label = p.get("label")
         desc = f"Capture screenshot '{p.get('name')}'" + (f" ({label})" if label else "")
