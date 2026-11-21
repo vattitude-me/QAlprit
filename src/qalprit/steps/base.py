@@ -44,6 +44,25 @@ class StepTimeoutError(TimeoutError):
         self.diagnostics = diagnostics or {}
 
 
+def _dismiss_android_compat_dialog(ctx: StepContext) -> bool:
+    """Tap OK on the Android 16 "Android App Compatibility" (16 KB page size) system dialog.
+
+    The dialog covers a debuggable app after every fresh install, so UiAutomator cannot
+    see the app's own elements. It is an OS notice, not app behavior. Returns True if
+    the dialog was found and dismissed.
+    """
+    if ctx.platform != "android" or getattr(ctx.driver, "is_fake", False):
+        return False
+    try:
+        titles = ctx.driver.find_elements("id", "android:id/alertTitle")
+        if not titles or "compatibility" not in (getattr(titles[0], "text", "") or "").lower():
+            return False
+        ctx.driver.find_element("id", "android:id/button2").click()
+        return True
+    except Exception:
+        return False
+
+
 def _is_stale_error(exc: BaseException) -> bool:
     name = type(exc).__name__.lower()
     msg = str(exc).lower()
@@ -176,6 +195,7 @@ def wait_for_element(
             last_match_count = len(elems)
             if not elems:
                 last_state = "not_found"
+                _dismiss_android_compat_dialog(ctx)
             else:
                 visible_matches: list[Any] = []
                 saw_hidden = False

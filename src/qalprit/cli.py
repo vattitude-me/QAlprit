@@ -24,7 +24,7 @@ from qalprit.inspector import extract_interactive_elements, format_inspect_outpu
 from qalprit.report.generator import generate_batch_report, generate_reports
 from qalprit.results import load_results_json, write_results_json
 from qalprit.runner import TestRunner
-from qalprit.spec_loader import TestSpec, load_flows, load_specs
+from qalprit.spec_loader import TestSpec, effective_references, load_flows, load_specs
 from qalprit.ui_server import create_ui_server
 from qalprit.validator import validate_project
 
@@ -350,7 +350,8 @@ def validate(
 @click.option("--redact/--no-redact", "redact_screenshots", default=None, help="Enable or disable black-marker PII redaction on screenshots (defaults to environment setting: off for dev, on for pre-prod/prod/qa).")
 @click.option("--data", "data_csv", type=click.Path(exists=True, path_type=Path), default=None, help="CSV file of dynamic variable datasets to execute sequentially.")
 @click.option("--dataset", "dataset_filter", multiple=True, help="Run specific dataset row name(s) from --data CSV.")
-@click.option("--ai-review", is_flag=True, help="After the run, check each step's screenshot against the test's Jira/Confluence references with Claude (needs ANTHROPIC_API_KEY).")
+@click.option("--ai-review", is_flag=True, help="After the run, check each step's screenshot against the test's Jira/Confluence references with an AI model (see --ai-provider).")
+@click.option("--ai-provider", type=click.Choice(["anthropic", "agy", "copilot"]), default=None, help="Who does the AI check: the Anthropic API (needs ANTHROPIC_API_KEY), the Antigravity CLI (agy) or the GitHub Copilot CLI. Default: QALPRIT_AI_PROVIDER in .env, else anthropic.")
 @click.option("--project-root", type=click.Path(path_type=Path), default=None, hidden=True)
 def run(
     platform: str,
@@ -372,6 +373,7 @@ def run(
     data_csv: Path | None,
     dataset_filter: tuple[str, ...],
     ai_review: bool,
+    ai_provider: str | None,
     project_root: Path | None,
 ) -> None:
     """Execute automated UI tests and generate report.html, summary.md, results.json, and junit.xml."""
@@ -629,7 +631,11 @@ def run(
         masker=masker,
     )
     if ai_review:
-        _echo_ai_review(review_run_dir(root, run_dir, external_assets=external_assets))
+        try:
+            _echo_ai_review(review_run_dir(root, run_dir, external_assets=external_assets, provider=ai_provider))
+        except (FileNotFoundError, ValueError, ImportError) as exc:
+            # The run itself finished; a missing AI tool must not change its result or exit code.
+            click.echo(f"AI check skipped: {exc}")
 
     s = run_result.summary
     status_line = (
@@ -669,16 +675,17 @@ def _echo_ai_review(out: dict) -> None:
 @click.option("--id", "test_ids", multiple=True, help="Only check these test IDs.")
 @click.option("--refresh-refs", is_flag=True, help="Fetch the Jira/Confluence references again instead of using the saved copies.")
 @click.option("--external-assets", is_flag=True, help="Link PNG files externally in the regenerated report.")
+@click.option("--ai-provider", type=click.Choice(["anthropic", "agy", "copilot"]), default=None, help="Who does the AI check: the Anthropic API, the Antigravity CLI (agy) or the GitHub Copilot CLI. Default: QALPRIT_AI_PROVIDER in .env, else anthropic.")
 @click.option("--project-root", type=click.Path(path_type=Path), default=None, help="Workspace folder (default: current folder).")
-def review_cmd(results_dir: Path, test_ids: tuple[str, ...], refresh_refs: bool, external_assets: bool, project_root: Path | None) -> None:
-    """Check a finished run's screenshots against its Jira/Confluence references with Claude."""
+def review_cmd(results_dir: Path, test_ids: tuple[str, ...], refresh_refs: bool, external_assets: bool, ai_provider: str | None, project_root: Path | None) -> None:
+    """Check a finished run's screenshots against its Jira/Confluence references with an AI model."""
     root = _resolve_root(project_root)
     try:
         out = review_run_dir(
             root, results_dir.resolve(), test_ids=list(test_ids) or None,
-            refresh_refs=refresh_refs, external_assets=external_assets,
+            refresh_refs=refresh_refs, external_assets=external_assets, provider=ai_provider,
         )
-    except FileNotFoundError as exc:
+    except (FileNotFoundError, ValueError) as exc:
         raise click.ClickException(str(exc)) from None
     _echo_ai_review(out)
     click.echo(f"Saved: {results_dir / 'ai_review.json'}")
@@ -696,9 +703,10 @@ def refs_cmd(references: tuple[str, ...], test_ids: tuple[str, ...], refresh: bo
     wanted = list(references)
     if test_ids:
         specs, _ = load_specs(root / "specs")
+        flows, _ = load_flows(root / "flows")
         for spec in specs:
             if spec.id in test_ids:
-                wanted.extend(r for r in spec.references if r not in wanted)
+                wanted.extend(r for r in effective_references(spec, flows) if r not in wanted)
     if not wanted:
         raise click.ClickException("Name a Jira key or a Jira/Confluence link, or pass --id for a test with references.")
     env_vars = dict(load_env(root, env_name=env_name).variables)

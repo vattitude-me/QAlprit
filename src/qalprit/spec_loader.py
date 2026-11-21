@@ -69,6 +69,8 @@ class FlowSpec(BaseModel):
     platforms: list[Literal["android", "ios"]] = Field(default_factory=list)
     # App the flow was recorded against, per platform (workspace-relative path). Used as the run default.
     apps: dict[str, str] = Field(default_factory=dict)
+    # Jira issues / Confluence pages that describe this workflow. Journeys that run it inherit them.
+    references: list[str] = Field(default_factory=list)
     steps: list[StepItem] = Field(default_factory=list)
     source_path: Path
     body: str = ""
@@ -225,6 +227,7 @@ def load_flows(flows_dir: Path) -> tuple[dict[str, FlowSpec], list[str]]:
                     for k, v in (meta.get("apps") or {}).items()
                     if str(k).strip().lower() in ("android", "ios") and str(v).strip()
                 } if isinstance(meta.get("apps"), dict) else {},
+                references=_as_str_list(meta.get("references")),
                 steps=steps,
                 source_path=md_path,
                 body=body,
@@ -319,6 +322,18 @@ def _substitute_flow_params_in_value(value: Any, flow_params: dict[str, Any]) ->
     if isinstance(value, dict):
         return {k: _substitute_flow_params_in_value(v, flow_params) for k, v in value.items()}
     return value
+
+
+def effective_references(spec: TestSpec, flows: dict[str, FlowSpec]) -> list[str]:
+    """The journey's own references first, then those of each workflow it runs, without repeats."""
+    refs = list(spec.references)
+    for step in [*spec.setup, *spec.steps, *spec.teardown]:
+        if step.type != "run_flow":
+            continue
+        flow = flows.get(str(step.params.get("flow") or ""))
+        if flow is not None:
+            refs.extend(flow.references)
+    return list(dict.fromkeys(r for r in refs if r))
 
 
 def expand_steps(steps: list[StepItem], flows: dict[str, FlowSpec]) -> list[StepItem]:

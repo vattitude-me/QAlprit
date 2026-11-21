@@ -33,11 +33,11 @@ from qalprit.doctor import discover_system_software, run_doctor
 from qalprit.emulator_manager import DEFAULT_AVD_NAME, EmulatorJobManager
 from qalprit.error_text import friendly_error
 from qalprit.ai_review import review_run_dir, set_step_review
-from qalprit.atlassian_refs import fetch_reference_docs
+from qalprit.atlassian_refs import check_connection, fetch_reference_docs, read_connection, save_connection
 from qalprit.env_loader import load_env
 from qalprit.recorder import RecorderManager
 from qalprit.results import load_results_json
-from qalprit.spec_loader import STEP_VOCABULARY, load_flows, load_specs
+from qalprit.spec_loader import STEP_VOCABULARY, effective_references, load_flows, load_specs
 from qalprit.workbench_api import (
     RunJobManager,
     delete_environment_entry,
@@ -234,6 +234,7 @@ def collect_workspace_overview(
                 "retries": s.retries,
                 "expected": s.expected,
                 "references": list(s.references),
+                "inherited_references": [r for r in effective_references(s, flows) if r not in s.references],
                 "body": s.body,
                 "setup": [st.model_dump() for st in s.setup],
                 "steps": [st.model_dump() for st in s.steps],
@@ -259,6 +260,7 @@ def collect_workspace_overview(
                 "declared_params": f.params,
                 "platforms": list(f.platforms),
                 "apps": dict(f.apps),
+                "references": list(f.references),
                 "body": f.body,
                 "step_count": len(f.steps),
                 "steps": [st.model_dump() for st in f.steps],
@@ -511,6 +513,10 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
             self._send_json(discover_system_software(self.project_root))
             return
 
+        if req_path == "/api/atlassian/settings":
+            self._send_json(read_connection(dict(load_env(self.project_root, include_os_env=False).variables)))
+            return
+
         if req_path == "/api/system/cleanup":
             self._send_json(inspect_cleanup_targets(self.project_root))
             return
@@ -715,6 +721,10 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
                         params=list(body.get("params") or []),
                         steps=list(body.get("steps") or []),
                         notes=str(body.get("notes") or ""),
+                        references=(
+                            [str(r).strip() for r in body["references"] if str(r).strip()]
+                            if isinstance(body.get("references"), list) else None
+                        ),
                     )
                 )
                 return
@@ -778,7 +788,8 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
                         raise ValueError("A run is in progress. Check it with AI when it has finished.")
                     ids = [str(t) for t in (body.get("test_ids") or []) if str(t).strip()]
                     out = review_run_dir(
-                        self.project_root, run_json.parent, test_ids=ids or None, refresh_refs=bool(body.get("refresh_refs"))
+                        self.project_root, run_json.parent, test_ids=ids or None, refresh_refs=bool(body.get("refresh_refs")),
+                        provider=str(body.get("ai_provider") or "").strip() or None,
                     )
                 else:
                     out = set_step_review(
@@ -852,6 +863,14 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
                         rel_path=str(body.get("rel_path") or ""),
                     )
                 )
+                return
+
+            if req_path == "/api/atlassian/settings":
+                self._send_json(save_connection(self.project_root, body))
+                return
+
+            if req_path == "/api/atlassian/test":
+                self._send_json(check_connection(self.project_root, body))
                 return
 
             if req_path == "/api/system/pick-folder":

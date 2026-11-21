@@ -610,6 +610,7 @@ def save_flow_spec(
     notes: str = "",
     platforms: list[str] | None = None,
     apps: dict[str, str] | None = None,
+    references: list[str] | None = None,
 ) -> dict[str, Any]:
     """Save a reusable workflow (`flows/<name>.md`) and validate it parses cleanly.
 
@@ -632,12 +633,15 @@ def save_flow_spec(
 
     kept_platforms: list[str] = []
     kept_apps: dict[str, str] = {}
+    kept_references: list[str] = []
     if dest.is_file():
         try:
             old_meta = frontmatter.loads(dest.read_text(encoding="utf-8")).metadata
             kept_platforms = [str(p).strip().lower() for p in (old_meta.get("platforms") or [])]
             if isinstance(old_meta.get("apps"), dict):
                 kept_apps = {str(k).lower(): str(v) for k, v in old_meta["apps"].items()}
+            raw_refs = old_meta.get("references") or []
+            kept_references = [str(r).strip() for r in (raw_refs if isinstance(raw_refs, list) else [raw_refs]) if str(r).strip()]
         except Exception:
             kept_platforms = []
     merged_platforms = [
@@ -656,6 +660,10 @@ def save_flow_spec(
     }
     if merged_apps:
         meta["apps"] = dict(sorted(merged_apps.items()))
+    # `None` keeps the saved links (recording and step edits do not send them); a list replaces them.
+    final_refs = kept_references if references is None else list(dict.fromkeys(references))
+    if final_refs:
+        meta["references"] = final_refs
     meta["steps"] = steps
     dest.write_text(_dump_frontmatter_md(meta, notes or f"Reusable workflow `{rel_name}`."), encoding="utf-8")
     flows, errors = load_flows(flows_dir)
@@ -1408,6 +1416,7 @@ class RunJobManager:
         redact_override: bool | None = None if raw_redact is None else bool(raw_redact)
         reset_override = str(payload.get("reset_mode") or "").strip() or None
         ai_review_after = bool(payload.get("ai_review"))
+        ai_provider = str(payload.get("ai_provider") or "").strip() or None
 
         def _ai_review(target_dir: Path) -> None:
             """Optional AI check after a run. Its failure never changes the run's result."""
@@ -1415,7 +1424,7 @@ class RunJobManager:
 
             self._set_progress("Checking screenshots with AI", 94)
             try:
-                out = review_run_dir(project_root, target_dir)
+                out = review_run_dir(project_root, target_dir, provider=ai_provider)
             except Exception as exc:
                 self._append_log(f"AI check skipped: {exc}")
                 return

@@ -12,10 +12,11 @@ Ideas planned for a later release. Nothing here ships yet.
 
 ---
 
-## Unreleased
+## [v0.1.41] - 2026-11-21
 
 ### Added
 
+- **Handoff documentation.** `AGENTS.md` now maps every module, explains how a test goes from recording to report, and lists the open work, so a new agent can pick the repo up cold.
 - **Record on a USB Android phone.** Pick a plugged-in phone (shown as *USB phone*, with its model name) on the Record page and use the phone itself. The recorder listens to the phone's touchscreen with `adb shell getevent` and turns each gesture into a step: tap, long press, swipe (with how far the finger moved), Back (edge swipe or a hardware Back key), and typing (read from the text field). No app file is needed: the app already installed on the phone is used, and **Restart app** (on by default for phones) reopens it with its login and data kept. Saved tests use `reset: none`, so replays never wipe the phone. When the environment names no app, the flow starts with `launch: {app: <package>, restart: true}` for the app that was open.
 - `long_press` step (`long_press: screen.element` or `{target, duration}`), replayed with `mobile: longClickGesture` on Android and `mobile: touchAndHold` on iOS.
 - `launch` accepts an installed app id and `restart: true`.
@@ -26,6 +27,12 @@ Ideas planned for a later release. Nothing here ships yet.
 - **AI screenshot check.** `qalprit run --ai-review`, `qalprit review <results dir>`, the run dialog's **Check screenshots with AI** and **Review → Check with AI** send each step's recorded and replay screenshot, plus the reference text, to Claude (`claude-opus-5-5`, structured JSON output, server-side refusal fallback). Each step gets *pass*, *fail* or *unclear* with a reason and the requirement it checked; the test gets a summary and the requirements no step showed. Verdicts never change pass or fail. Results go to `ai_review.json`, `results.json` and the report. Needs `ANTHROPIC_API_KEY`.
 - **Review dialog.** **Runs & reports → Review** shows recorded and replay screenshots side by side with the AI verdict, and **Looks right** / **Wrong** with a note per step (`POST /api/runs/review`). Decisions are saved in `results.json` and the HTML report. The Review button counts flagged steps nobody has reviewed yet.
 - New dependency: `anthropic>=2.10,<3` (bundled in the Windows and macOS installers).
+- **AI check provider.** The AI check can run on the Antigravity CLI (`agy`) or the GitHub Copilot CLI (`copilot`) as well as the Anthropic API. Pick one with `--ai-provider anthropic|agy|copilot` on `qalprit run` and `qalprit review`, the **Provider** menu in the run options and the Review dialog, or `QALPRIT_AI_PROVIDER` in `.env`. The CLIs run in a throwaway folder that holds the redacted screenshots as JPEGs plus a `review_request.md`, with no flag that approves tool use, and use their own sign-in. `QALPRIT_AGY_BIN`, `QALPRIT_COPILOT_BIN` and `QALPRIT_<NAME>_MODEL` override the program path and model. `ai_review.json` records the `provider`. Checked against `agy` 1.5.14 on macOS. The Copilot CLI path follows its documented `-p`, `--silent` and `--add-dir` flags but has not been run against a real install yet.
+- Fix: the AI check showed "The anthropic package is not installed" for any error when that package was missing, hiding the real reason.
+- **Jira & Confluence connection form.** **Settings & setup → Jira & Confluence** takes the site address, an account email and an API token or PAT, with optional separate site, email and token for each product. **Test connection** (`POST /api/atlassian/test`) reports Jira and Confluence separately, using values typed but not yet saved. **Save** (`GET`/`POST /api/atlassian/settings`) writes the keys to the workspace `.env` (new file is owner-only, other lines and comments are kept). Tokens are never sent back to the UI, only whether each is saved. A blank token keeps the saved one, and **Remove saved tokens** clears them. `JIRA_EMAIL`, `JIRA_API_TOKEN`, `CONFLUENCE_EMAIL` and `CONFLUENCE_API_TOKEN` are new; a product with its own token uses its own email (blank means a Bearer PAT), otherwise it falls back to `ATLASSIAN_*`. Missing-setup and 401 messages now point at Settings & setup instead of `.env`.
+- **References on workflows.** A workflow takes `references:` in its front matter and has the same References field with **Fetch** in its Settings tab. A journey's effective references are its own plus those of every workflow it runs (`effective_references()`), used for the run result, the AI check, `qalprit refs --id` and the journey's settings note. Saving steps or recording again keeps a workflow's links.
+- Android 16: the "Android App Compatibility" (16 KB page size) dialog is dismissed automatically when an element is not found because that dialog covers the app (`_dismiss_android_compat_dialog`). `appWaitActivity: "*"` is set on the `android_device` and `android_emulator` profiles so apps that open a different first activity start cleanly.
+- Sample journey MDA-004 hides the keyboard after the address field so the City field stays visible.
 
 ### Changed
 

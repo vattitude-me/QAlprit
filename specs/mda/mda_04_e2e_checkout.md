@@ -28,6 +28,7 @@ steps:
   - wait_for_visible: mda_shipping.full_name_field
   - type: {target: mda_shipping.full_name_field, value: "Rebecca Winter"}
   - type: {target: mda_shipping.address1_field, value: "Mandorley 112"}
+  - hide_keyboard: true
   - type: {target: mda_shipping.city_field, value: "Truro"}
   - hide_keyboard: true
   - type: {target: mda_shipping.zip_field, value: "89750"}
