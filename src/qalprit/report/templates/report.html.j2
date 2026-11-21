@@ -314,6 +314,14 @@
     .badge-webview { background: var(--warn-bg); color: var(--warn); }
     .badge-tag { background: var(--accent-bg); color: var(--accent); text-transform: none; font-weight: 600; }
     .badge-flow { background: var(--flow-bg); color: var(--flow-text); text-transform: none; }
+    .badge-ai, .badge-review { text-transform: none; font-weight: 600; border: 1px solid currentColor; background: transparent; }
+    .badge-ai-pass, .badge-review-accepted { color: var(--pass); }
+    .badge-ai-fail, .badge-review-rejected { color: var(--fail); }
+    .badge-ai-unclear { color: var(--warn); }
+    .ai-note { margin-top: 4px; }
+    .shot-pair { display: flex; gap: 6px; align-items: flex-start; }
+    .shot-fig { margin: 0; text-align: center; }
+    .shot-fig figcaption { font-size: 11px; color: var(--muted); margin-top: 2px; }
     .badge-redact { background: var(--redact-bg); color: var(--redact-text); text-transform: none; }
 
     .test-body {
@@ -598,6 +606,20 @@
           {% if test.expected %}
           <div class="test-info"><strong>Expected:</strong> {{ test.expected }}</div>
           {% endif %}
+          {% if test.references %}
+          <div class="test-info"><strong>References:</strong>
+            {% for ref in test.references %}{% if ref.startswith('http') %}<a href="{{ ref }}" target="_blank" rel="noopener">{{ ref }}</a>{% else %}<span class="badge badge-tag">{{ ref }}</span>{% endif %}{% if not loop.last %} · {% endif %}{% endfor %}
+          </div>
+          {% endif %}
+          {% if test.ai_summary %}
+          <div class="test-info ai-note"><strong>AI check:</strong> {{ test.ai_summary }}</div>
+          {% endif %}
+          {% if test.ai_uncovered %}
+          <div class="test-info ai-note"><strong>Requirements no step showed:</strong> {{ test.ai_uncovered | join("; ") }}</div>
+          {% endif %}
+          {% if test.ai_error %}
+          <div class="test-info" style="color:var(--warn);"><strong>AI check not finished:</strong> {{ test.ai_error }}</div>
+          {% endif %}
           {% if test.skip_reason %}
           <div class="test-info"><strong>Skip reason:</strong> {{ test.skip_reason }}</div>
           {% endif %}
@@ -677,7 +699,19 @@
                   {% if step.redaction_status == 'skipped_secure_mode' %}<span class="badge badge-redact" title="{{ step.redaction_warning }}">Image Skipped (Secure Mode)</span>{% endif %}
                   {% if step.webview_detected %}<span class="badge badge-webview">WebView</span>{% endif %}
                   {% if step.visual_diff_score is not none %}<span class="badge badge-tag">Diff {{ "%.2f"|format(step.visual_diff_score * 100) }}%</span>{% endif %}
+                  {% if step.reference_mismatch is not none %}<span class="badge badge-tag" title="Share of pixels that differ from the screenshot saved when the flow was recorded">{{ "%.1f"|format(step.reference_mismatch * 100) }}% vs recording</span>{% endif %}
+                  {% if step.ai_verdict %}<span class="badge badge-ai badge-ai-{{ step.ai_verdict }}">AI: {{ step.ai_verdict }}</span>{% endif %}
+                  {% if step.review %}<span class="badge badge-review badge-review-{{ step.review }}">Reviewer: {{ step.review }}</span>{% endif %}
                 </div>
+                {% if step.ai_reason %}
+                <div class="test-info ai-note"><strong>AI:</strong> {{ step.ai_reason }}{% if step.ai_requirement %} <span class="muted">({{ step.ai_requirement }})</span>{% endif %}</div>
+                {% endif %}
+                {% if step.review_note %}
+                <div class="test-info ai-note"><strong>Reviewer:</strong> {{ step.review_note }}</div>
+                {% endif %}
+                {% if step.reference_note %}
+                <div class="test-info" style="margin-top:4px; color:var(--warn);">{{ step.reference_note }}</div>
+                {% endif %}
                 {% if step.image_error %}
                 <div class="test-info" style="margin-top:4px; color:var(--warn);">{{ step.image_error }}</div>
                 {% endif %}
@@ -694,10 +728,20 @@
                 </details>
                 {% endif %}
               </div>
-              <div>
+              <div class="shot-pair">
+                {% if step.reference_src %}
+                <figure class="shot-fig">
+                  <img class="thumb" src="{{ step.reference_src }}" alt="Step {{ step.index }} as recorded"
+                       data-caption="{{ test.id }} · Step {{ step.index }} as recorded: {{ step.reference_label or step.description }}" />
+                  <figcaption>Recorded</figcaption>
+                </figure>
+                {% endif %}
                 {% if step.image_src %}
-                <img class="thumb" src="{{ step.image_src }}" alt="Step {{ step.index }} screenshot"
-                     data-caption="{{ test.id }} · Step {{ step.index }}: {{ step.description }}" />
+                <figure class="shot-fig">
+                  <img class="thumb" src="{{ step.image_src }}" alt="Step {{ step.index }} screenshot"
+                       data-caption="{{ test.id }} · Step {{ step.index }}: {{ step.description }}" />
+                  {% if step.reference_src %}<figcaption>Replay</figcaption>{% endif %}
+                </figure>
                 {% endif %}
                 {% if step.visual_diff_src %}
                 <img class="thumb" src="{{ step.visual_diff_src }}" alt="Step {{ step.index }} visual diff"

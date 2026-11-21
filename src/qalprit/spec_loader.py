@@ -17,6 +17,7 @@ STEP_VOCABULARY: frozenset[str] = frozenset(
         "background",
         "tap",
         "tap_if_visible",
+        "long_press",
         "type",
         "clear",
         "swipe",
@@ -55,6 +56,8 @@ class StepItem(BaseModel):
     capture: Literal["on", "off"] = "on"
     secret: bool = False
     flow_name: str | None = None
+    # Position of the step inside its flow, used to find the screenshot saved when it was recorded.
+    flow_index: int | None = None
 
 
 class FlowSpec(BaseModel):
@@ -96,6 +99,8 @@ class TestSpec(BaseModel):
     steps: list[StepItem] = Field(default_factory=list)
     teardown: list[StepItem] = Field(default_factory=list)
     expected: str = ""
+    # Jira issue keys or Jira/Confluence links that describe what the test should show.
+    references: list[str] = Field(default_factory=list)
     suite: str = "default"
     source_path: Path
     body: str = ""
@@ -146,6 +151,7 @@ def normalize_step(raw_step: Any) -> StepItem:
     elif step_type in (
         "tap",
         "tap_if_visible",
+        "long_press",
         "clear",
         "enter_otp",
         "wait_for_visible",
@@ -280,6 +286,7 @@ def load_specs(specs_dir: Path) -> tuple[list[TestSpec], list[str]]:
                 "steps": steps,
                 "teardown": teardown,
                 "expected": str(meta.get("expected") or ""),
+                "references": _as_str_list(meta.get("references")),
                 "suite": suite,
                 "source_path": md_path,
                 "body": body,
@@ -289,6 +296,13 @@ def load_specs(specs_dir: Path) -> tuple[list[TestSpec], list[str]]:
             errors.append(f"Failed to parse spec {md_path}: {exc}")
     specs.sort(key=lambda s: (s.id, str(s.source_path)))
     return specs, errors
+
+
+def _as_str_list(raw: Any) -> list[str]:
+    if raw is None:
+        return []
+    items = raw if isinstance(raw, list) else [raw]
+    return [str(x).strip() for x in items if str(x).strip()]
 
 
 def _substitute_flow_params_in_value(value: Any, flow_params: dict[str, Any]) -> Any:
@@ -321,7 +335,7 @@ def expand_steps(steps: list[StepItem], flows: dict[str, FlowSpec]) -> list[Step
 
         flow = flows[flow_name]
         provided_params = step.params.get("params") or {}
-        for fstep in flow.steps:
+        for f_idx, fstep in enumerate(flow.steps):
             if fstep.type == "run_flow":
                 raise ValueError(
                     f"Nested flow '{fstep.params.get('flow')}' inside '{flow_name}' is not allowed (max 1 level)"
@@ -338,6 +352,7 @@ def expand_steps(steps: list[StepItem], flows: dict[str, FlowSpec]) -> list[Step
                     capture=effective_capture,
                     secret=fstep.secret or bool(new_params.get("secret", False)),
                     flow_name=flow_name,
+                    flow_index=f_idx,
                 )
             )
     return expanded

@@ -12,6 +12,37 @@ Ideas planned for a later release. Nothing here ships yet.
 
 ---
 
+## Unreleased
+
+### Added
+
+- **Record on a USB Android phone.** Pick a plugged-in phone (shown as *USB phone*, with its model name) on the Record page and use the phone itself. The recorder listens to the phone's touchscreen with `adb shell getevent` and turns each gesture into a step: tap, long press, swipe (with how far the finger moved), Back (edge swipe or a hardware Back key), and typing (read from the text field). No app file is needed: the app already installed on the phone is used, and **Restart app** (on by default for phones) reopens it with its login and data kept. Saved tests use `reset: none`, so replays never wipe the phone. When the environment names no app, the flow starts with `launch: {app: <package>, restart: true}` for the app that was open.
+- `long_press` step (`long_press: screen.element` or `{target, duration}`), replayed with `mobile: longClickGesture` on Android and `mobile: touchAndHold` on iOS.
+- `launch` accepts an installed app id and `restart: true`.
+- `POST /api/recorder/start` takes `start_mode`: `clear_data`, `restart` or `as_is`. Without it, `fresh_start` behaves as before.
+- **Record across apps.** Opening an app from the home screen or recents while recording on Android becomes a `launch` step (`restart: true` the first time). A switch the app makes on its own, such as a browser sign-in, is not a step. Taps on the home screen itself are not recorded.
+- **A screenshot for every recorded step.** The recorder keeps the screen each step led to (always redacted), shows it as a thumbnail in the step list, and saves it with the workflow under `references/flows/<workflow>/` with a `manifest.json`. Runs copy the matching screenshot next to each replay screenshot (`*_REF.png`) and store how many pixels changed (`reference_mismatch`). A flow edited after recording skips the stale screenshot and says so.
+- **Jira and Confluence references.** Journeys take `references:` (issue keys or links). `qalprit refs`, `POST /api/references/fetch` and the journey settings' **Fetch** button pull them with `ATLASSIAN_BASE_URL`, `ATLASSIAN_EMAIL` and `ATLASSIAN_API_TOKEN` from `.env` and save them under `references/docs/`. The token is only sent to the configured site. Jira fields named like acceptance criteria, steps or expected results are included.
+- **AI screenshot check.** `qalprit run --ai-review`, `qalprit review <results dir>`, the run dialog's **Check screenshots with AI** and **Review → Check with AI** send each step's recorded and replay screenshot, plus the reference text, to Claude (`claude-opus-5-5`, structured JSON output, server-side refusal fallback). Each step gets *pass*, *fail* or *unclear* with a reason and the requirement it checked; the test gets a summary and the requirements no step showed. Verdicts never change pass or fail. Results go to `ai_review.json`, `results.json` and the report. Needs `ANTHROPIC_API_KEY`.
+- **Review dialog.** **Runs & reports → Review** shows recorded and replay screenshots side by side with the AI verdict, and **Looks right** / **Wrong** with a note per step (`POST /api/runs/review`). Decisions are saved in `results.json` and the HTML report. The Review button counts flagged steps nobody has reviewed yet.
+- New dependency: `anthropic>=2.10,<3` (bundled in the Windows and macOS installers).
+
+### Changed
+
+- Gestures done on the device itself (emulators too) are queued and hit-tested against the screen as it was when the finger landed. Before, a tap was dropped if the recorder was busy for more than a second, and a fast tap could match an element on the next screen.
+- Key presses on the on-screen keyboard are no longer recorded as taps on the app element behind the keyboard. The recorder reads the keyboard's position from `dumpsys window InputMethod`.
+- The touchscreen is picked from all input devices by preferring a multi-touch screen marked `INPUT_PROP_DIRECT`, so fingerprint sensors and styluses are skipped.
+- Stopping a recording on a USB phone no longer shuts down running emulators, and the emulator Stop button is hidden while a phone is selected.
+
+### Lessons learned
+
+- Linux input only reports axis values that changed. A second tap on the same spot sends no X/Y, so the start point is taken at the first `SYN_REPORT` after the finger lands, not on the first X/Y line.
+- Android leaves the on-screen keyboard out of the app's element tree. Any recorder that hit-tests real touches has to cut out the keyboard area first.
+- A step's screenshot must be the screen *after* the step. Captures that happen while the next gesture is being handled belong to that gesture, so the recorder keeps the pre-touch screen for the previous step and only then refreshes.
+- Every save path for a journey has to pass new fields through. The Workbench's step-only save rebuilt the spec from scratch and would have dropped `references:`.
+
+---
+
 ## [v0.1.40] - 2026-11-18
 
 ### Fixed

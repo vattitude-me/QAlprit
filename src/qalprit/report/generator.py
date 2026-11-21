@@ -56,6 +56,22 @@ def _escape_md_cell(text: str, masker: SecretMasker | None = None) -> str:
     return val.replace("\r\n", " ").replace("\r", " ").replace("\n", " ").replace("|", r"\|").strip()
 
 
+def _image_src(run_dir: Path, rel: str | None, external_assets: bool) -> str | None:
+    """Inline (or link) an image that lives inside the run folder; None when it is missing."""
+    if not rel:
+        return None
+    path = _safe_resolve_within(run_dir, rel)
+    if path is None or not path.exists():
+        return None
+    if external_assets:
+        return Path(rel).as_posix()
+    try:
+        mime, b64 = compress_image_for_html(path)
+    except Exception:
+        return None
+    return f"data:{mime};base64,{b64}"
+
+
 def _build_step_view(
     step: Any,
     run_dir: Path,
@@ -93,6 +109,8 @@ def _build_step_view(
                     data["visual_diff_src"] = f"data:{mime};base64,{b64}"
                 except Exception:
                     data["visual_diff_src"] = None
+
+    data["reference_src"] = _image_src(run_dir, data.get("reference_screenshot_path"), external_assets)
 
     ps_rel = data.get("page_source_path")
     data["page_source_preview"] = None

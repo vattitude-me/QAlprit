@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import io
 import os
+import uuid
+import queue
 import platform as py_platform
 import re
 import subprocess
@@ -15,10 +18,12 @@ from typing import Any
 
 from PIL import Image, ImageDraw
 
+from qalprit.recorder_paths import step_references_dir
 from qalprit.runner import apply_app_reset
 from qalprit.steps.base import read_toggle_state
 from qalprit.appium_manager import AppiumManager, build_appium_env
 from qalprit.doctor import find_android_tool, win_subprocess_kwargs
+from qalprit.device_input import Gesture, GeteventParser, TouchDevice, parse_keyboard_top, pick_touch_device
 from qalprit.datasets import is_sensitive_column, load_datasets, save_datasets
 from qalprit.driver_factory import create_appium_driver
 from qalprit.env_loader import SecretMasker
@@ -33,9 +38,6 @@ from qalprit.workbench_api import (
     save_test_journey,
 )
 
-_WM_SIZE_RE = re.compile(r"(?:Override|Physical)\s+size:\s*(\d+)x(\d+)")
-_ABS_AXIS_RE = re.compile(r"(ABS_MT_POSITION_[XY]|ABS_[XY])\s*:\s*.*?min\s+(-?\d+),\s*max\s+(-?\d+)")
-_GETEVENT_DEV_RE = re.compile(r"add device \d+:\s*(/dev/input/event\d+)")
 
 
 def _redact_sensitive_png(png_bytes: bytes, elements: list[dict[str, Any]]) -> bytes:
@@ -225,7 +227,19 @@ def _step_to_yaml_dict(step: dict[str, Any]) -> Any:
     if action == "assert_text":
         return {"assert_text": {"target": target, "contains": value}}
     if action == "swipe":
+        if step.get("distance"):
+            return {"swipe": {"direction": value or "up", "distance": float(step["distance"])}}
         return {"swipe": value or "up"}
+    if action == "long_press":
+        try:
+            hold = int(float(value))
+        except ValueError:
+            hold = 0
+        return {"long_press": {"target": target, "duration": hold}} if hold > 0 else {"long_press": target}
+    if action == "launch":
+        if step.get("restart", True):
+            return {"launch": {"app": value, "restart": True}}
+        return {"launch": value}
     if action == "wait":
         try:
             sec = float(value or 1.0)
@@ -261,6 +275,83 @@ def _connect_phase_text(platform: str, profile: Any) -> str:
     return "Connecting to the device and opening the app..."
 
 
+_HOME_APPS = {
+    "com.android.systemui",
+    "com.apple.springboard",
+    "com.miui.home",
+    "com.android.quickstep",
+    "com.google.android.apps.nexuslauncher",
+    "com.sec.android.app.launcher",
+}
+
+
+def is_home_app(app_id: str) -> bool:
+    """True for the home screen, recents and system UI, which are not apps under test."""
+    low = (app_id or "").strip().lower()
+    return bool(low) and (low in _HOME_APPS or "launcher" in low)
+
+
+def _current_app(driver: Any, platform: str) -> str:
+    """Package (Android) or bundle id (iOS) of whatever is in front, home screen included, or ''."""
+    script = "mobile: getCurrentPackage" if platform == "android" else "mobile: activeAppInfo"
+    try:
+        res = driver.execute_script(script, {})
+    except Exception:
+        res = None
+    if isinstance(res, dict):
+        res = res.get("bundleId") or res.get("package") or ""
+    return str(res or "").strip()
+
+
+def _foreground_app_id(driver: Any, platform: str) -> str:
+    """Return the app in front, or '' when it is the home screen or unknown."""
+    app_id = _current_app(driver, platform)
+    return "" if is_home_app(app_id) else app_id
+
+
+def save_step_references(
+    project_root: Path,
+    flow_name: str,
+    platform: str,
+    steps: list[dict[str, Any]],
+    shots: dict[str, bytes],
+) -> dict[str, Any]:
+    """Write each step's screenshot and a manifest.json that ties it to the flow step.
+
+    The manifest records action and target per step, so a run can tell when the flow was
+    edited after recording and skip a screenshot that no longer belongs to that step.
+    """
+    out_dir = step_references_dir(project_root, flow_name)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for old in out_dir.glob("step_*.png"):
+        old.unlink()
+    entries: list[dict[str, Any]] = []
+    for idx, step in enumerate(steps):
+        png = shots.get(str(step.get("uid") or ""), b"")
+        name = ""
+        if png:
+            name = f"step_{idx:02d}.png"
+            (out_dir / name).write_bytes(png)
+        entries.append({
+            "index": idx,
+            "action": str(step.get("action") or ""),
+            "target": str(step.get("target") or ""),
+            "label": str(step.get("label") or ""),
+            "screenshot": name,
+        })
+    manifest = {
+        "flow": flow_name,
+        "platform": platform,
+        "recorded_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "steps": entries,
+    }
+    (out_dir / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    return {
+        "dir": out_dir.relative_to(project_root).as_posix(),
+        "screenshots": sum(1 for e in entries if e["screenshot"]),
+    }
+
+
 def _workspace_rel(project_root: Path, app: Path | None) -> str:
     """Workspace-relative POSIX path of the app, or the bare file name if it lives elsewhere."""
     if app is None:
@@ -269,6 +360,10 @@ def _workspace_rel(project_root: Path, app: Path | None) -> str:
         return app.resolve().relative_to(project_root.resolve()).as_posix()
     except ValueError:
         return app.name
+
+
+# Screen state kept when a finger lands: elements, screen name, keyboard top, redacted PNG, app in front.
+_Before = tuple[list[dict[str, Any]], str, "int | None", bytes, str]
 
 
 class RecorderManager:
@@ -283,6 +378,19 @@ class RecorderManager:
         self._getevent_proc: subprocess.Popen[str] | None = None
         self._stop_event = threading.Event()
         self._last_ui_action_ts: float = 0.0
+        self._gesture_queue: queue.Queue[tuple[str, Any, Any]] = queue.Queue()
+        self._keyboard_top: int | None = None
+        self._device_gestures = 0
+        self._real_device = False
+        self._start_mode = "clear_data"
+        self._launch_app_id = ""
+        # App in front at the last capture, so switching apps on the device becomes a step.
+        self._front_app = ""
+        self._apps_seen: set[str] = set()
+        # Screenshot of the screen each step left behind, keyed by step uid.
+        self._step_shots: dict[str, bytes] = {}
+        self._shot_owner = ""
+        self._last_ref_png: bytes = b""
 
         self._active = False
         self._starting = False
@@ -344,19 +452,31 @@ class RecorderManager:
                 "screen_height": self._screen_height,
                 "has_screenshot": bool(self._screenshot_png),
                 "direct_tap_watch": self._direct_tap_watch,
+                "real_device": self._real_device,
+                "start_mode": self._start_mode,
+                "device_gestures": self._device_gestures,
+                "keyboard_up": self._keyboard_top is not None,
                 "redact_sensitive": self._redact_sensitive,
                 "auto_dismiss_prompts": self._auto_dismiss_prompts,
                 "notice": self._notice,
                 "notice_rev": self._notice_rev,
                 "elements": list(self._elements[:250]),
                 "locators": list(self._locators.values()),
-                "steps": [dict(s, yaml_step=_step_to_yaml_dict(s)) for s in self._steps],
+                "steps": [
+                    dict(s, yaml_step=_step_to_yaml_dict(s), has_shot=s.get("uid") in self._step_shots)
+                    for s in self._steps
+                ],
                 "logs": list(self._logs[-40:]),
             }
 
     def screenshot_bytes(self) -> bytes:
         with self._lock:
             return self._screenshot_png
+
+    def step_shot_bytes(self, uid: str) -> bytes:
+        """The redacted screenshot a recorded step left on screen, or b''."""
+        with self._lock:
+            return self._step_shots.get(uid, b"")
 
     def _set_notice(self, msg: str) -> None:
         with self._lock:
@@ -473,7 +593,12 @@ class RecorderManager:
         with self._lock:
             redact_enabled = self._redact_sensitive
         png_safe = _redact_sensitive_png(png_raw, ranked) if redact_enabled else png_raw
+        # Saved step screenshots are always redacted, whatever the mirror shows.
+        ref_png = png_safe if redact_enabled else _redact_sensitive_png(png_raw, ranked)
         with self._lock:
+            self._last_ref_png = ref_png
+            if self._shot_owner:
+                self._step_shots[self._shot_owner] = ref_png
             self._elements = ranked
             self._screenshot_png = png_safe
             self._last_raw_hash = hashlib.sha1(png_raw).hexdigest()
@@ -482,6 +607,8 @@ class RecorderManager:
             self._gesture_width = win_w
             self._gesture_height = win_h
             self._rev += 1
+        self._update_keyboard_locked()
+        self._track_front_app_locked()
 
     def _mark_session_lost(self, exc: BaseException) -> None:
         with self._lock:
@@ -580,63 +707,112 @@ class RecorderManager:
             self._locators[target] = entry
         return entry
 
-    def _probe_android_touch_device(self, adb_bin: str, serial: str) -> tuple[str, int, int, int, int, int, int] | None:
-        """Discover Android touchscreen getevent device & raw axis bounds cleanly."""
-        env = build_appium_env(dict(os.environ))
+    def _adb(self, args: list[str], timeout: float = 6.0) -> str:
+        adb_bin = find_android_tool("adb")
+        if not adb_bin or not self._serial:
+            return ""
         try:
-            wm = subprocess.run(
-                [adb_bin, "-s", serial, "shell", "wm", "size"],
+            proc = subprocess.run(
+                [adb_bin, "-s", self._serial, *args],
                 capture_output=True,
                 text=True,
-                timeout=5,
-                env=env,
+                timeout=timeout,
+                env=build_appium_env(dict(os.environ)),
                 **win_subprocess_kwargs(),
             )
-            m_sz = _WM_SIZE_RE.search(wm.stdout or "")
-            disp_w = int(m_sz.group(1)) if m_sz else self._screen_width
-            disp_h = int(m_sz.group(2)) if m_sz else self._screen_height
+        except Exception:
+            return ""
+        return (proc.stdout or "") if proc.returncode == 0 else ""
 
+    def _probe_android_touch_device(self, adb_bin: str, serial: str) -> TouchDevice | None:
+        """Find the touchscreen among the device's input devices and its raw axis range."""
+        try:
             lp = subprocess.run(
                 [adb_bin, "-s", serial, "shell", "getevent", "-lp"],
                 capture_output=True,
                 text=True,
                 timeout=6,
-                env=env,
+                env=build_appium_env(dict(os.environ)),
                 **win_subprocess_kwargs(),
             )
-            if lp.returncode != 0:
-                return None
-            blocks = re.split(r"(?=add device \d+:)", lp.stdout or "")
-            for block in blocks:
-                m_dev = _GETEVENT_DEV_RE.search(block)
-                if not m_dev:
-                    continue
-                axes = {m.group(1): (int(m.group(2)), int(m.group(3))) for m in _ABS_AXIS_RE.finditer(block)}
-                x_rng = axes.get("ABS_MT_POSITION_X") or axes.get("ABS_X")
-                y_rng = axes.get("ABS_MT_POSITION_Y") or axes.get("ABS_Y")
-                if x_rng and y_rng and x_rng[1] > x_rng[0] and y_rng[1] > y_rng[0]:
-                    return (m_dev.group(1), x_rng[0], x_rng[1], y_rng[0], y_rng[1], disp_w, disp_h)
         except Exception:
             return None
-        return None
+        if lp.returncode != 0:
+            return None
+        return pick_touch_device(lp.stdout or "")
+
+    def _track_front_app_locked(self) -> None:
+        """Record opening another app from the home screen or recents as a `launch` step.
+
+        A switch the app makes on its own (a browser sign-in, a permission dialog) follows a
+        tap that is already recorded, so it is not a step.
+        """
+        if self._driver is None or self._platform != "android":
+            return
+        now = _current_app(self._driver, self._platform)
+        if not now:
+            return
+        with self._lock:
+            before = self._front_app
+            self._front_app = now
+            first_time = now not in self._apps_seen
+            if not is_home_app(now):
+                self._apps_seen.add(now)
+        if now == before or is_home_app(now):
+            return
+        if before and not is_home_app(before):
+            return
+        self._append_or_merge_step({
+            "action": "launch",
+            "target": "",
+            "value": now,
+            "restart": first_time,
+            "secret": False,
+            "label": f"{'Open' if first_time else 'Switch to'} {now}",
+        })
+        self._log(f"Recorded opening {now}.")
+
+    def _update_keyboard_locked(self) -> None:
+        """Remember where the on-screen keyboard starts, so key presses are not recorded as taps."""
+        if self._platform != "android" or not self._direct_tap_watch or self._driver is None:
+            return
+        top: int | None = None
+        try:
+            shown = bool(self._driver.is_keyboard_shown())
+        except Exception:
+            shown = False
+        if shown:
+            with self._lock:
+                scr_h = self._screen_height
+            parsed = parse_keyboard_top(self._adb(["shell", "dumpsys", "window", "InputMethod"]), scr_h)
+            # Unknown layout: treat the lower 40% as keys rather than record key presses as taps.
+            top = parsed if parsed is not None else int(scr_h * 0.6)
+        with self._lock:
+            self._keyboard_top = top
 
     def _start_android_getevent_watcher(self, serial: str) -> None:
+        """Listen to the device's own touchscreen so taps, swipes and Back done by hand become steps."""
         adb_bin = find_android_tool("adb")
         if not adb_bin or not serial:
             return
-        probe = self._probe_android_touch_device(adb_bin, serial)
-        if not probe:
+        touch = self._probe_android_touch_device(adb_bin, serial)
+        if touch is None:
+            self._log("Could not find the device's touchscreen. Steps done on the device itself will not be recorded.")
             return
-        dev_path, min_x, max_x, min_y, max_y, disp_w, disp_h = probe
-        env = build_appium_env(dict(os.environ))
+        with self._lock:
+            scr_w, scr_h = self._screen_width, self._screen_height
+        if scr_w > scr_h:
+            self._log("The device is in landscape. Gestures done on the device are mapped for portrait, so keep it upright.")
+        parser = GeteventParser(device=touch, display_width=scr_w, display_height=scr_h)
         try:
+            # No device path: watch every input device, so hardware Back keys are seen too.
             proc = subprocess.Popen(
-                [adb_bin, "-s", serial, "shell", "getevent", "-lt", dev_path],
+                [adb_bin, "-s", serial, "shell", "getevent", "-lt"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
                 text=True,
                 bufsize=1,
-                env=env,
+                env=build_appium_env(dict(os.environ)),
                 **win_subprocess_kwargs(),
             )
         except Exception:
@@ -645,88 +821,165 @@ class RecorderManager:
         with self._lock:
             self._getevent_proc = proc
             self._direct_tap_watch = True
-        self._log(f"Watching direct taps on Android emulator ({serial} · {dev_path}).")
+            token = self._session_token
+        where = "your phone" if self._real_device else "the emulator"
+        self._log(f"Listening for taps, swipes and Back on {where} ({serial} · {touch.path}).")
+        self._update_keyboard_locked()
 
         def _reader() -> None:
-            cur_x: int | None = None
-            cur_y: int | None = None
+            before: _Before | None = None
             assert proc.stdout is not None
             for raw_line in proc.stdout:
-                if self._stop_event.is_set():
+                if self._stop_event.is_set() or self._session_token != token:
                     break
-                line = raw_line.strip()
-                if "ABS_MT_POSITION_X" in line or "ABS_X" in line:
-                    try:
-                        cur_x = int(line.split()[-1], 16)
-                    except Exception:
-                        pass
-                elif "ABS_MT_POSITION_Y" in line or "ABS_Y" in line:
-                    try:
-                        cur_y = int(line.split()[-1], 16)
-                    except Exception:
-                        pass
-                elif ("BTN_TOUCH" in line and "UP" in line) or (
-                    "ABS_MT_TRACKING_ID" in line and "ffffffff" in line.lower()
-                ):
-                    if cur_x is None or cur_y is None:
+                for kind, payload in parser.feed(raw_line):
+                    if kind == "down":
+                        # Keep the screen as it was when the finger landed. By the time the
+                        # finger lifts, the app may already show the next screen.
+                        with self._lock:
+                            before = (
+                                list(self._elements),
+                                self._screen_name,
+                                self._keyboard_top,
+                                self._last_ref_png,
+                                self._front_app,
+                            )
                         continue
-                    px = int(((cur_x - min_x) / max(1, max_x - min_x)) * disp_w)
-                    py = int(((cur_y - min_y) / max(1, max_y - min_y)) * disp_h)
-                    cur_x = None
-                    cur_y = None
                     if time.monotonic() - self._last_ui_action_ts < 1.8:
+                        # The recorder itself just drove the device; this is not a new step.
                         continue
-                    self._handle_direct_emulator_tap(px, py)
+                    if kind == "key":
+                        self._gesture_queue.put(("back_key", None, None))
+                    elif kind == "gesture":
+                        self._gesture_queue.put(("gesture", payload, before))
+                    before = None
+
+        def _worker() -> None:
+            while not self._stop_event.is_set() and self._session_token == token:
+                try:
+                    item = self._gesture_queue.get(timeout=0.3)
+                except queue.Empty:
+                    continue
+                try:
+                    self._handle_device_gesture(*item, token=token)
+                except Exception as exc:
+                    self._log(f"Could not record a step done on the device: {friendly_error(exc)}")
 
         threading.Thread(target=_reader, daemon=True).start()
+        threading.Thread(target=_worker, daemon=True).start()
 
-    def _handle_direct_emulator_tap(self, px: int, py: int) -> None:
-        if not self._driver_lock.acquire(timeout=1.0):
-            return
+    def _handle_device_gesture(
+        self,
+        kind: str,
+        gesture: Gesture | None,
+        before: _Before | None,
+        *,
+        token: int,
+    ) -> None:
+        """Turn one gesture done on the device into a step, then refresh the mirror."""
+        acquired = False
+        while not acquired:
+            if self._stop_event.is_set() or self._session_token != token:
+                return
+            acquired = self._driver_lock.acquire(timeout=0.5)
         try:
             if not self._active or self._driver is None:
                 return
             with self._lock:
-                prev_elems = list(self._elements)
-                screen_name = self._screen_name
-            hit = hit_test_element(prev_elems, px, py)
-            time.sleep(0.8)
-            if not self._active or self._driver is None:
+                prev_elems, screen_name, kb_top, before_png, front = before or (
+                    list(self._elements), self._screen_name, self._keyboard_top, self._last_ref_png, self._front_app,
+                )
+                self._device_gestures += 1
+                prev_owner = self._shot_owner
+                if before_png and prev_owner:
+                    # The screen right before this gesture is what the previous step led to.
+                    self._step_shots[prev_owner] = before_png
+
+            step: dict[str, Any] | None = None
+            if kind == "back_key" or (gesture is not None and gesture.kind == "back"):
+                step = {"action": "back", "target": "", "value": "", "secret": False, "label": "Press Back"}
+            elif gesture is not None and gesture.kind == "system":
+                self._set_notice("Skipped a system gesture (Home, recents or notifications). It is not part of the app's flow.")
+            elif gesture is not None and kb_top is not None and gesture.y >= kb_top:
+                # A key press on the on-screen keyboard. The typed text is read from the field instead.
+                pass
+            elif gesture is not None and is_home_app(front) and gesture.kind != "swipe":
+                # Opening an app from the home screen is recorded as a `launch` step once it is
+                # in front; the icon's position on the home screen is not part of the test.
+                pass
+            elif gesture is not None and gesture.kind == "swipe":
+                step = {
+                    "action": "swipe",
+                    "target": "",
+                    "value": gesture.direction,
+                    "distance": gesture.distance,
+                    "secret": False,
+                    "label": f"Swipe {gesture.direction}",
+                }
+            elif gesture is not None:
+                hit = hit_test_element(prev_elems, gesture.x, gesture.y)
+                if hit is None:
+                    self._set_notice(
+                        f"That {'press' if gesture.kind == 'long_press' else 'tap'} at ({gesture.x}, {gesture.y}) did not land on "
+                        "anything in the app, so no step was recorded. For Back, swipe in from the screen edge or click Back here."
+                    )
+                else:
+                    tapped = hit[1]
+                    loc = self._register_locator_locked(tapped, screen_name)
+                    if gesture.kind == "long_press":
+                        step = {
+                            "action": "long_press",
+                            "target": loc["target"],
+                            "value": str(max(600, min(gesture.duration_ms, 5000))),
+                            "secret": loc["sensitive"],
+                            "label": f"Long press {loc['display_label']}",
+                        }
+                    elif not tapped.get("editable"):
+                        # Taps on a text field are left out: the type step taps it on replay.
+                        step = {
+                            "action": "tap",
+                            "target": loc["target"],
+                            "value": "",
+                            "secret": loc["sensitive"],
+                            "label": f"Tap {loc['display_label']}",
+                        }
+
+            if not self._gesture_queue.empty():
+                # More gestures are waiting and each carries its own screen, so skip the refresh.
+                if step is not None:
+                    self._append_or_merge_step(step)
                 return
+            time.sleep(0.7)
+            if not self._active or self._driver is None:
+                if step is not None:
+                    self._append_or_merge_step(step)
+                return
+            with self._lock:
+                # This capture shows what the gesture led to, not the previous step's result.
+                self._shot_owner = ""
             self._capture_snapshot_locked()
             with self._lock:
                 new_elems = list(self._elements)
-
-            # Check if text was typed into an editable field right before tapping Next/Submit
+                if not self._shot_owner:
+                    self._shot_owner = prev_owner
+            # Text typed on the device right before this gesture (the field may now be gone).
             for changed_el, typed_val in detect_changed_editable_inputs(prev_elems, new_elems):
                 loc = self._register_locator_locked(changed_el, screen_name)
-                if loc["sensitive"]:
-                    self._log(f"Captured masked input on {loc['target']}")
-                    step_val = "${SECRET_VALUE}"
-                else:
-                    step_val = typed_val
-                self._append_or_merge_step({
+                step_val = "${SECRET_VALUE}" if loc["sensitive"] else typed_val
+                typed_step = {
                     "action": "type",
                     "target": loc["target"],
                     "value": step_val,
                     "secret": loc["sensitive"],
                     "label": f"Type '{SecretMasker.REPLACEMENT if loc['sensitive'] else step_val}' into {loc['display_label']}",
-                })
-
-            if hit is not None:
-                _, tapped_el = hit
-                loc = self._register_locator_locked(tapped_el, screen_name)
-                if not tapped_el.get("editable"):
-                    self._append_or_merge_step({
-                        "action": "tap",
-                        "target": loc["target"],
-                        "value": "",
-                        "secret": loc["sensitive"],
-                        "label": f"Tap {loc['display_label']}",
-                    })
-                    self._log(f"Direct emulator tap recorded: {loc['target']} ({px}, {py})")
-        except Exception as exc:
-            self._log(f"Direct tap sync skipped: {exc}")
+                }
+                self._append_or_merge_step(typed_step)
+                if before_png:
+                    with self._lock:
+                        self._step_shots[typed_step["uid"]] = before_png
+            if step is not None:
+                self._append_or_merge_step(step)
+                self._log(f"Recorded from the device: {step['label']}")
         finally:
             self._driver_lock.release()
 
@@ -739,9 +992,16 @@ class RecorderManager:
                 and self._steps[-1]["action"] == "type"
                 and self._steps[-1]["target"] == step["target"]
             ):
+                step["uid"] = self._steps[-1].get("uid") or uuid.uuid4().hex[:12]
                 self._steps[-1] = step
             else:
+                step.setdefault("uid", uuid.uuid4().hex[:12])
                 self._steps.append(step)
+            # Captures from now until the next step show what this step led to. Until one
+            # comes, the latest screen stands in.
+            self._shot_owner = step["uid"]
+            if self._last_ref_png:
+                self._step_shots[step["uid"]] = self._last_ref_png
             self._rev += 1
 
     def start(
@@ -757,8 +1017,15 @@ class RecorderManager:
         settle_seconds: float = 0.8,
         redact_sensitive: bool | None = None,
         fresh_start: bool = True,
+        start_mode: str = "",
     ) -> dict[str, Any]:
-        """Attach persistent Appium session to emulator and begin recording."""
+        """Attach a persistent Appium session to an emulator, simulator or USB phone and begin recording.
+
+        ``start_mode`` picks how the app starts: ``clear_data`` (wipe it, like a test run),
+        ``restart`` (close and reopen the installed app, keeping logins and data) or ``as_is``
+        (record from whatever is on screen). Without it, ``fresh_start`` picks ``clear_data`` or
+        ``as_is``. A USB phone never has its data wiped unless ``clear_data`` is asked for by name.
+        """
         if self._active or self._starting:
             self.stop()
 
@@ -810,6 +1077,24 @@ class RecorderManager:
             ]
             self._masker = val.env_ctx.masker if val.env_ctx else SecretMasker([])
 
+        real_device = profile.target_type == "device"
+        mode = (start_mode or "").strip().lower()
+        if mode not in {"clear_data", "restart", "as_is"}:
+            mode = "restart" if real_device else ("clear_data" if fresh_start else "as_is")
+        with self._lock:
+            self._real_device = real_device
+            self._start_mode = mode
+            self._launch_app_id = ""
+            self._front_app = ""
+            self._apps_seen = set()
+            self._step_shots = {}
+            self._shot_owner = ""
+            self._last_ref_png = b""
+            self._keyboard_top = None
+            self._device_gestures = 0
+            self._gesture_queue = queue.Queue()
+        configured_app_id = env_cfg.android_package if platform == "android" else env_cfg.ios_bundle_id
+
         connect_phase = _connect_phase_text(platform, profile)
 
         def _cancelled() -> bool:
@@ -832,16 +1117,39 @@ class RecorderManager:
                 driver = create_appium_driver(mgr.url, profile, env_cfg, app_path=resolved_app)
                 if _cancelled():
                     raise InterruptedError("Recorder start cancelled.")
-                if fresh_start:
+                app_id = configured_app_id or ""
+                front = _current_app(driver, platform)
+                with self._lock:
+                    self._front_app = app_id or front
+                    if self._front_app and not is_home_app(self._front_app):
+                        self._apps_seen.add(self._front_app)
+                if not app_id and mode != "clear_data":
+                    # No app named in the environment: use the one open on the device, so the
+                    # saved test can reopen it.
+                    app_id = _foreground_app_id(driver, platform)
+                    with self._lock:
+                        self._launch_app_id = app_id
+                    if app_id:
+                        self._log(f"Recording the app open on the device: {app_id}.")
+                if mode == "clear_data":
                     # Test runs reset the app before each test. Do the same here so the first
                     # recorded screen is the one a replay starts from, not wherever the app was left.
                     with self._lock:
                         self._phase = "Resetting the app so recording starts from a clean state..."
                     self._log("Clearing the app's data so recording starts from its first screen.")
+                    reset_how = "clear_data"
+                elif mode == "restart" and app_id:
+                    with self._lock:
+                        self._phase = "Reopening the app. Your login and data are kept..."
+                    self._log("Reopening the installed app so recording starts from its first screen. Its data is kept.")
+                    reset_how = "none"
+                else:
+                    reset_how = ""
+                if reset_how:
                     ok, why = apply_app_reset(
                         driver,
-                        "clear_data",
-                        app_id=env_cfg.android_package if platform == "android" else env_cfg.ios_bundle_id,
+                        reset_how,
+                        app_id=app_id,
                         profile=profile,
                         app_path=resolved_app,
                         masker=self._masker,
@@ -862,7 +1170,11 @@ class RecorderManager:
                     self._starting = False
                     self._active = True
                     self._status = "recording"
-                    self._phase = "Recording. Click any control on the mirrored screen."
+                    self._phase = (
+                        "Recording. Use your phone: taps, long presses, swipes, typing and Back become steps."
+                        if real_device and platform == "android"
+                        else "Recording. Click any control on the mirrored screen."
+                    )
                     if not self._serial and isinstance(driver.capabilities, dict):
                         self._serial = str(driver.capabilities.get("deviceUDID") or driver.capabilities.get("deviceName") or "")
                 self._log(f"Connected! Captured {len(self._elements)} elements on '{self._screen_name}'.")
@@ -1189,6 +1501,8 @@ class RecorderManager:
                 self._screen_name = _safe_slug(self._flow_name.split("/")[-1], "screen")
             self._steps = []
             self._locators = {}
+            self._step_shots = {}
+            self._shot_owner = ""
             self._notice = ""
             self._rev += 1
             if had:
@@ -1214,6 +1528,9 @@ class RecorderManager:
                 selected_idx = None
             elif duplicate:
                 cloned = dict(self._steps[index])
+                cloned["uid"] = uuid.uuid4().hex[:12]
+                if self._steps[index].get("uid") in self._step_shots:
+                    self._step_shots[cloned["uid"]] = self._step_shots[self._steps[index]["uid"]]
                 target_idx = index + 1
                 self._steps.insert(target_idx, cloned)
                 selected_idx = target_idx
@@ -1254,6 +1571,10 @@ class RecorderManager:
             app_rel = self._app_rel
             steps = list(self._steps)
             locators = dict(self._locators)
+            start_mode = self._start_mode
+            launch_app_id = self._launch_app_id
+            real_device = self._real_device
+            shots = dict(self._step_shots)
         if project_root is None:
             raise RuntimeError("No active recording workspace.")
         if not steps:
@@ -1288,7 +1609,11 @@ class RecorderManager:
         recorded_values: dict[str, str] = {}
         if parameterize:
             steps, variables, secret_vars, recorded_values = parameterize_typed_steps(steps)
+        if start_mode == "restart" and launch_app_id and not (steps and steps[0].get("action") == "launch"):
+            # The environment names no app, so the flow reopens the one it was recorded on.
+            steps = [{"action": "launch", "target": "", "value": launch_app_id, "label": f"Open {launch_app_id}"}] + steps
         yaml_steps = [_step_to_yaml_dict(s) for s in steps]
+        where = "USB device" if real_device else ("emulator" if platform == "android" else "simulator")
         flow_res = save_flow_spec(
             project_root,
             name=flow_name or "recorded_flow",
@@ -1296,8 +1621,11 @@ class RecorderManager:
             platforms=[platform] if platform in ("android", "ios") else None,
             apps={platform: app_rel} if app_rel and platform in ("android", "ios") else None,
             steps=yaml_steps,
-            notes=f"Recorded live on {platform} emulator ({len(yaml_steps)} steps).",
+            notes=f"Recorded live on {platform} {where} ({len(yaml_steps)} steps).",
         )
+
+        # Keep what each step left on screen, so replays can be checked against the recording.
+        references = save_step_references(project_root, flow_res["name"], platform, steps, shots)
 
         # 3. Save repeatable Test Journey (`specs/<suite>/<id>.md`)
         spec_res: dict[str, Any] | None = None
@@ -1312,7 +1640,9 @@ class RecorderManager:
                     "suite": suite or "smoke",
                     "tags": [suite or "smoke", "recorded"],
                     "platforms": [platform],
-                    "reset": "clear_data",
+                    # Replays start the app the way the recording did. A test recorded on a phone
+                    # with the app set up keeps its data, so a replay never wipes the login.
+                    "reset": "clear_data" if start_mode == "clear_data" else "none",
                     "steps": [{"run_flow": flow_res["name"]}],
                     "expected": f"Recorded workflow '{flow_res['name']}' completes all {len(yaml_steps)} steps cleanly.",
                 },
@@ -1340,6 +1670,7 @@ class RecorderManager:
             "spec": spec_res,
             "variables": variables,
             "secret_variables": secret_vars,
+            "references": references,
         }
 
     @staticmethod
@@ -1391,6 +1722,8 @@ class RecorderManager:
             ge_proc = self._getevent_proc
             self._getevent_proc = None
             self._direct_tap_watch = False
+            self._keyboard_top = None
+            self._gesture_queue = queue.Queue()
         if ge_proc is not None:
             try:
                 ge_proc.terminate()

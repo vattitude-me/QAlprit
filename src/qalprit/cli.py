@@ -11,12 +11,15 @@ from pathlib import Path
 import click
 
 from qalprit import __version__
+from qalprit.ai_review import review_run_dir
 from qalprit.appium_manager import AppiumManager
+from qalprit.atlassian_refs import fetch_reference_docs
 from qalprit.config_loader import load_screens
 from qalprit.datasets import parse_csv_datasets, resolve_dataset_vars
 from qalprit.devices import list_android_devices, list_ios_simulators
 from qalprit.doctor import run_doctor
 from qalprit.driver_factory import create_appium_driver
+from qalprit.env_loader import load_env
 from qalprit.inspector import extract_interactive_elements, format_inspect_output
 from qalprit.report.generator import generate_batch_report, generate_reports
 from qalprit.results import load_results_json, write_results_json
@@ -347,6 +350,7 @@ def validate(
 @click.option("--redact/--no-redact", "redact_screenshots", default=None, help="Enable or disable black-marker PII redaction on screenshots (defaults to environment setting: off for dev, on for pre-prod/prod/qa).")
 @click.option("--data", "data_csv", type=click.Path(exists=True, path_type=Path), default=None, help="CSV file of dynamic variable datasets to execute sequentially.")
 @click.option("--dataset", "dataset_filter", multiple=True, help="Run specific dataset row name(s) from --data CSV.")
+@click.option("--ai-review", is_flag=True, help="After the run, check each step's screenshot against the test's Jira/Confluence references with Claude (needs ANTHROPIC_API_KEY).")
 @click.option("--project-root", type=click.Path(path_type=Path), default=None, hidden=True)
 def run(
     platform: str,
@@ -367,6 +371,7 @@ def run(
     redact_screenshots: bool | None,
     data_csv: Path | None,
     dataset_filter: tuple[str, ...],
+    ai_review: bool,
     project_root: Path | None,
 ) -> None:
     """Execute automated UI tests and generate report.html, summary.md, results.json, and junit.xml."""
@@ -502,6 +507,7 @@ def run(
                         screens=val.screens,  # type: ignore[arg-type]
                         flows=val.flows,
                         run_dir=sub_dir,
+                        project_root=root,
                         run_id=sub_id,
                         app_path=app_path,
                         suite=suite or "all",
@@ -597,6 +603,7 @@ def run(
             screens=val.screens,  # type: ignore[arg-type]
             flows=val.flows,
             run_dir=run_dir,
+            project_root=root,
             run_id=run_id,
             app_path=app_path,
             suite=suite or "all",
@@ -621,6 +628,8 @@ def run(
         external_assets=external_assets,
         masker=masker,
     )
+    if ai_review:
+        _echo_ai_review(review_run_dir(root, run_dir, external_assets=external_assets))
 
     s = run_result.summary
     status_line = (
@@ -641,6 +650,68 @@ def run(
     if run_result.interrupted:
         sys.exit(130)
     if s.failed > 0:
+        sys.exit(1)
+
+
+def _echo_ai_review(out: dict) -> None:
+    for t in out.get("tests") or []:
+        steps = t.get("steps") or {}
+        counts = {v: sum(1 for s in steps.values() if s.get("verdict") == v) for v in ("pass", "fail", "unclear")}
+        line = f"AI check {t['id']}: {counts['pass']} pass, {counts['fail']} fail, {counts['unclear']} unclear"
+        click.echo(line + (f" ({t['error']})" if t.get("error") else ""))
+        for idx, s in sorted(steps.items(), key=lambda kv: int(kv[0])):
+            if s.get("verdict") == "fail":
+                click.echo(f"  step {idx}: {s.get('reason')}")
+
+
+@main.command("review")
+@click.argument("results_dir", type=click.Path(exists=True, file_okay=False, path_type=Path))
+@click.option("--id", "test_ids", multiple=True, help="Only check these test IDs.")
+@click.option("--refresh-refs", is_flag=True, help="Fetch the Jira/Confluence references again instead of using the saved copies.")
+@click.option("--external-assets", is_flag=True, help="Link PNG files externally in the regenerated report.")
+@click.option("--project-root", type=click.Path(path_type=Path), default=None, help="Workspace folder (default: current folder).")
+def review_cmd(results_dir: Path, test_ids: tuple[str, ...], refresh_refs: bool, external_assets: bool, project_root: Path | None) -> None:
+    """Check a finished run's screenshots against its Jira/Confluence references with Claude."""
+    root = _resolve_root(project_root)
+    try:
+        out = review_run_dir(
+            root, results_dir.resolve(), test_ids=list(test_ids) or None,
+            refresh_refs=refresh_refs, external_assets=external_assets,
+        )
+    except FileNotFoundError as exc:
+        raise click.ClickException(str(exc)) from None
+    _echo_ai_review(out)
+    click.echo(f"Saved: {results_dir / 'ai_review.json'}")
+
+
+@main.command("refs")
+@click.argument("references", nargs=-1)
+@click.option("--id", "test_ids", multiple=True, help="Fetch the references listed in these tests.")
+@click.option("--refresh", is_flag=True, help="Fetch again even when a saved copy exists.")
+@click.option("--env", "env_name", default=None, help="Environment whose .env.<env> file to read credentials from.")
+@click.option("--project-root", type=click.Path(path_type=Path), default=None, help="Workspace folder (default: current folder).")
+def refs_cmd(references: tuple[str, ...], test_ids: tuple[str, ...], refresh: bool, env_name: str | None, project_root: Path | None) -> None:
+    """Fetch Jira issues and Confluence pages and save them under references/docs/."""
+    root = _resolve_root(project_root)
+    wanted = list(references)
+    if test_ids:
+        specs, _ = load_specs(root / "specs")
+        for spec in specs:
+            if spec.id in test_ids:
+                wanted.extend(r for r in spec.references if r not in wanted)
+    if not wanted:
+        raise click.ClickException("Name a Jira key or a Jira/Confluence link, or pass --id for a test with references.")
+    env_vars = dict(load_env(root, env_name=env_name).variables)
+    failed = False
+    for doc in fetch_reference_docs(root, wanted, env_vars, refresh=refresh):
+        if doc.error and not doc.text:
+            failed = True
+            click.echo(f"[FAIL] {doc.ref}: {doc.error}")
+        else:
+            where = "saved copy" if doc.cached else "fetched"
+            extra = f" (kept the saved copy: {doc.error})" if doc.error else ""
+            click.echo(f"[OK]   {doc.ref}: {doc.title} ({where}){extra}")
+    if failed:
         sys.exit(1)
 
 

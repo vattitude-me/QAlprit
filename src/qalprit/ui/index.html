@@ -1240,6 +1240,30 @@
     dialog:modal {
       overscroll-behavior: contain;
     }
+    .rec-step-shot { width: 26px; height: 46px; object-fit: cover; border-radius: 4px; border: 1px solid var(--border); cursor: zoom-in; vertical-align: middle; margin-left: 8px; }
+    dialog.dlg-review { width: min(1080px, calc(100vw - 32px)); max-height: 92vh; }
+    .rv-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+    .rv-refs { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; font-size: 12px; }
+    .rv-ref { border: 1px solid var(--border); border-radius: 999px; padding: 2px 9px; color: var(--text); text-decoration: none; }
+    .rv-ref.is-err { border-color: var(--warn); color: var(--warn); }
+    .rv-note { font-size: 12.5px; margin: 6px 0; line-height: 1.45; }
+    .rv-step { border-top: 1px solid var(--border); padding: 12px 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; }
+    .rv-shots { display: flex; gap: 8px; }
+    .rv-shots figure { margin: 0; text-align: center; font-size: 11px; color: var(--muted); }
+    .rv-shots img { width: 150px; max-height: 320px; object-fit: contain; border: 1px solid var(--border); border-radius: 8px; background: #080b10; cursor: zoom-in; display: block; margin-bottom: 3px; }
+    .rv-shot-empty { width: 150px; height: 120px; display: grid; place-items: center; border: 1px dashed var(--border); border-radius: 8px; }
+    .rv-badges { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0; }
+    .rv-verdict { font-size: 11.5px; font-weight: 600; border: 1px solid currentColor; border-radius: 999px; padding: 1px 8px; }
+    .rv-pass, .rv-accepted { color: var(--ok); }
+    .rv-fail, .rv-rejected { color: var(--fail); }
+    .rv-unclear { color: var(--warn); }
+    .rv-decide { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; }
+    .rv-decide input { flex: 1; min-width: 140px; }
+    .rv-decide .btn.is-on { outline: 2px solid currentColor; }
+    @media (max-width: 720px) {
+      .rv-step { grid-template-columns: 1fr; }
+      .rv-shots img, .rv-shot-empty { width: 120px; }
+    }
     dialog::backdrop {
       background: rgba(4, 7, 12, 0.72);
       backdrop-filter: blur(2px);
@@ -2019,7 +2043,7 @@
           <div class="rec-toolbar-right">
             <label class="switch-inline" for="recFreshChk" title="Clear the app's data before recording, the same way test runs start">
               <input id="recFreshChk" type="checkbox" switch checked />
-              <span>Fresh app</span>
+              <span id="recFreshLabel">Fresh app</span>
             </label>
             <label class="switch-inline" for="recRedactChk">
               <input id="recRedactChk" type="checkbox" switch checked />
@@ -2318,6 +2342,13 @@
                 <p class="muted">Uses the test's CSV data rows that are ticked. Tests without data rows run once.</p>
               </div>
               <input id="runUseDatasetsChk" type="checkbox" switch />
+            </div>
+            <div class="run-opt">
+              <div>
+                <label for="runAiReviewChk" style="margin:0;">Check screenshots with AI</label>
+                <p class="muted">After the run, Claude compares each step's screenshot with the recording and the test's Jira or Confluence references. Screenshots (secrets hidden) are sent to the Anthropic API. Needs ANTHROPIC_API_KEY in .env.</p>
+              </div>
+              <input id="runAiReviewChk" type="checkbox" switch />
             </div>
           </div>
         </details>
@@ -2804,6 +2835,14 @@
     </div>
   </dialog>
 
+  <dialog id="reviewDialog" class="dlg-review" closedby="any" aria-labelledby="reviewDialogTitle">
+    <div class="dlg-head">
+      <h3 id="reviewDialogTitle">Review screenshots</h3>
+      <button type="button" class="btn btn-sm btn-ghost" data-close-dialog="reviewDialog" aria-label="Close">&times;</button>
+    </div>
+    <div class="dlg-body" id="reviewDialogBody"></div>
+  </dialog>
+
   <datalist id="screenTargetOptions"></datalist>
   <datalist id="flowNameOptions"></datalist>
 
@@ -2972,7 +3011,7 @@
         activeApp: "",
         runCardChoice: {},
         hostOs: "",
-        stepVocab: ["launch", "reset_app", "background", "tap", "tap_if_visible", "type", "clear", "swipe", "scroll_until_visible", "wait", "wait_for_visible", "wait_for_enabled", "wait_for_text", "wait_for_keyboard", "assert_visible", "assert_not_visible", "assert_text", "assert_enabled", "assert_disabled", "back", "hide_keyboard", "enter_otp", "set_toggle", "assert_toggle", "biometric", "set_camera_image", "run_flow", "screenshot", "visual_compare"],
+        stepVocab: ["launch", "reset_app", "background", "tap", "tap_if_visible", "long_press", "type", "clear", "swipe", "scroll_until_visible", "wait", "wait_for_visible", "wait_for_enabled", "wait_for_text", "wait_for_keyboard", "assert_visible", "assert_not_visible", "assert_text", "assert_enabled", "assert_disabled", "back", "hide_keyboard", "enter_otp", "set_toggle", "assert_toggle", "biometric", "set_camera_image", "run_flow", "screenshot", "visual_compare"],
         emuStatus: null,
         emuPollTimer: null,
         recState: null,
@@ -3346,7 +3385,13 @@
           }
         } else {
           const liveAnd = (devs.android || []).filter((x) => !String(x.identifier || "").startsWith("avd:"));
-          liveAnd.forEach((x) => addOpt(`live:android:${x.identifier}`, `${x.name === x.identifier ? x.name : `${x.name} (${x.identifier})`} · running`));
+          liveAnd.forEach((x) => {
+            const named = x.name === x.identifier ? x.name : `${x.name} (${x.identifier})`;
+            if (x.kind !== "device") { addOpt(`live:android:${x.identifier}`, `${named} · running`); return; }
+            const st = String(x.state || "").toLowerCase();
+            const why = st === "unauthorized" ? "allow USB debugging on the phone" : (st === "device" ? "USB phone" : `USB phone, ${st}`);
+            addOpt(`live:android:${x.identifier}`, `${named} · ${why}`);
+          });
           (devs.android || [])
             .filter((x) => String(x.identifier || "").startsWith("avd:"))
             .forEach((x) => addOpt(`avd:${x.name}`, `${x.name} · off, starts when needed`));
@@ -3376,7 +3421,8 @@
           $("btnRecBootDevice").textContent = (anyPlatBooted && !isTargetBooted) ? "Switch & Boot" : "Boot";
         }
         if ($("btnRecShutdownDevice")) {
-          $("btnRecShutdownDevice").hidden = !anyPlatBooted;
+          // A USB phone is not shut down from here; Stop only closes emulators and simulators.
+          $("btnRecShutdownDevice").hidden = !anyPlatBooted || isRecRealDevice();
         }
       }
 
@@ -3414,6 +3460,7 @@
           }
         });
         updateRecDeviceButtons();
+        updateRecDeviceMode();
         if (STATE.guidedReady) refreshContextUi();
       }
       ["recPlatform", "inspectPlatform", "runPlatformSelect", "topQuickPlat"].forEach((id) => {
@@ -3427,7 +3474,35 @@
           if (id === "runPlatformSelect") refreshRunSpecDropdown();
         });
       });
-      if ($("recDeviceSelect")) $("recDeviceSelect").addEventListener("change", updateRecDeviceButtons);
+      // A USB phone, not an emulator: the user works the phone itself and the app is already set up on it.
+      function isRecRealDevice() {
+        const val = $("recDeviceSelect") ? $("recDeviceSelect").value : "";
+        if (!val.startsWith("live:android:")) return false;
+        const serial = val.slice("live:android:".length);
+        const dev = (STATE.devicesData.android || []).find((d) => d.identifier === serial);
+        return dev ? dev.kind === "device" : !serial.startsWith("emulator-");
+      }
+      function updateRecDeviceMode() {
+        const real = isRecRealDevice();
+        if (STATE.recRealMode === real) return;
+        STATE.recRealMode = real;
+        const chk = $("recFreshChk");
+        const label = $("recFreshLabel");
+        if (chk && label) {
+          label.textContent = real ? "Restart app" : "Fresh app";
+          chk.parentElement.title = real
+            ? "Close and reopen the app installed on the phone before recording. Its login and data are kept."
+            : "Clear the app's data before recording, the same way test runs start";
+          chk.checked = true;
+        }
+        const hint = $("recIntroHint");
+        if (hint) {
+          hint.querySelector("span").textContent = real
+            ? "Recording on your phone. The app already set up on the phone is used, so no app file is needed. After Start recording, use the phone itself: taps, long presses, swipes, typing and Back become steps you can replay. Pause about a second on each new screen so the recorder can read it."
+            : "Pick the device and app, name the test, then click Start recording. Click the mirrored screen to tap. Every tap and typed value becomes a step you can replay.";
+        }
+      }
+      if ($("recDeviceSelect")) $("recDeviceSelect").addEventListener("change", () => { updateRecDeviceButtons(); updateRecDeviceMode(); });
 
       function updateTopbarSummary() {
         const ov = STATE.overview || {};
@@ -3991,6 +4066,14 @@
                   </div>
                   <div><label>Tags (comma-separated)</label><input type="text" class="ds-set-tags" value="${esc((item.tags || []).join(", "))}" /></div>
                   <div><label>Expected Outcome</label><input type="text" class="ds-set-expected" value="${esc(item.expected || "")}" /></div>
+                  <div style="grid-column:1/-1;">
+                    <label>References (Jira keys or Jira/Confluence links)</label>
+                    <div style="display:flex;gap:6px;">
+                      <input type="text" class="ds-set-refs" style="flex:1;" placeholder="SHOP-142, https://acme.atlassian.net/wiki/spaces/QA/pages/123456" value="${esc((item.references || []).join(", "))}" />
+                      <button type="button" class="btn btn-sm" data-ds-fetch-refs title="Fetch the issues and pages now and show what was found">Fetch</button>
+                    </div>
+                    <div class="muted ds-refs-result" style="font-size:12px;margin-top:4px;">Used by the AI check to judge each step's screenshot. Credentials go in the workspace .env: ATLASSIAN_BASE_URL, ATLASSIAN_EMAIL, ATLASSIAN_API_TOKEN.</div>
+                  </div>
                 `}
               </div>
               ${!isFlow ? `
@@ -4270,6 +4353,7 @@
                   platforms: item.platforms,
                   tags: item.tags,
                   expected: item.expected,
+                  references: item.references || [],
                   params: item.params,
                   setup: item.setup,
                   steps,
@@ -4328,6 +4412,7 @@
                   reset: host.querySelector(".ds-set-reset").value,
                   tags: host.querySelector(".ds-set-tags").value.split(",").map((x) => x.trim()).filter(Boolean),
                   expected: host.querySelector(".ds-set-expected").value.trim(),
+                  references: host.querySelector(".ds-set-refs").value.split(/[\s,]+/).map((x) => x.trim()).filter(Boolean),
                   platforms: plats.length ? plats : ["android"],
                   steps
                 });
@@ -4338,6 +4423,26 @@
               await loadOverview({ skipAutoSync: true, preserveFormInputs: true });
             } catch (err) {
               b.hidden = false; setBannerKind(b, "error"); b.textContent = err.message;
+            }
+          });
+        }
+        const fetchRefsBtn = host.querySelector("[data-ds-fetch-refs]");
+        if (fetchRefsBtn) {
+          fetchRefsBtn.addEventListener("click", async () => {
+            const out = host.querySelector(".ds-refs-result");
+            const refs = host.querySelector(".ds-set-refs").value.split(/[\s,]+/).map((x) => x.trim()).filter(Boolean);
+            if (!refs.length) { out.textContent = "Add a Jira key or a Jira/Confluence link first."; return; }
+            fetchRefsBtn.disabled = true;
+            out.textContent = "Fetching...";
+            try {
+              const res = await apiJson("/api/references/fetch", { refs, refresh: true, env_name: $("topEnvSelect").value || "" });
+              out.innerHTML = (res.docs || []).map((d) => d.text
+                ? `&#10003; ${esc(d.ref)}: ${esc(d.title)}${d.error ? ` <span class="muted">(kept the saved copy: ${esc(d.error)})</span>` : ""}`
+                : `&times; ${esc(d.ref)}: ${esc(d.error)}`).join("<br>");
+            } catch (err) {
+              out.textContent = err.message;
+            } finally {
+              fetchRefsBtn.disabled = false;
             }
           });
         }
@@ -4594,6 +4699,135 @@
         renderSelectedRunInspector(activeRun || null);
       }
 
+      // ---- Screenshot review: recording vs replay, AI verdicts, reviewer decisions ----
+      function reviewBadge(run) {
+        const steps = (run.tests || []).flatMap((t) => (t.steps || []).filter((s) => s.phase === "steps"));
+        const flagged = steps.filter((s) => s.ai_verdict === "fail" && !s.review).length;
+        return flagged ? ` <span class="badge b-fail" title="Steps the AI check flagged that nobody has reviewed">${flagged}</span>` : "";
+      }
+      function findRunById(runId) {
+        const ov = STATE.overview || {};
+        return (ov.runs || []).find((r) => r.run_id === runId) || null;
+      }
+      function reviewShotFigure(run, rel, caption) {
+        if (!rel) return `<figure><div class="rv-shot-empty muted">None</div>${esc(caption)}</figure>`;
+        const url = `/results/${encodeURIComponent(run.dir_name)}/${rel}`;
+        return `<figure><img src="${esc(url)}" alt="${esc(caption)}" data-rv-zoom="${esc(url)}" data-rv-caption="${esc(caption)}" />${esc(caption)}</figure>`;
+      }
+      function renderReviewDialog(run) {
+        const body = $("reviewDialogBody");
+        const tests = run.tests || [];
+        const busy = Boolean(STATE.reviewBusy);
+        let html = `<div class="rv-toolbar">
+            <button type="button" class="btn btn-primary" id="btnRvAi" ${busy ? "disabled" : ""}>${busy ? "Checking..." : "Check with AI"}</button>
+            <label class="chk-inline"><input type="checkbox" id="rvRefreshRefs" /> Fetch Jira/Confluence again</label>
+            <span class="muted" style="font-size:12px;">Screenshots with secrets hidden are sent to the Anthropic API. The AI check never changes pass or fail; you decide.</span>
+          </div>
+          <div id="rvBanner" class="status-banner" hidden></div>`;
+        tests.forEach((t) => {
+          const steps = (t.steps || []).filter((s) => s.phase === "steps");
+          const refs = t.references || [];
+          html += `<h4 style="margin:14px 0 2px;">${esc(t.id)} · ${esc(t.title || "")}</h4>`;
+          html += refs.length
+            ? `<div class="rv-refs" data-rv-refs="${esc(t.id)}">${refs.map((r) => `<span class="rv-ref" data-rv-ref="${esc(r)}">${esc(r)}</span>`).join("")}</div>`
+            : `<div class="rv-note muted">No Jira or Confluence references on this test. Add them under References in the journey. The AI check then uses the recording and the expected result only.</div>`;
+          if (t.ai_summary) html += `<div class="rv-note"><strong>AI check:</strong> ${esc(t.ai_summary)}</div>`;
+          if ((t.ai_uncovered || []).length) html += `<div class="rv-note"><strong>Requirements no step showed:</strong> ${esc(t.ai_uncovered.join("; "))}</div>`;
+          if (t.ai_error) html += `<div class="rv-note" style="color:var(--warn);"><strong>AI check not finished:</strong> ${esc(t.ai_error)}</div>`;
+          steps.forEach((s) => {
+            const mism = (s.reference_mismatch === null || s.reference_mismatch === undefined) ? "" : `<span class="rv-verdict muted" title="Share of pixels that differ from the recording">${(s.reference_mismatch * 100).toFixed(1)}% changed</span>`;
+            const ai = s.ai_verdict ? `<span class="rv-verdict rv-${esc(s.ai_verdict)}">AI: ${esc(s.ai_verdict)}</span>` : "";
+            const rv = s.review ? `<span class="rv-verdict rv-${esc(s.review)}">You: ${esc(s.review)}</span>` : "";
+            html += `<div class="rv-step">
+              <div>
+                <div><strong>${s.index}.</strong> ${esc(s.description || s.action)} ${s.status === "failed" ? '<span class="badge b-fail">failed</span>' : ""}</div>
+                <div class="rv-badges">${ai}${mism}${rv}</div>
+                ${s.ai_reason ? `<div class="rv-note">${esc(s.ai_reason)}${s.ai_requirement ? ` <span class="muted">(${esc(s.ai_requirement)})</span>` : ""}</div>` : ""}
+                ${s.reference_note ? `<div class="rv-note muted">${esc(s.reference_note)}</div>` : ""}
+                ${s.error ? `<div class="rv-note" style="color:var(--fail);">${esc(s.error)}</div>` : ""}
+                <div class="rv-decide">
+                  <button type="button" class="btn btn-sm rv-accepted${s.review === "accepted" ? " is-on" : ""}" data-rv-decide="accepted" data-rv-test="${esc(t.id)}" data-rv-step="${s.index}">Looks right</button>
+                  <button type="button" class="btn btn-sm rv-rejected${s.review === "rejected" ? " is-on" : ""}" data-rv-decide="rejected" data-rv-test="${esc(t.id)}" data-rv-step="${s.index}">Wrong</button>
+                  <input type="text" placeholder="Note (optional)" value="${esc(s.review_note || "")}" data-rv-note="${esc(t.id)}:${s.index}" aria-label="Review note for step ${s.index}" />
+                </div>
+              </div>
+              <div class="rv-shots">${reviewShotFigure(run, s.reference_screenshot_path, "Recorded")}${reviewShotFigure(run, s.screenshot_path, "Replay")}</div>
+            </div>`;
+          });
+          if (!steps.length) html += `<div class="rv-note muted">This test has no step screenshots.</div>`;
+        });
+        body.innerHTML = html;
+
+        body.querySelectorAll("[data-rv-zoom]").forEach((img) => img.addEventListener("click", () => {
+          $("shotDialogTitle").textContent = img.dataset.rvCaption || "Screenshot";
+          $("shotDialogImg").src = img.dataset.rvZoom;
+          $("shotDialog").showModal();
+        }));
+        body.querySelectorAll("[data-rv-decide]").forEach((btn) => btn.addEventListener("click", async () => {
+          const testId = btn.dataset.rvTest;
+          const idx = Number(btn.dataset.rvStep);
+          const noteEl = body.querySelector(`[data-rv-note="${CSS.escape(testId + ":" + idx)}"]`);
+          const current = btn.classList.contains("is-on");
+          try {
+            await apiJson("/api/runs/review", {
+              run_id: run.run_id, test_id: testId, step_index: idx,
+              decision: current ? "" : btn.dataset.rvDecide, note: noteEl ? noteEl.value : ""
+            });
+            await reloadReview(run.run_id);
+          } catch (err) {
+            showBanner("rvBanner", err.message, "error");
+          }
+        }));
+        const aiBtn = $("btnRvAi");
+        if (aiBtn) aiBtn.addEventListener("click", async () => {
+          STATE.reviewBusy = true;
+          renderReviewDialog(run);
+          showBanner("rvBanner", "Claude is checking each step against the recording and the references. This can take a minute or two.", "info");
+          try {
+            await apiJson("/api/runs/ai-review", { run_id: run.run_id, refresh_refs: Boolean($("rvRefreshRefs") && $("rvRefreshRefs").checked) });
+            STATE.reviewBusy = false;
+            await reloadReview(run.run_id);
+            showBanner("rvBanner", "AI check finished. Confirm or correct each verdict.", "ok");
+          } catch (err) {
+            STATE.reviewBusy = false;
+            renderReviewDialog(findRunById(run.run_id) || run);
+            showBanner("rvBanner", err.message, "error");
+          }
+        });
+        loadReviewRefTitles(body);
+      }
+      async function loadReviewRefTitles(body) {
+        const chips = Array.from(body.querySelectorAll("[data-rv-ref]"));
+        if (!chips.length) return;
+        try {
+          // Saved copies only; "Fetch Jira/Confluence again" with Check with AI refreshes them.
+          const res = await apiJson("/api/references/fetch", { refs: Array.from(new Set(chips.map((c) => c.dataset.rvRef))), refresh: false });
+          const byRef = new Map((res.docs || []).map((d) => [d.ref, d]));
+          chips.forEach((chip) => {
+            const d = byRef.get(chip.dataset.rvRef);
+            if (!d) return;
+            if (d.title) {
+              const link = d.url ? `<a href="${esc(d.url)}" target="_blank" rel="noopener">${esc(d.title)}</a>` : esc(d.title);
+              chip.innerHTML = link;
+            }
+            if (d.error && !d.text) { chip.classList.add("is-err"); chip.title = d.error; }
+          });
+        } catch (_err) { /* titles are a nicety */ }
+      }
+      async function reloadReview(runId) {
+        await loadOverview({ skipAutoSync: true });
+        const fresh = findRunById(runId);
+        if (fresh) renderReviewDialog(fresh);
+      }
+      function openReviewDialog(runId) {
+        const run = findRunById(runId);
+        if (!run) return;
+        STATE.reviewBusy = false;
+        $("reviewDialogTitle").textContent = `Review screenshots · ${run.dataset_name || run.run_id}`;
+        renderReviewDialog(run);
+        $("reviewDialog").showModal();
+      }
+
       function renderSelectedRunInspector(run) {
         const panel = $("runInspectorPanel");
         if (!run) {
@@ -4638,6 +4872,7 @@
           </div>
           <div class="btn-row" style="margin-top:auto;">
             <button type="button" class="btn" id="btnRerunSelected" style="flex:1;">${run.dataset_name ? "Re-run dataset" : "Re-run"}</button>
+            <button type="button" class="btn" id="btnReviewSelected" style="flex:1;" title="Compare each step with the recording and the test's Jira or Confluence references">Review${reviewBadge(run)}</button>
             ${run.has_html ? `<a class="btn" style="flex:1;" href="/results/${esc(run.dir_name)}/report.html" target="_blank" rel="noopener">Open HTML report</a>` : ""}
           </div>
         `;
@@ -4657,6 +4892,9 @@
             $("shotDialog").showModal();
           });
         }
+
+        const reviewBtn = $("btnReviewSelected");
+        if (reviewBtn) reviewBtn.addEventListener("click", () => openReviewDialog(run.run_id));
 
         const rerunBtn = $("btnRerunSelected");
         if (rerunBtn) {
@@ -5404,9 +5642,15 @@
             <span class="rec-step-num">${idx + 1}</span>
             <span class="rec-step-act${actCls}">${esc(actLabel)}</span>
             <span class="rec-step-target" title="${esc(s.target || "")}">${esc(shortTarget(s.target) || s.label || "")}</span>
-            <span class="rec-step-val">${esc(valParts.join(" · "))}</span>
+            <span class="rec-step-val">${esc(valParts.join(" · "))}${s.has_shot && s.uid ? `<img class="rec-step-shot" loading="lazy" alt="Screen after step ${idx + 1}" title="Screen after this step. Saved with the workflow and compared on every replay." src="/api/recorder/step-shot?uid=${encodeURIComponent(s.uid)}&n=${list.length}" data-rec-shot="${esc(s.uid)}" />` : ""}</span>
           </div>`;
         }).join("");
+        $("recStepsList").querySelectorAll("[data-rec-shot]").forEach((img) => img.addEventListener("click", (e) => {
+          e.stopPropagation();
+          $("shotDialogTitle").textContent = img.alt;
+          $("shotDialogImg").src = `/api/recorder/step-shot?uid=${encodeURIComponent(img.dataset.recShot)}&t=${Date.now()}`;
+          $("shotDialog").showModal();
+        }));
         syncRecStepEditBar(STATE.recSelectedStepIdx);
       }
 
@@ -5466,7 +5710,9 @@
         $("recPhoneFrame").classList.toggle("is-busy", active && STATE.recBusy);
         dot.className = "dot" + (active ? " is-ok" : (failed ? " is-fail" : ""));
         $("recMirrorMeta").textContent = active
-          ? (STATE.recBusy ? "Working..." : `Live · ${st.screen_width}×${st.screen_height}`)
+          ? (STATE.recBusy ? "Working..." : (st.real_device && st.direct_tap_watch
+            ? `Listening to your phone${st.keyboard_up ? " · keyboard up" : ""}`
+            : `Live · ${st.screen_width}×${st.screen_height}`))
           : (starting ? "Starting..." : (failed ? "Session lost" : "Idle"));
         if (st.error) {
           showBanner("recStatusBanner", st.error + (failed && stepCount ? ` Your ${stepCount} recorded step(s) are kept. Save them, or start a new recording.` : ""), "error");
@@ -5626,7 +5872,8 @@
           const go = await uiConfirm(`Starting a new recording discards ${kept} unsaved step(s).`, { title: "Discard unsaved steps?", okLabel: "Discard and start", danger: true });
           if (!go) return;
         }
-        if (!$("recAppSelect").value) { showBanner("recStatusBanner", "Choose an app binary first. Use + to upload an .apk, .ipa or .zip.", "error"); return; }
+        const realDevice = isRecRealDevice();
+        if (!$("recAppSelect").value && !realDevice) { showBanner("recStatusBanner", "Choose an app binary first. Use + to upload an .apk, .ipa or .zip.", "error"); return; }
         STATE.recDirty = false;
         STATE.recBusy = false;
         STATE.recNoticeRev = 0;
@@ -5664,7 +5911,8 @@
             screen_name: $("recScreenName").value.trim() || flowToScreenPrefix(flowName),
             flow_name: flowName,
             redact_sensitive: $("recRedactChk").checked,
-            fresh_start: $("recFreshChk").checked
+            fresh_start: $("recFreshChk").checked,
+            start_mode: realDevice ? ($("recFreshChk").checked ? "restart" : "as_is") : ""
           });
           startRecorderPolling();
           await pollRecorderStatus();
@@ -5679,10 +5927,11 @@
       $("btnRecStop").addEventListener("click", async () => {
         const stopPlat = (STATE.recState && STATE.recState.platform) || $("recPlatform").value || "all";
         $("btnRecStop").disabled = true;
-        showBanner("recStatusBanner", "Stopping the recording and shutting down the virtual device...", "info");
+        const onPhone = Boolean(STATE.recState && STATE.recState.real_device);
+        showBanner("recStatusBanner", onPhone ? "Stopping the recording..." : "Stopping the recording and shutting down the virtual device...", "info");
         try {
           await apiJson("/api/recorder/stop", {});
-          await shutdownDeviceTarget(stopPlat, "", { quiet: false });
+          if (!onPhone) await shutdownDeviceTarget(stopPlat, "", { quiet: false });
           const kept = ((STATE.recState && STATE.recState.steps) || []).length;
           showBanner("recStatusBanner", kept && STATE.recDirty ? `Recording stopped. ${kept} step(s) are still here. Click Save workflow to keep them.` : "Recording stopped.", "info");
         } catch (err) {
@@ -6262,6 +6511,7 @@
             retries: Number($("runRetriesInput").value) || 0,
             redact_screenshots: $("runRedactChk").checked,
             run_datasets: $("runUseDatasetsChk").checked,
+            ai_review: $("runAiReviewChk").checked,
             dry_run: dryRun
           });
           showBanner("runStartBanner", "");

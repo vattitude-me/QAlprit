@@ -702,6 +702,11 @@ def save_test_journey(project_root: Path, payload: dict[str, Any]) -> dict[str, 
         meta["teardown"] = list(payload["teardown"])
     if payload.get("expected"):
         meta["expected"] = str(payload["expected"]).strip()
+    refs = payload.get("references")
+    if isinstance(refs, str):
+        refs = [r for r in re.split(r"[\s,]+", refs) if r]
+    if refs:
+        meta["references"] = [str(r).strip() for r in refs if str(r).strip()]
 
     dest.write_text(
         _dump_frontmatter_md(meta, str(payload.get("notes") or f"# {spec_id}: {title}")),
@@ -1402,6 +1407,22 @@ class RunJobManager:
         raw_redact = payload.get("redact_screenshots")
         redact_override: bool | None = None if raw_redact is None else bool(raw_redact)
         reset_override = str(payload.get("reset_mode") or "").strip() or None
+        ai_review_after = bool(payload.get("ai_review"))
+
+        def _ai_review(target_dir: Path) -> None:
+            """Optional AI check after a run. Its failure never changes the run's result."""
+            from qalprit.ai_review import review_run_dir
+
+            self._set_progress("Checking screenshots with AI", 94)
+            try:
+                out = review_run_dir(project_root, target_dir)
+            except Exception as exc:
+                self._append_log(f"AI check skipped: {exc}")
+                return
+            for t in out.get("tests") or []:
+                fails = sum(1 for v in (t.get("steps") or {}).values() if v.get("verdict") == "fail")
+                note = f" ({t['error']})" if t.get("error") else ""
+                self._append_log(f"AI check {t['id']}: {len(t.get('steps') or {})} step(s) checked, {fails} flagged{note}.")
         run_datasets = bool(payload.get("run_datasets", False))
         requested_dataset_names = [
             str(n).strip() for n in (payload.get("dataset_names") or []) if str(n).strip()
@@ -1589,6 +1610,7 @@ class RunJobManager:
                                 screens=val.screens,  # type: ignore[arg-type]
                                 flows=val.flows,
                                 run_dir=sub_dir,
+                                project_root=project_root,
                                 run_id=sub_id,
                                 app_path=resolved_app,
                                 suite=f"workflow:{flow_name}" if flow_name else (suite or "all"),
@@ -1610,6 +1632,8 @@ class RunJobManager:
                             shared_driver = runner._last_driver
                             write_results_json(sub_res, sub_dir / "results.json", masker=masker)
                             generate_reports(sub_res, sub_dir, masker=masker)
+                            if ai_review_after:
+                                _ai_review(sub_dir)
                             sub_status = (
                                 "failed"
                                 if sub_res.summary.failed > 0
@@ -1683,6 +1707,7 @@ class RunJobManager:
                             screens=val.screens,  # type: ignore[arg-type]
                             flows=val.flows,
                             run_dir=run_dir,
+                            project_root=project_root,
                             run_id=run_id,
                             app_path=resolved_app,
                             suite=f"workflow:{flow_name}" if flow_name else (suite or "all"),
@@ -1700,6 +1725,8 @@ class RunJobManager:
                         self._set_progress("Generating Report", 88)
                         write_results_json(run_result, run_dir / "results.json", masker=masker)
                         generate_reports(run_result, run_dir, masker=masker)
+                        if ai_review_after:
+                            _ai_review(run_dir)
                         summary = run_result.summary.model_dump()
                         report_url = f"/results/{run_id}/report.html"
                 self._append_log(

@@ -343,7 +343,7 @@ def format_step_description(step: StepItem, masker: SecretMasker | None = None) 
     p = step.params
     t = step.type
     if t == "launch":
-        desc = f"Launch {p.get('app', 'app')}"
+        desc = f"{'Restart' if p.get('restart') else 'Launch'} {p.get('app', 'app')}"
     elif t == "reset_app":
         desc = "Reset application state"
     elif t == "background":
@@ -351,6 +351,7 @@ def format_step_description(step: StepItem, masker: SecretMasker | None = None) 
     elif t in (
         "tap",
         "tap_if_visible",
+        "long_press",
         "clear",
         "wait_for_visible",
         "wait_for_enabled",

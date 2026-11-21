@@ -29,6 +29,7 @@ Every test lives in a `.md` file under `specs/`. The YAML front matter between `
 | `steps` | Yes | — | Non-empty list of steps (`phase: steps`) |
 | `teardown` | No | `[]` | Always runs even if a step above fails (`phase: teardown`) |
 | `expected` | No | `""` | Summary of expected outcome shown in reports |
+| `references` | No | `[]` | Jira issue keys or Jira/Confluence links. `qalprit refs` fetches them into `references/docs/`, and the AI check (`--ai-review`) judges each step's screenshot against them |
 
 ---
 
@@ -36,11 +37,12 @@ Every test lives in a `.md` file under `specs/`. The YAML front matter between `
 
 | Step | Parameters | Notes |
 |---|---|---|
-| `launch` | `app` | Launch or foreground the app under test |
+| `launch` | `app` (or `{app, restart?}`) | Launch or foreground the app under test. `app` may name an installed app (`com.example.shop`); `restart: true` closes it first, keeping its data |
 | `reset_app` | none | Apply configured `reset` mid-test; aborts attempt cleanly if reset fails |
 | `background` | `seconds` | Background app for N seconds, then foreground |
 | `tap` | `target` (or `{target, params?}`) | Auto-waits up to `default_timeout`; retries once on stale element reference |
 | `tap_if_visible` | `target`, `timeout?`, `params?` | Short wait (default 2s); no-op if absent |
+| `long_press` | `target` (or `{target, duration?, params?}`) | Press and hold the element's centre, `duration` in ms (default 1000) |
 | `type` | `target`, `value`, `secret?`, `params?` | `secret: true` masks logs/reports and redacts screenshot bounds |
 | `clear` | `target`, `params?` | Auto-waits and clears input |
 | `swipe` | `direction` (`up\|down\|left\|right`), `target?`, `duration?`, `distance?` | Finger drag on screen or element (`distance` fraction `0 < d < 1`) |

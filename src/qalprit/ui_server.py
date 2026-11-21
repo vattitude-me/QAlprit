@@ -6,6 +6,7 @@ import base64
 import json
 import mimetypes
 import platform
+import re
 from dataclasses import asdict
 from functools import partial
 from http import HTTPStatus
@@ -31,6 +32,9 @@ from qalprit.devices import list_android_devices, list_ios_simulators
 from qalprit.doctor import discover_system_software, run_doctor
 from qalprit.emulator_manager import DEFAULT_AVD_NAME, EmulatorJobManager
 from qalprit.error_text import friendly_error
+from qalprit.ai_review import review_run_dir, set_step_review
+from qalprit.atlassian_refs import fetch_reference_docs
+from qalprit.env_loader import load_env
 from qalprit.recorder import RecorderManager
 from qalprit.results import load_results_json
 from qalprit.spec_loader import STEP_VOCABULARY, load_flows, load_specs
@@ -140,9 +144,21 @@ def collect_workspace_overview(
                                         "status": st.status,
                                         "error": st.error or "",
                                         "screenshot_path": st.screenshot_path or "",
+                                        "reference_screenshot_path": st.reference_screenshot_path,
+                                        "reference_mismatch": st.reference_mismatch,
+                                        "reference_note": st.reference_note,
+                                        "ai_verdict": st.ai_verdict,
+                                        "ai_reason": st.ai_reason,
+                                        "ai_requirement": st.ai_requirement,
+                                        "review": st.review,
+                                        "review_note": st.review_note,
                                     }
                                     for st in t.steps
                                 ],
+                                "references": list(t.references),
+                                "ai_summary": t.ai_summary,
+                                "ai_uncovered": list(t.ai_uncovered),
+                                "ai_error": t.ai_error,
                             }
                             for t in run.tests
                         ],
@@ -217,6 +233,7 @@ def collect_workspace_overview(
                 "reset": s.reset,
                 "retries": s.retries,
                 "expected": s.expected,
+                "references": list(s.references),
                 "body": s.body,
                 "setup": [st.model_dump() for st in s.setup],
                 "steps": [st.model_dump() for st in s.steps],
@@ -289,6 +306,20 @@ def _find_run_json(results_dir: Path, run_id: str) -> Path | None:
                     return p
             except Exception:
                 continue
+    return None
+
+
+def _find_run_json_deep(results_dir: Path, run_id: str) -> Path | None:
+    """Like _find_run_json, but also finds the per-row runs inside a dataset batch folder."""
+    found = _find_run_json(results_dir, run_id)
+    if found is not None or not run_id or "/" in run_id or "\\" in run_id or ".." in run_id:
+        return found
+    for p in results_dir.glob("*/*/results.json"):
+        try:
+            if p.parent.name == run_id or load_results_json(p).run_id == run_id:
+                return p
+        except Exception:
+            continue
     return None
 
 
@@ -509,6 +540,15 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
             self._send_json(self.recorder_manager.status())
             return
 
+        if req_path == "/api/recorder/step-shot":
+            uid = (parse_qs(parsed.query).get("uid") or [""])[0]
+            png = self.recorder_manager.step_shot_bytes(uid)
+            if not png:
+                self._send_bytes(b"No screenshot for that step", "text/plain; charset=utf-8", HTTPStatus.NOT_FOUND)
+                return
+            self._send_bytes(png, "image/png")
+            return
+
         if req_path == "/api/recorder/screenshot":
             png = self.recorder_manager.screenshot_bytes()
             if not png:
@@ -718,6 +758,40 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
                 )
                 return
 
+            if req_path == "/api/references/fetch":
+                refs = body.get("refs") or []
+                if isinstance(refs, str):
+                    refs = [r for r in re.split(r"[\s,]+", refs) if r]
+                env_vars = dict(load_env(self.project_root, env_name=str(body.get("env_name") or "") or None).variables)
+                docs = fetch_reference_docs(
+                    self.project_root, [str(r) for r in refs][:20], env_vars, refresh=bool(body.get("refresh"))
+                )
+                self._send_json({"docs": [d.as_dict() for d in docs]})
+                return
+
+            if req_path in ("/api/runs/ai-review", "/api/runs/review"):
+                run_json = _find_run_json_deep(self.results_dir, str(body.get("run_id") or ""))
+                if run_json is None:
+                    raise FileNotFoundError("That run was not found.")
+                if req_path == "/api/runs/ai-review":
+                    if self.job_manager.status().get("running"):
+                        raise ValueError("A run is in progress. Check it with AI when it has finished.")
+                    ids = [str(t) for t in (body.get("test_ids") or []) if str(t).strip()]
+                    out = review_run_dir(
+                        self.project_root, run_json.parent, test_ids=ids or None, refresh_refs=bool(body.get("refresh_refs"))
+                    )
+                else:
+                    out = set_step_review(
+                        self.project_root,
+                        run_json.parent,
+                        test_id=str(body.get("test_id") or ""),
+                        step_index=int(body.get("step_index")),
+                        decision=str(body.get("decision") or ""),
+                        note=str(body.get("note") or ""),
+                    )
+                self._send_json(out)
+                return
+
             if req_path == "/api/runs/delete":
                 if self.job_manager.status().get("running"):
                     raise ValueError("A run is in progress. Stop it or wait for it to finish, then delete.")
@@ -919,6 +993,7 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
                         flow_name=str(body.get("flow_name") or "recorded_flow"),
                         redact_sensitive=None if raw_redact is None else bool(raw_redact),
                         fresh_start=bool(body.get("fresh_start", True)),
+                        start_mode=str(body.get("start_mode") or ""),
                     )
                 )
                 return
