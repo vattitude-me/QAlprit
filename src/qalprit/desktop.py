@@ -35,6 +35,8 @@ _DEFAULT_DEVICES_YAML = """profiles:
     device_name: Android Device
     automation_name: UiAutomator2
     auto_accept_alerts: true
+    capabilities:
+      appWaitActivity: "*"
 
   ios_simulator:
     platform: ios

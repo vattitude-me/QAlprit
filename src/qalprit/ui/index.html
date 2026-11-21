@@ -2346,7 +2346,14 @@
             <div class="run-opt">
               <div>
                 <label for="runAiReviewChk" style="margin:0;">Check screenshots with AI</label>
-                <p class="muted">After the run, Claude compares each step's screenshot with the recording and the test's Jira or Confluence references. Screenshots (secrets hidden) are sent to the Anthropic API. Needs ANTHROPIC_API_KEY in .env.</p>
+                <p class="muted">After the run, an AI model compares each step's screenshot with the recording and the test's Jira or Confluence references. Screenshots (secrets hidden) leave this computer for the provider you pick. The Anthropic API needs ANTHROPIC_API_KEY in .env. The agy and Copilot CLIs use their own sign-in.</p>
+                <label for="runAiProviderSel" class="muted" style="display:block;margin-top:6px;">Provider</label>
+                <select id="runAiProviderSel" aria-label="AI provider">
+                  <option value="">Default (QALPRIT_AI_PROVIDER in .env, else Anthropic)</option>
+                  <option value="anthropic">Anthropic API</option>
+                  <option value="agy">Antigravity CLI (agy)</option>
+                  <option value="copilot">GitHub Copilot CLI</option>
+                </select>
               </div>
               <input id="runAiReviewChk" type="checkbox" switch />
             </div>
@@ -2527,6 +2534,7 @@
         <div class="tablist" role="tablist" aria-label="Settings sections">
           <button type="button" role="tab" aria-selected="true" data-settings-tab="env">Apps &amp; environments</button>
           <button type="button" role="tab" aria-selected="false" data-settings-tab="devices">Devices &amp; health check</button>
+          <button type="button" role="tab" aria-selected="false" data-settings-tab="atlassian">Jira &amp; Confluence</button>
           <button type="button" role="tab" aria-selected="false" data-settings-tab="storage">Storage &amp; cleanup</button>
         </div>
 
@@ -2678,6 +2686,64 @@
                 </table>
               </div>
             </div>
+          </div>
+        </div>
+
+        <!-- TAB: JIRA & CONFLUENCE -->
+        <div id="settings-pane-atlassian" hidden style="display:flex;flex-direction:column;gap:14px;">
+          <div class="panel" id="atlassianCard">
+            <div class="panel-head">
+              <span class="panel-kicker">Jira &amp; Confluence connection</span>
+              <span class="badge b-skip" id="atlJiraBadge">Jira: not set up</span>
+              <span class="badge b-skip" id="atlConfBadge">Confluence: not set up</span>
+            </div>
+            <form id="atlassianForm" method="POST" class="panel-body" style="display:flex;flex-direction:column;gap:12px;">
+              <p class="muted" style="margin:0;font-size:13px;">QAlprit reads the Jira issues and Confluence pages you link on a workflow or journey, so the AI check can judge each screenshot against them. Tokens are saved in this workspace's <code>.env</code>, sent only to the sites below, and never shown again.</p>
+              <div class="form-grid">
+                <div style="grid-column:1/-1;">
+                  <label for="atlSite">Atlassian site</label>
+                  <input id="atlSite" type="text" placeholder="https://acme.atlassian.net" autocomplete="off" />
+                  <div class="muted" style="font-size:12px;margin-top:4px;">Jira Cloud and Confluence Cloud share one address. Confluence is read from its <code>/wiki</code> path.</div>
+                </div>
+                <div>
+                  <label for="atlEmail">Account email</label>
+                  <input id="atlEmail" type="text" placeholder="you@acme.com" autocomplete="off" />
+                  <div class="muted" style="font-size:12px;margin-top:4px;">For Atlassian Cloud API tokens. Leave it empty when you use a personal access token (PAT).</div>
+                </div>
+                <div>
+                  <label for="atlToken">API token or PAT, both products</label>
+                  <input id="atlToken" type="password" autocomplete="new-password" placeholder="" />
+                  <div class="muted atl-token-note" data-for="token" style="font-size:12px;margin-top:4px;"></div>
+                </div>
+              </div>
+              <details id="atlAdvanced">
+                <summary>Separate sites or tokens for Jira and Confluence</summary>
+                <div class="form-grid" style="margin-top:10px;">
+                  <div><label for="atlJiraSite">Jira site (if different)</label><input id="atlJiraSite" type="text" autocomplete="off" /></div>
+                  <div><label for="atlConfSite">Confluence site (if different)</label><input id="atlConfSite" type="text" placeholder="https://confluence.acme.com" autocomplete="off" /></div>
+                  <div><label for="atlJiraEmail">Jira email</label><input id="atlJiraEmail" type="text" autocomplete="off" /></div>
+                  <div><label for="atlConfEmail">Confluence email</label><input id="atlConfEmail" type="text" autocomplete="off" /></div>
+                  <div>
+                    <label for="atlJiraToken">Jira token or PAT</label>
+                    <input id="atlJiraToken" type="password" autocomplete="new-password" />
+                    <div class="muted atl-token-note" data-for="jira_token" style="font-size:12px;margin-top:4px;"></div>
+                  </div>
+                  <div>
+                    <label for="atlConfToken">Confluence token or PAT</label>
+                    <input id="atlConfToken" type="password" autocomplete="new-password" />
+                    <div class="muted atl-token-note" data-for="confluence_token" style="font-size:12px;margin-top:4px;"></div>
+                  </div>
+                </div>
+                <div class="muted" style="font-size:12px;margin-top:6px;">A product with its own token uses its own email. A product without one uses the shared email and token above.</div>
+              </details>
+              <div class="banner" id="atlBanner" hidden></div>
+              <div class="muted" id="atlTestResult" style="font-size:13px;"></div>
+              <div class="btn-row">
+                <button type="submit" class="btn btn-primary">Save connection</button>
+                <button type="button" class="btn" id="atlTestBtn">Test connection</button>
+                <button type="button" class="btn" id="atlClearBtn" title="Remove every saved Jira and Confluence token from this workspace">Remove saved tokens</button>
+              </div>
+            </form>
           </div>
         </div>
 
@@ -3213,6 +3279,90 @@
         b.addEventListener("click", () => { const d = $(b.dataset.closeDialog); if (d) d.close(); });
       });
 
+      // Jira & Confluence connection (Settings & setup)
+      const ATL_FIELDS = {
+        site: "atlSite", email: "atlEmail", token: "atlToken",
+        jira_site: "atlJiraSite", confluence_site: "atlConfSite",
+        jira_email: "atlJiraEmail", confluence_email: "atlConfEmail",
+        jira_token: "atlJiraToken", confluence_token: "atlConfToken"
+      };
+      const ATL_TOKENS = ["token", "jira_token", "confluence_token"];
+      function applyAtlassianSettings(cfg) {
+        Object.entries(ATL_FIELDS).forEach(([key, id]) => {
+          const el = $(id);
+          if (!el) return;
+          if (ATL_TOKENS.includes(key)) el.value = "";
+          else el.value = cfg[key] || "";
+        });
+        document.querySelectorAll(".atl-token-note").forEach((n) => {
+          const set = !!cfg[n.dataset.for + "_set"];
+          n.textContent = set ? "A token is saved. Type a new one to replace it." : "No token saved.";
+          const input = $(ATL_FIELDS[n.dataset.for]);
+          if (input) input.placeholder = set ? "Saved. Hidden." : "";
+        });
+        const adv = $("atlAdvanced");
+        if (adv && (cfg.jira_site || cfg.confluence_site || cfg.jira_email || cfg.confluence_email || cfg.jira_token_set || cfg.confluence_token_set)) adv.open = true;
+        const setBadge = (id, label, ready) => {
+          const b = $(id);
+          if (!b) return;
+          b.textContent = `${label}: ${ready ? "ready" : "not set up"}`;
+          b.className = "badge " + (ready ? "b-ok" : "b-skip");
+        };
+        setBadge("atlJiraBadge", "Jira", cfg.jira_ready);
+        setBadge("atlConfBadge", "Confluence", cfg.confluence_ready);
+      }
+      async function loadAtlassianSettings() {
+        try { applyAtlassianSettings(await apiJson("/api/atlassian/settings")); } catch (err) { /* shown on save/test */ }
+      }
+      function atlassianPayload() {
+        const out = {};
+        Object.entries(ATL_FIELDS).forEach(([key, id]) => {
+          const el = $(id);
+          if (!el) return;
+          const v = el.value.trim();
+          if (ATL_TOKENS.includes(key)) { if (v) out[key] = v; } else out[key] = v;
+        });
+        return out;
+      }
+      function renderAtlassianTest(res) {
+        const out = $("atlTestResult");
+        out.innerHTML = Object.entries(res.results || {}).map(([kind, r]) =>
+          `${r.ok === true ? "&#10003;" : r.ok === false ? "&times;" : "&ndash;"} ${esc(r.message)}`).join("<br>");
+      }
+      if ($("atlassianForm")) {
+        $("atlassianForm").addEventListener("submit", async (ev) => {
+          ev.preventDefault();
+          const banner = $("atlBanner");
+          try {
+            const cfg = await apiJson("/api/atlassian/settings", atlassianPayload());
+            applyAtlassianSettings(cfg);
+            banner.hidden = false; setBannerKind(banner, "ok"); banner.textContent = "Saved to this workspace's .env.";
+            toast("Saved the Jira and Confluence connection.", "ok");
+          } catch (err) {
+            banner.hidden = false; setBannerKind(banner, "error"); banner.textContent = err.message;
+          }
+        });
+        $("atlTestBtn").addEventListener("click", async () => {
+          const btn = $("atlTestBtn");
+          btn.disabled = true;
+          $("atlTestResult").textContent = "Testing...";
+          try { renderAtlassianTest(await apiJson("/api/atlassian/test", atlassianPayload())); }
+          catch (err) { $("atlTestResult").textContent = err.message; }
+          finally { btn.disabled = false; }
+        });
+        $("atlClearBtn").addEventListener("click", async () => {
+          if (!(await uiConfirm("Remove the saved Jira and Confluence tokens from this workspace? Your links on workflows and journeys stay.", { title: "Remove tokens", okLabel: "Remove", danger: true }))) return;
+          const banner = $("atlBanner");
+          try {
+            const cfg = await apiJson("/api/atlassian/settings", { clear_token: true, clear_jira_token: true, clear_confluence_token: true });
+            applyAtlassianSettings(cfg);
+            banner.hidden = false; setBannerKind(banner, "ok"); banner.textContent = "Saved tokens removed.";
+          } catch (err) {
+            banner.hidden = false; setBannerKind(banner, "error"); banner.textContent = err.message;
+          }
+        });
+      }
+
       // Navigation & Settings Sub-Tabs
       function switchSettingsTab(tab) {
         STATE.settingsTab = tab || "env";
@@ -3222,7 +3372,10 @@
         if ($("settings-pane-env")) $("settings-pane-env").hidden = STATE.settingsTab !== "env";
         if ($("view-setup")) $("view-setup").hidden = STATE.settingsTab !== "devices";
         if ($("settings-pane-storage")) $("settings-pane-storage").hidden = STATE.settingsTab !== "storage";
-        if (STATE.settingsTab === "storage") {
+        if ($("settings-pane-atlassian")) $("settings-pane-atlassian").hidden = STATE.settingsTab !== "atlassian";
+        if (STATE.settingsTab === "atlassian") {
+          loadAtlassianSettings();
+        } else if (STATE.settingsTab === "storage") {
           loadSystemPreflight();
           loadCleanupTargets();
         } else if (STATE.settingsTab === "devices") {
@@ -4066,15 +4219,15 @@
                   </div>
                   <div><label>Tags (comma-separated)</label><input type="text" class="ds-set-tags" value="${esc((item.tags || []).join(", "))}" /></div>
                   <div><label>Expected Outcome</label><input type="text" class="ds-set-expected" value="${esc(item.expected || "")}" /></div>
-                  <div style="grid-column:1/-1;">
-                    <label>References (Jira keys or Jira/Confluence links)</label>
-                    <div style="display:flex;gap:6px;">
-                      <input type="text" class="ds-set-refs" style="flex:1;" placeholder="SHOP-142, https://acme.atlassian.net/wiki/spaces/QA/pages/123456" value="${esc((item.references || []).join(", "))}" />
-                      <button type="button" class="btn btn-sm" data-ds-fetch-refs title="Fetch the issues and pages now and show what was found">Fetch</button>
-                    </div>
-                    <div class="muted ds-refs-result" style="font-size:12px;margin-top:4px;">Used by the AI check to judge each step's screenshot. Credentials go in the workspace .env: ATLASSIAN_BASE_URL, ATLASSIAN_EMAIL, ATLASSIAN_API_TOKEN.</div>
-                  </div>
                 `}
+              </div>
+              <div>
+                <label>References (Jira keys or Jira/Confluence links)</label>
+                <div style="display:flex;gap:6px;">
+                  <input type="text" class="ds-set-refs" style="flex:1;" placeholder="SHOP-142, https://acme.atlassian.net/wiki/spaces/QA/pages/123456" value="${esc((item.references || []).join(", "))}" />
+                  <button type="button" class="btn btn-sm" data-ds-fetch-refs title="Fetch the issues and pages now and show what was found">Fetch</button>
+                </div>
+                <div class="muted ds-refs-result" style="font-size:12px;margin-top:4px;">${isFlow ? "Every journey that runs this workflow also uses these links in the AI check." : "Used by the AI check to judge each step's screenshot."}${!isFlow && (item.inherited_references || []).length ? ` Also from the workflows it runs: ${esc(item.inherited_references.join(", "))}.` : ""} Connect Jira and Confluence in Settings &amp; setup.</div>
               </div>
               ${!isFlow ? `
                 <div class="btn-row">
@@ -4397,7 +4550,8 @@
                 const newName = host.querySelector(".ds-set-name").value.trim();
                 const params = host.querySelector(".ds-set-params").value.split(",").map((x) => x.trim()).filter(Boolean);
                 const notes = host.querySelector(".ds-set-notes").value;
-                await apiJson("/api/flows/save", { name: newName, params, steps, notes });
+                const flowRefs = host.querySelector(".ds-set-refs").value.split(/[\s,]+/).map((x) => x.trim()).filter(Boolean);
+                await apiJson("/api/flows/save", { name: newName, params, steps, notes, references: flowRefs });
                 STATE.selectedFlowName = newName;
               } else {
                 const newId = host.querySelector(".ds-set-id").value.trim();
@@ -4721,6 +4875,12 @@
         let html = `<div class="rv-toolbar">
             <button type="button" class="btn btn-primary" id="btnRvAi" ${busy ? "disabled" : ""}>${busy ? "Checking..." : "Check with AI"}</button>
             <label class="chk-inline"><input type="checkbox" id="rvRefreshRefs" /> Fetch Jira/Confluence again</label>
+            <select id="rvAiProvider" aria-label="AI provider" ${busy ? "disabled" : ""}>
+              <option value="">Default provider</option>
+              <option value="anthropic">Anthropic API</option>
+              <option value="agy">Antigravity CLI (agy)</option>
+              <option value="copilot">GitHub Copilot CLI</option>
+            </select>
             <span class="muted" style="font-size:12px;">Screenshots with secrets hidden are sent to the Anthropic API. The AI check never changes pass or fail; you decide.</span>
           </div>
           <div id="rvBanner" class="status-banner" hidden></div>`;
@@ -4780,11 +4940,13 @@
         }));
         const aiBtn = $("btnRvAi");
         if (aiBtn) aiBtn.addEventListener("click", async () => {
+          const aiProvider = $("rvAiProvider") ? $("rvAiProvider").value : "";
+          const refreshRefs = Boolean($("rvRefreshRefs") && $("rvRefreshRefs").checked);
           STATE.reviewBusy = true;
           renderReviewDialog(run);
-          showBanner("rvBanner", "Claude is checking each step against the recording and the references. This can take a minute or two.", "info");
+          showBanner("rvBanner", "The AI is checking each step against the recording and the references. This can take a minute or two.", "info");
           try {
-            await apiJson("/api/runs/ai-review", { run_id: run.run_id, refresh_refs: Boolean($("rvRefreshRefs") && $("rvRefreshRefs").checked) });
+            await apiJson("/api/runs/ai-review", { run_id: run.run_id, ai_provider: aiProvider, refresh_refs: refreshRefs });
             STATE.reviewBusy = false;
             await reloadReview(run.run_id);
             showBanner("rvBanner", "AI check finished. Confirm or correct each verdict.", "ok");
@@ -6512,6 +6674,7 @@
             redact_screenshots: $("runRedactChk").checked,
             run_datasets: $("runUseDatasetsChk").checked,
             ai_review: $("runAiReviewChk").checked,
+            ai_provider: $("runAiProviderSel").value,
             dry_run: dryRun
           });
           showBanner("runStartBanner", "");

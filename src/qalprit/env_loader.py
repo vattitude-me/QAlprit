@@ -59,6 +59,44 @@ def parse_env_file(path: Path) -> dict[str, str]:
     return result
 
 
+def _format_env_value(value: str) -> str:
+    if value == "" or not re.search(r"[\s#\"'\\]", value):
+        return value
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n").replace("\r", "\\r")
+    return f'"{escaped}"'
+
+
+def update_env_file(path: Path, updates: dict[str, str | None]) -> None:
+    """Set or remove keys in a .env file, keeping every other line (comments, order) as it was.
+
+    A value of ``None`` removes the key. The file is created with owner-only permissions when new.
+    """
+    lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
+    pending = dict(updates)
+    out: list[str] = []
+    for raw in lines:
+        stripped = raw.strip()
+        body = stripped[len("export ") :].strip() if stripped.startswith("export ") else stripped
+        key = body.split("=", 1)[0].strip() if "=" in body and not stripped.startswith("#") else ""
+        if key and key in pending:
+            val = pending.pop(key)
+            if val is not None:
+                out.append(f"{key}={_format_env_value(val)}")
+            continue
+        out.append(raw)
+    for key, val in pending.items():
+        if val is not None:
+            out.append(f"{key}={_format_env_value(val)}")
+    existed = path.exists()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(out).rstrip("\n") + "\n" if out else "", encoding="utf-8")
+    if not existed:
+        try:
+            path.chmod(0o600)
+        except OSError:
+            pass
+
+
 def generate_totp(
     secret: str,
     for_time: int | None = None,

@@ -9,11 +9,15 @@ A test lists them under `references:` in its front matter, for example::
 Credentials come from the workspace `.env` (never from the spec):
 
     ATLASSIAN_BASE_URL=https://acme.atlassian.net
-    ATLASSIAN_EMAIL=you@acme.com        # Atlassian Cloud; leave empty for a Data Center token
+    ATLASSIAN_EMAIL=you@acme.com        # Atlassian Cloud; leave empty for a Data Center PAT
     ATLASSIAN_API_TOKEN=...
 
 `JIRA_BASE_URL` and `CONFLUENCE_BASE_URL` override the base for sites where the two live on
-different hosts. The token is only ever sent to those configured hosts. Fetched text is saved
+different hosts. Jira and Confluence can also have their own credentials (a personal access
+token for each, for example): `JIRA_EMAIL` / `JIRA_API_TOKEN` and `CONFLUENCE_EMAIL` /
+`CONFLUENCE_API_TOKEN`. A product with its own token uses its own email (blank means a Bearer
+PAT); a product without one falls back to the shared `ATLASSIAN_*` pair. The token is only ever
+sent to those configured hosts. Fetched text is saved
 under `references/docs/` so runs, reports and the AI check work offline and show exactly
 which version of the requirement they were checked against.
 """
@@ -82,30 +86,54 @@ class AtlassianConfig:
     email: str = ""
     token: str = ""
     allowed_hosts: set[str] = field(default_factory=set)
+    jira_email: str = ""
+    jira_token: str = ""
+    confluence_email: str = ""
+    confluence_token: str = ""
 
     @classmethod
     def from_env(cls, env: dict[str, str]) -> "AtlassianConfig":
-        base = (env.get("ATLASSIAN_BASE_URL") or "").strip().rstrip("/")
-        jira = (env.get("JIRA_BASE_URL") or base).strip().rstrip("/")
-        conf = (env.get("CONFLUENCE_BASE_URL") or (f"{base}/wiki" if base else "")).strip().rstrip("/")
+        def val(key: str) -> str:
+            return (env.get(key) or "").strip()
+
+        base = val("ATLASSIAN_BASE_URL").rstrip("/")
+        jira = (val("JIRA_BASE_URL") or base).rstrip("/")
+        conf = (val("CONFLUENCE_BASE_URL") or (f"{base}/wiki" if base else "")).rstrip("/")
         hosts = {urllib.parse.urlparse(u).hostname or "" for u in (jira, conf) if u}
         return cls(
             jira_base=jira,
             confluence_base=conf,
-            email=(env.get("ATLASSIAN_EMAIL") or "").strip(),
-            token=(env.get("ATLASSIAN_API_TOKEN") or "").strip(),
+            email=val("ATLASSIAN_EMAIL"),
+            token=val("ATLASSIAN_API_TOKEN"),
             allowed_hosts={h.lower() for h in hosts if h},
+            jira_email=val("JIRA_EMAIL"),
+            jira_token=val("JIRA_API_TOKEN"),
+            confluence_email=val("CONFLUENCE_EMAIL"),
+            confluence_token=val("CONFLUENCE_API_TOKEN"),
         )
+
+    def credentials(self, kind: str) -> tuple[str, str]:
+        """(email, token) for `jira` or `confluence`. A product's own token brings its own email."""
+        if kind == "jira" and self.jira_token:
+            return self.jira_email, self.jira_token
+        if kind == "confluence" and self.confluence_token:
+            return self.confluence_email, self.confluence_token
+        return self.email, self.token
+
+    def configured_for(self, kind: str) -> bool:
+        base = self.jira_base if kind == "jira" else self.confluence_base
+        return bool(base and self.credentials(kind)[1])
 
     @property
     def configured(self) -> bool:
-        return bool(self.token and (self.jira_base or self.confluence_base))
+        return self.configured_for("jira") or self.configured_for("confluence")
 
-    def auth_header(self) -> str:
-        if self.email:
-            raw = f"{self.email}:{self.token}".encode("utf-8")
+    def auth_header(self, kind: str = "") -> str:
+        email, token = self.credentials(kind)
+        if email:
+            raw = f"{email}:{token}".encode("utf-8")
             return "Basic " + base64.b64encode(raw).decode("ascii")
-        return f"Bearer {self.token}"
+        return f"Bearer {token}"
 
 
 def parse_reference(raw: str) -> Reference | None:
@@ -188,7 +216,7 @@ def _http_get_json(url: str, headers: dict[str, str]) -> Any:
             return json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         hint = {
-            401: "Check ATLASSIAN_EMAIL and ATLASSIAN_API_TOKEN in .env.",
+            401: "Check the email and token in Settings & setup > Jira and Confluence.",
             403: "Your Atlassian account cannot open it.",
             404: "It does not exist, or your account cannot see it.",
         }.get(exc.code, "")
@@ -202,17 +230,19 @@ class AtlassianClient:
         self.config = config
         self._fetch = fetch or _http_get_json
 
-    def _get(self, url: str) -> Any:
+    def _get(self, url: str, kind: str = "") -> Any:
         host = (urllib.parse.urlparse(url).hostname or "").lower()
         if host not in self.config.allowed_hosts:
-            raise RuntimeError(f"{host or url} is not the Atlassian site set in ATLASSIAN_BASE_URL, so the token is not sent there.")
-        return self._fetch(url, {"Authorization": self.config.auth_header(), "Accept": "application/json"})
+            raise RuntimeError(f"{host or url} is not the Atlassian site you set in Settings & setup, so the token is not sent there.")
+        return self._fetch(url, {"Authorization": self.config.auth_header(kind), "Accept": "application/json"})
 
     def fetch_jira(self, key: str) -> tuple[str, str, str]:
         base = self.config.jira_base
         if not base:
-            raise RuntimeError("Set ATLASSIAN_BASE_URL (or JIRA_BASE_URL) in .env to fetch Jira issues.")
-        data = self._get(f"{base}/rest/api/2/issue/{urllib.parse.quote(key)}?expand=names")
+            raise RuntimeError("Add your Jira site in Settings & setup to fetch Jira issues.")
+        if not self.config.credentials("jira")[1]:
+            raise RuntimeError("Add a Jira token in Settings & setup to fetch Jira issues.")
+        data = self._get(f"{base}/rest/api/2/issue/{urllib.parse.quote(key)}?expand=names", "jira")
         fields = data.get("fields") or {}
         names = data.get("names") or {}
         title = f"{key}: {fields.get('summary') or ''}".strip()
@@ -231,8 +261,10 @@ class AtlassianClient:
     def fetch_confluence(self, page_id: str) -> tuple[str, str, str]:
         base = self.config.confluence_base
         if not base:
-            raise RuntimeError("Set ATLASSIAN_BASE_URL (or CONFLUENCE_BASE_URL) in .env to fetch Confluence pages.")
-        data = self._get(f"{base}/rest/api/content/{urllib.parse.quote(page_id)}?expand=body.storage,version")
+            raise RuntimeError("Add your Confluence site in Settings & setup to fetch Confluence pages.")
+        if not self.config.credentials("confluence")[1]:
+            raise RuntimeError("Add a Confluence token in Settings & setup to fetch Confluence pages.")
+        data = self._get(f"{base}/rest/api/content/{urllib.parse.quote(page_id)}?expand=body.storage,version", "confluence")
         title = str(data.get("title") or f"Page {page_id}")
         html = ((data.get("body") or {}).get("storage") or {}).get("value") or ""
         link = ((data.get("_links") or {}).get("webui") or "")
@@ -279,11 +311,11 @@ def fetch_reference_docs(
         if cached is not None:
             docs.append(cached)
             continue
-        if not api.config.configured:
+        if not api.config.configured_for(ref.kind):
             stale = load_cached_doc(project_root, raw)
             docs.append(stale or ReferenceDoc(
                 ref=raw, kind=ref.kind, key=ref.key,
-                error="Add ATLASSIAN_BASE_URL, ATLASSIAN_EMAIL and ATLASSIAN_API_TOKEN to the workspace .env to fetch it.",
+                error=f"Add your {'Jira' if ref.kind == 'jira' else 'Confluence'} site and token in Settings & setup to fetch it.",
             ))
             continue
         try:
@@ -308,3 +340,112 @@ def fetch_reference_docs(
         path.write_text(json.dumps({k: v for k, v in doc.as_dict().items() if k not in {"error", "cached"}}, indent=2), encoding="utf-8")
         docs.append(doc)
     return docs
+
+
+# ---- Settings & setup: read, save and test the connection ------------------------------------
+
+_SITE_KEYS = {
+    "jira_site": "JIRA_BASE_URL",
+    "confluence_site": "CONFLUENCE_BASE_URL",
+}
+_FIELD_KEYS = {
+    "site": "ATLASSIAN_BASE_URL",
+    "email": "ATLASSIAN_EMAIL",
+    "token": "ATLASSIAN_API_TOKEN",
+    "jira_email": "JIRA_EMAIL",
+    "jira_token": "JIRA_API_TOKEN",
+    "confluence_email": "CONFLUENCE_EMAIL",
+    "confluence_token": "CONFLUENCE_API_TOKEN",
+    **_SITE_KEYS,
+}
+_TOKEN_FIELDS = ("token", "jira_token", "confluence_token")
+
+
+def _clean_site(raw: str) -> str:
+    text = str(raw or "").strip()
+    if not text:
+        return ""
+    if not text.lower().startswith(("http://", "https://")):
+        text = "https://" + text
+    parsed = urllib.parse.urlparse(text)
+    if not parsed.hostname:
+        raise ValueError(f"'{raw}' is not a web address. Use something like https://acme.atlassian.net.")
+    return text.rstrip("/")
+
+
+def read_connection(env: dict[str, str]) -> dict[str, Any]:
+    """The saved connection for the UI. Tokens are never returned, only whether each one is set."""
+    def val(key: str) -> str:
+        return (env.get(key) or "").strip()
+
+    out: dict[str, Any] = {name: val(key) for name, key in _FIELD_KEYS.items() if name not in _TOKEN_FIELDS}
+    for name in _TOKEN_FIELDS:
+        out[f"{name}_set"] = bool(val(_FIELD_KEYS[name]))
+    cfg = AtlassianConfig.from_env(env)
+    out["jira_ready"] = cfg.configured_for("jira")
+    out["confluence_ready"] = cfg.configured_for("confluence")
+    return out
+
+
+def save_connection(project_root: Path, payload: dict[str, Any]) -> dict[str, Any]:
+    """Write the connection to the workspace `.env`.
+
+    A token field that is missing or blank keeps the saved token. Send `clear_<field>: true` to remove it.
+    """
+    from qalprit.env_loader import parse_env_file, update_env_file
+
+    env_path = project_root / ".env"
+    updates: dict[str, str | None] = {}
+    for name, key in _FIELD_KEYS.items():
+        if name in _TOKEN_FIELDS:
+            if payload.get(f"clear_{name}"):
+                updates[key] = None
+            elif str(payload.get(name) or "").strip():
+                updates[key] = str(payload[name]).strip()
+            continue
+        if name not in payload:
+            continue
+        raw = str(payload.get(name) or "").strip()
+        if name in ("site", *_SITE_KEYS):
+            raw = _clean_site(raw)
+        updates[key] = raw or None
+    if updates:
+        update_env_file(env_path, updates)
+    return read_connection(parse_env_file(env_path))
+
+
+def check_connection(project_root: Path, payload: dict[str, Any], fetch: Fetcher | None = None) -> dict[str, Any]:
+    """Try the saved connection (plus anything typed but not saved yet) against Jira and Confluence."""
+    from qalprit.env_loader import parse_env_file
+
+    env = dict(parse_env_file(project_root / ".env"))
+    for name, key in _FIELD_KEYS.items():
+        if name in payload and (name not in _TOKEN_FIELDS or str(payload.get(name) or "").strip()):
+            raw = str(payload.get(name) or "").strip()
+            env[key] = _clean_site(raw) if name in ("site", *_SITE_KEYS) else raw
+    cfg = AtlassianConfig.from_env(env)
+    client = AtlassianClient(cfg, fetch=fetch)
+    results: dict[str, Any] = {}
+    checks = (
+        ("jira", cfg.jira_base, "/rest/api/2/myself", "Jira"),
+        ("confluence", cfg.confluence_base, "/rest/api/user/current", "Confluence"),
+    )
+    for kind, base, path, label in checks:
+        if not base and not cfg.credentials(kind)[1]:
+            results[kind] = {"ok": None, "message": f"{label} is not set up."}
+            continue
+        if not base:
+            results[kind] = {"ok": False, "message": f"Add your {label} site address."}
+            continue
+        if not cfg.credentials(kind)[1]:
+            results[kind] = {"ok": False, "message": f"Add a {label} token."}
+            continue
+        try:
+            data = client._get(f"{base}{path}", kind)
+            who = ""
+            if isinstance(data, dict):
+                who = str(data.get("displayName") or data.get("publicName") or data.get("name") or "")
+            results[kind] = {"ok": True, "message": f"Connected to {label}" + (f" as {who}." if who else ".")}
+        except Exception as exc:
+            results[kind] = {"ok": False, "message": str(exc)}
+    return {"ok": all(r["ok"] is not False for r in results.values()) and any(r["ok"] for r in results.values()), "results": results}

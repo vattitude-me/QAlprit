@@ -168,6 +168,8 @@ steps:
 | `name` | Yes | Matches the path under `flows/` without `.md` |
 | `params` | No | Variables the steps use as `${name}` |
 | `platforms` | No | Platforms the flow has locators for. Leave it out to check both. The recorder fills it in. |
+| `apps` | No | App the flow was recorded against, per platform. Used as the run default. The recorder fills it in. |
+| `references` | No | Jira issue keys or Jira/Confluence links that describe this workflow. Every journey that runs the flow also uses them in the AI check. Saving steps or re-recording keeps them. |
 | `steps` | Yes | Same step vocabulary as specs, except `run_flow` |
 
 `qalprit validate` checks a flow's locators only for its `platforms`. A flow recorded on iOS will not fail for missing Android locators. To make it run on Android too, add `android:` locators in `screens/screens.yaml` and add `android` to `platforms`, or record it again on Android.

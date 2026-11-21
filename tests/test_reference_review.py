@@ -120,7 +120,7 @@ def test_token_is_never_sent_to_another_host_and_missing_setup_is_explained(tmp_
         other._get("https://evil.example/rest/api/2/issue/X-1")
 
     (missing,) = fetch_reference_docs(tmp_path, ["OPS-1"], {})
-    assert "ATLASSIAN_API_TOKEN" in missing.error
+    assert "Settings & setup" in missing.error
 
 
 # ---------------------------------------------------------------- recorder

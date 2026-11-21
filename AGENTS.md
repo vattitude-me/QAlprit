@@ -6,10 +6,10 @@ These project rules and architecture notes govern git workflow, codebase navigat
 
 - **`src/qalprit/` — Core Engine & Shared Desktop/Web Workbench** (bundled identically by PyPI, Windows `.exe`, and macOS `.dmg`):
   - **Entry points & Desktop Host**:
-    - `cli.py`: Click CLI (`qalprit run`, `validate`, `list`, `inspect`, `doctor`, `devices`, `report`, `ui`, `version`).
+    - `cli.py`: Click CLI (`qalprit run`, `validate`, `list`, `inspect`, `doctor`, `devices`, `report`, `review`, `refs`, `cleanup`, `ui`, `version`).
     - `desktop.py`: Frozen `.exe`/`.app` GUI entry point (`launch_workbench()`), pywebview native window host, portable workspace bootstrap (`ensure_workspace()`), and bundled runtime path wiring (`runtime/`).
-    - `ui_server.py`: Threading HTTP + API server (`create_ui_server()`, `/api/overview`, `/api/runs/*`, `/api/recorder/*`, `/api/emulator/*`, `/api/datasets/*`, `/api/flows/*`, `/api/specs/*`, `/api/screens/*`, `/api/environments/*`, `/api/apps/*`, `/api/system/*`).
-    - `ui/index.html`: Single-file Workbench UI (first-launch welcome guide: platform, app, device, then record; views: `Testing space` (home, test cards with run/rename/duplicate/delete), `Record a test`, `Workflows`, `Journeys`, `Runs & reports`; Library: `Elements`; Settings: `Settings & setup`).
+    - `ui_server.py`: Threading HTTP + API server (`create_ui_server()`, `/api/overview`, `/api/runs/*`, `/api/recorder/*`, `/api/emulator/*`, `/api/datasets/*`, `/api/flows/*`, `/api/specs/*`, `/api/screens/*`, `/api/environments/*`, `/api/apps/*`, `/api/system/*`, `/api/references/fetch`, `/api/runs/ai-review`, `/api/runs/review`, `/api/atlassian/settings`, `/api/atlassian/test`).
+    - `ui/index.html`: Single-file Workbench UI (first-launch welcome guide: platform, app, device, then record; views: `Testing space` (home, test cards with run/rename/duplicate/delete), `Record a test`, `Workflows`, `Journeys`, `Runs & reports`; Library: `Elements`; Settings: `Settings & setup` with tabs Apps & environments, Devices & health check, Jira & Confluence, Storage & cleanup).
   - **Execution & Validation**:
     - `spec_loader.py` & `validator.py`: Parse Markdown+YAML journeys (`specs/`), reusable flows (`flows/`, optional `platforms:` scoping locator checks), screen locators (`screens/screens.yaml`), and `validate_project()` pre-flight checks.
     - `datasets.py`: CSV dynamic variable parameterization (`datasets/flows/`, `datasets/specs/`), secret column detection, and UI masking (`mask_bundle_for_ui()`).
@@ -23,6 +23,16 @@ These project rules and architecture notes govern git workflow, codebase navigat
     - `workbench_api.py`: Workspace CRUD, `_resolve_device_profile()` (`live:`, `avd:`, YAML profiles, built-in `ios_simulator`/`android_emulator`), `RunJobManager`, and batch dataset runs.
     - `emulator_manager.py`: `EmulatorJobManager` for SDK/AVD setup, booting Android AVDs / iOS Simulators, and clean shutdown (`shutdown()`).
     - `doctor.py`, `devices.py`, `appium_manager.py`, `cleanup.py`, `paths.py`, `config_loader.py`, `env_loader.py`: Toolchain diagnostics, ADB/`xcrun simctl` discovery, Appium 2 subprocess lifecycle, OS data directories, and uninstall/leftover cleanup.
+  - **Real devices, camera, one-time codes**:
+    - `device_input.py`: Parses `adb shell getevent -lt` into taps, long presses, swipes and edge-swipe Back, so the recorder can follow someone working a USB phone or emulator by hand. Pure parsing, tested offline.
+    - `camera_injection.py`: Feeds still images (ID card, selfie) into the Android **emulator** camera (`set_camera_image` step). It does nothing on physical phones (`ctx.target_type == "device"`).
+    - `otp.py`: `OtpBroker`, the hand-off for one-time codes. `enter_otp` (`steps/interaction_steps.py`) uses the `OTP` variable when set, otherwise asks the broker (Workbench prompt via `/api/runs/otp`, console prompt in a terminal, 120 s timeout).
+    - `background_devices.py`: Tracks emulators/simulators QAlprit started hidden and shuts them down on quit.
+  - **Jira / Confluence references and the AI check**:
+    - `atlassian_refs.py`: `AtlassianConfig` (per-product credentials: `JIRA_*`, `CONFLUENCE_*`, falling back to `ATLASSIAN_*`; blank email means a Bearer PAT), `AtlassianClient`, `fetch_reference_docs()` (cached under `references/docs/`), and the Settings helpers `read_connection()`, `save_connection()`, `check_connection()`. The token is only sent to the configured hosts and is never returned to the UI.
+    - `reference_check.py` and `recorder_paths.py`: Recorded step screenshots (`references/flows/<flow>/manifest.json` plus PNGs) and the replay-versus-recording pixel difference stored on each step.
+    - `ai_review.py`: The AI check. Pluggable reviewers `anthropic` (API, `ANTHROPIC_API_KEY`), `agy` (Antigravity CLI) and `copilot` (GitHub Copilot CLI), chosen by `--ai-provider`, the UI menu or `QALPRIT_AI_PROVIDER`. CLI reviewers run in a throwaway folder with redacted JPEGs and a `review_request.md`. Verdicts go to `ai_review.json` and `results.json` and never change a test's pass or fail.
+    - `spec_loader.effective_references(spec, flows)`: A journey's own `references:` plus those of every workflow it runs. The runner, `qalprit refs --id`, and the UI use it.
 - **`packaging/` — Standalone Installers**:
   - `packaging/windows/`: `qalprit.spec` + `build_win.ps1` + `installer.iss` -> produces `dist-win/QAlprit-Setup-<X.Y.Z>-win64.exe` (pywebview Edge WebView2 + `qalprit-cli.exe` + portable Node/Appium/Java/Android SDK runtime).
   - `packaging/macos/`: `qalprit.spec` + `build_mac.sh` -> produces `dist-mac/QAlprit-<X.Y.Z>-macos-arm64.dmg` (`QAlprit.app` Cocoa WKWebView + portable Node/Appium/Java/Android platform-tools).
@@ -107,3 +117,42 @@ These project rules and architecture notes govern git workflow, codebase navigat
 - **The Workbench never uses the repo folder as its workspace by default.** `qalprit ui` resolves the workspace with `resolve_default_workspace(use_cwd=False)` (saved Settings folder, else `~/Documents/QAlpritWorkspace`) so recording, saving and runs do not change tracked files. To work on the sample suites in this repo, run `qalprit ui --workspace .` on purpose and review `git status` before committing.
 - **A workspace inside a git repo must be ignored.** `ensure_workspace()` calls `ensure_workspace_git_ignored()`. Keep that call when changing workspace setup, and never write a `*` ignore file into a folder that is itself a repository.
 - **Switching folders goes through Settings > Storage & cleanup** (`/api/system/preferences`, with `/api/system/pick-folder` for the chooser). Do not add other code paths that move the workspace.
+
+## 9. How the tool works, end to end
+
+1. **Author.** A *workflow* (`flows/*.md`, reusable steps, one level deep) or a *journey* (`specs/<suite>/*.md`, an end-to-end test that calls workflows with `run_flow`) is Markdown with YAML front matter. Locators live in `screens/screens.yaml` (`android:` and `ios:` overrides stay independent). Data lives in CSV files under `datasets/`. Secrets live in the workspace `.env` and are referenced as `${NAME}`. The full step list and field tables are in `docs/authoring-guide.md`.
+2. **Record (optional).** The Record page mirrors an emulator, simulator or USB phone (`recorder.py`). Taps, typing, swipes and app switches become steps. Each step keeps a redacted screenshot of the screen it led to. Saving writes the workflow, new locators, a dataset row, and `references/flows/<workflow>/`.
+3. **Validate.** `qalprit validate --suite <s> --env <e> --platform <p>` checks steps, locators and variables before a device is touched.
+4. **Run.** `qalprit run`, or the Workbench Run button (`POST /api/runs/start`), starts Appium (`appium_manager.py`), creates a driver (`driver_factory.py`), applies the reset policy (`clear_data` runs `adb shell pm clear` then relaunches), expands workflows (`expand_steps`) and executes each step (`steps/`). Failures get a screenshot, an XML dump and a `FailureCategory`.
+5. **Report.** `results/<run-id>/` holds `results.json`, `summary.md`, `junit.xml`, `report.html`, screenshots (secret fields blacked out) and page sources. Each replay screenshot sits next to the recorded one (`*_REF.png`) with a mismatch score.
+6. **AI check (optional).** `--ai-review`, `qalprit review <results dir>` or Review > Check with AI sends each step's recording and replay screenshot plus the Jira/Confluence text to the chosen provider. Each step gets pass, fail or unclear with a reason. A person confirms with Looks right or Wrong. Verdicts never change pass or fail.
+7. **Connect Jira and Confluence.** Settings & setup > Jira & Confluence writes `ATLASSIAN_*`, `JIRA_*` and `CONFLUENCE_*` keys to the workspace `.env` (`env_loader.update_env_file` keeps other lines and comments, creates the file owner-only). Add links under References on a workflow or journey. A journey inherits the links of the workflows it runs.
+
+Driving the Workbench from a script: start `qalprit ui --workspace . --port 8766 --no-open`, then `POST /api/runs/start` with `platform`, `device_profile` (`avd:<name>`, `live:android:<serial>`, or a YAML profile), `env_name`, `spec_id`, `app_path`, `reset_mode`. Poll `GET /api/runs/status` (it reports `otp_pending`) and answer a code prompt with `POST /api/runs/otp {"code": "..."}`.
+
+### Working on a real Android phone
+
+- `adb` is not on `PATH` on a typical Mac. QAlprit installs it under `~/Library/Application Support/QAlprit/android-sdk/platform-tools/adb`. In Python use `find_android_tool("adb")`. Quote that path in shell commands.
+- A phone can have a work profile (a second user). `pm clear` and relaunch act on the main user.
+- `adb shell content query --uri content://sms/inbox` works from the shell on a phone, which is how the planned SMS code reader gets codes.
+- After `pm clear` another app (for example Gmail) can take the foreground. That is device interference, not an app bug. Ask the user to turn on Do Not Disturb and leave the phone on the home screen.
+- Android 16 shows an "Android App Compatibility" dialog over apps that are not 16 KB aligned. `wait_for_element` dismisses it (`_dismiss_android_compat_dialog` in `steps/base.py`) when an element is not found. `appWaitActivity: "*"` is set on the device profiles so apps whose first activity differs still start.
+- Run on the device the user names. Ask before choosing an emulator when they have a phone connected.
+
+## 10. Current state and open work
+
+Latest release: see `CHANGELOG.md`. Everything below is not done yet. Check `git log` and the changelog before starting, because this list can go stale.
+
+- **TNG non-prod app journey (`TNG-001`, built in the user's Workbench workspace, not in this repo).** It runs `tng-non-prod-acc-open-2` then `-3` with `reset: clear_data`. Never completed on a device. On a phone the ID photo has to be taken by hand because `set_camera_image` only works on the emulator, and the user reports the injection always crashes the app on the emulator. The crash has not been investigated (start at `camera_injection.py` and `steps/device_steps.py`). The workflow files `flows/tng-non-prod-acc-open-2.md` and `-3.md` and two Ontario licence mock-up images in `docs/` are the user's untracked local files. Do not stage them.
+- **Read the SMS code directly (not built, user has not said yes).** Idea: in `enter_otp`, before prompting, poll `adb shell content query --uri content://sms/inbox` for a message newer than the step start, extract a 4 to 8 digit code, type it, never log the message body, and fall back to the prompt after about 60 seconds. Physical Android phones only. Typing the code by hand on the device makes `enter_otp` fail with `not_found`, because it waits for the field itself, so users must answer in the Workbench.
+- **MDA-004 payment screenshots.** The run passes on a Pixel 9 Pro, with 2 steps marked unclear by the AI check because the keyboard clipboard panel hides the payment fields. Add `hide_keyboard: true` before those screenshots.
+- **Copilot AI provider is unverified.** `agy` was verified live against Antigravity CLI 1.5.14. `copilot` follows the documented `-p`, `--silent` and `--add-dir` flags but has not run against a real install (`npm install -g @github/copilot`, then sign in).
+- **Jira and Confluence connection is tested only with fakes.** Try Test connection against a real Atlassian Cloud site and a Data Center PAT.
+- **Recorder cannot reopen a saved workflow** to add, remove or reorder steps (listed under Upcoming in `CHANGELOG.md`).
+
+## 11. Writing and UI rules agents keep breaking
+
+- **No native `confirm()`, `alert()` or `prompt()` in the Workbench.** WKWebView blocks them. Use `uiConfirm()` and `uiAsk()` in `src/qalprit/ui/index.html`.
+- **Every save path for a journey or workflow must pass every field through.** A step-only save once dropped `references`. `save_flow_spec(references=None)` keeps the saved links, a list replaces them. Do the same for any new front matter field.
+- **Secrets never go back to the UI.** Return only whether a token is set, and treat a blank token field as "keep".
+- **Docs style.** Plain words, full stops and commas instead of dashes, sentence case headings. No attribution lines in commits or PRs (see the user's global instructions).

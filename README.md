@@ -92,16 +92,17 @@ Tick the rows you want, choose Android or iOS, and click **Run**. Each row runs 
 
 Every recorded step keeps a screenshot of the screen it led to (`references/flows/<workflow>/`). Each replay puts its own screenshot next to the recorded one, with how much the screen changed.
 
-To check them against your requirements, add the Jira issue or Confluence page to the journey under **Settings → References** (for example `SHOP-142`, or a page link), and put your Atlassian details in the workspace `.env`:
+To check them against your requirements, connect Jira and Confluence once under **Settings & setup → Jira & Confluence**: the site address, plus an API token (with your account email) or a personal access token (PAT). Jira and Confluence can each have their own token. **Test connection** tells you whether each one works. The tokens are saved in the workspace `.env`, sent only to your site, and never shown again. Then add the Jira issues and Confluence pages (for example `SHOP-142`, or a page link) under **Settings → References** on each workflow or journey. A journey also uses the links of the workflows it runs. The same settings can be written by hand in `.env`:
 
 ```bash
 ATLASSIAN_BASE_URL=https://your-site.atlassian.net
-ATLASSIAN_EMAIL=you@example.com
+ATLASSIAN_EMAIL=you@example.com        # leave out for a PAT
 ATLASSIAN_API_TOKEN=...
+# Optional, per product: JIRA_EMAIL, JIRA_API_TOKEN, CONFLUENCE_EMAIL, CONFLUENCE_API_TOKEN
 ANTHROPIC_API_KEY=...
 ```
 
-Then tick **Check screenshots with AI** when you run, or click **Review → Check with AI** on a finished run. Claude compares each step's replay with the recording and with the Jira or Confluence text, and gives each step *pass*, *fail* or *unclear* with a reason. You confirm or correct each one with **Looks right** or **Wrong**. The AI check never changes a test's pass or fail, and its verdicts and your decisions go into the HTML report. Screenshots are sent to the Anthropic API with secret fields already blacked out. From the command line: `qalprit run ... --ai-review`, or `qalprit review results/<run-id>` afterwards. `qalprit refs --id <TEST-ID>` fetches the references on their own.
+Then tick **Check screenshots with AI** when you run, or click **Review → Check with AI** on a finished run. The model compares each step's replay with the recording and with the Jira or Confluence text, and gives each step *pass*, *fail* or *unclear* with a reason. You confirm or correct each one with **Looks right** or **Wrong**. The AI check never changes a test's pass or fail, and its verdicts and your decisions go into the HTML report. Screenshots leave your computer with secret fields already blacked out. Pick who does the check with the **Provider** menu, `--ai-provider`, or `QALPRIT_AI_PROVIDER` in `.env`: `anthropic` (the Anthropic API, needs `ANTHROPIC_API_KEY`, the default), `agy` (the Antigravity CLI) or `copilot` (the GitHub Copilot CLI). The two CLIs use their own sign-in, so QAlprit needs no key for them. From the command line: `qalprit run ... --ai-review --ai-provider agy`, or `qalprit review results/<run-id> --ai-provider copilot` afterwards. `qalprit refs --id <TEST-ID>` fetches the references on their own.
 
 When you record on a USB phone you can open any app from the home screen: opening an app becomes a `launch` step, so the replay opens it the same way.
 

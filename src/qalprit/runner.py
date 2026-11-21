@@ -26,7 +26,7 @@ from qalprit.results import (
     TestResult,
     classify_failure,
 )
-from qalprit.spec_loader import FlowSpec, StepItem, TestSpec, expand_steps
+from qalprit.spec_loader import FlowSpec, StepItem, TestSpec, effective_references, expand_steps
 from qalprit.steps import StepContext, execute_step, format_step_description
 
 
@@ -475,7 +475,7 @@ class TestRunner:
                             targets=list(spec.targets),
                             priority=spec.priority,
                             expected=spec.expected,
-                            references=list(spec.references),
+                            references=effective_references(spec, self.flows),
                             retriable=spec.retriable,
                             reset_mode=spec.reset,
                             status="skipped",
@@ -720,7 +720,7 @@ class TestRunner:
                         targets=list(spec.targets),
                         priority=spec.priority,
                         expected=spec.expected,
-                        references=list(spec.references),
+                        references=effective_references(spec, self.flows),
                         status=final_attempt.status,
                         flaky=flaky,
                         failure_reason=final_attempt.error,
