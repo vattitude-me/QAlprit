@@ -46,10 +46,11 @@ def list_android_devices() -> tuple[list[DiscoveredDevice], str | None]:
                     serial = parts[0]
                     state = parts[1] if len(parts) > 1 else "unknown"
                     kind = "emulator" if serial.startswith("emulator-") else "device"
+                    model = next((p.split(":", 1)[1] for p in parts[2:] if p.startswith("model:")), "")
                     devices.append(
                         DiscoveredDevice(
                             platform="android",
-                            name=serial,
+                            name=model.replace("_", " ") if model and kind == "device" else serial,
                             identifier=serial,
                             state=state,
                             kind=kind,

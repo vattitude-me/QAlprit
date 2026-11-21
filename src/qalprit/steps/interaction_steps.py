@@ -106,6 +106,27 @@ def exec_tap(ctx: StepContext, step: StepItem) -> StepOutcome:
     return StepOutcome(secret_elements=secret_elems)
 
 
+def exec_long_press(ctx: StepContext, step: StepItem) -> StepOutcome:
+    """Press and hold an element (context menus, drag handles, multi-select)."""
+    target = step.params["target"]
+    tpl_params = step.params.get("params")
+    timeout = step.params.get("timeout")
+    hold_ms = int(step.params.get("duration", 1000))
+
+    def _hold(el: Any, _res: Any) -> None:
+        box = el.rect
+        gx = int(round(float(box["x"]) + float(box["width"]) / 2))
+        gy = int(round(float(box["y"]) + float(box["height"]) / 2))
+        if ctx.platform == "ios":
+            ctx.driver.execute_script("mobile: touchAndHold", {"x": gx, "y": gy, "duration": hold_ms / 1000.0})
+        else:
+            ctx.driver.execute_script("mobile: longClickGesture", {"x": gx, "y": gy, "duration": hold_ms})
+
+    _, elem, resolved = perform_with_stale_retry(ctx, target, _hold, params=tpl_params, timeout=timeout)
+    secret_elems = [elem] if (step.secret or resolved.sensitive) else []
+    return StepOutcome(secret_elements=secret_elems)
+
+
 def exec_tap_if_visible(ctx: StepContext, step: StepItem) -> StepOutcome:
     target = step.params["target"]
     tpl_params = step.params.get("params")

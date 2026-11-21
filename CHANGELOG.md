@@ -12,6 +12,29 @@ Ideas planned for a later release. Nothing here ships yet.
 
 ---
 
+## Unreleased
+
+### Added
+
+- **Record on a USB Android phone.** Pick a plugged-in phone (shown as *USB phone*, with its model name) on the Record page and use the phone itself. The recorder listens to the phone's touchscreen with `adb shell getevent` and turns each gesture into a step: tap, long press, swipe (with how far the finger moved), Back (edge swipe or a hardware Back key), and typing (read from the text field). No app file is needed: the app already installed on the phone is used, and **Restart app** (on by default for phones) reopens it with its login and data kept. Saved tests use `reset: none`, so replays never wipe the phone. When the environment names no app, the flow starts with `launch: {app: <package>, restart: true}` for the app that was open.
+- `long_press` step (`long_press: screen.element` or `{target, duration}`), replayed with `mobile: longClickGesture` on Android and `mobile: touchAndHold` on iOS.
+- `launch` accepts an installed app id and `restart: true`.
+- `POST /api/recorder/start` takes `start_mode`: `clear_data`, `restart` or `as_is`. Without it, `fresh_start` behaves as before.
+
+### Changed
+
+- Gestures done on the device itself (emulators too) are queued and hit-tested against the screen as it was when the finger landed. Before, a tap was dropped if the recorder was busy for more than a second, and a fast tap could match an element on the next screen.
+- Key presses on the on-screen keyboard are no longer recorded as taps on the app element behind the keyboard. The recorder reads the keyboard's position from `dumpsys window InputMethod`.
+- The touchscreen is picked from all input devices by preferring a multi-touch screen marked `INPUT_PROP_DIRECT`, so fingerprint sensors and styluses are skipped.
+- Stopping a recording on a USB phone no longer shuts down running emulators, and the emulator Stop button is hidden while a phone is selected.
+
+### Lessons learned
+
+- Linux input only reports axis values that changed. A second tap on the same spot sends no X/Y, so the start point is taken at the first `SYN_REPORT` after the finger lands, not on the first X/Y line.
+- Android leaves the on-screen keyboard out of the app's element tree. Any recorder that hit-tests real touches has to cut out the keyboard area first.
+
+---
+
 ## [v0.1.40] - 2026-11-18
 
 ### Fixed

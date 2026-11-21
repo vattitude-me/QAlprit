@@ -58,6 +58,8 @@ Now use the app the way a customer would:
 
 Every click shows up as a step on the right. You can reorder, duplicate, edit or delete steps before you save. If iOS shows a "Save Password" sheet, the recorder dismisses it for you.
 
+**Record on your Android phone.** If your app is already installed and signed in on a phone, you don't need to set it up again on an emulator. Turn on USB debugging, plug the phone in and pick it in **Device**; it shows as *USB phone*. No app file is needed. **Restart app** reopens the app without clearing its data. Then use the phone itself: taps, long presses, swipes, typing and Back (edge swipe or Back key) are recorded as steps. Pause about a second on each new screen so the recorder can read it. Tests recorded this way are saved with `reset: none`, so a replay on the same phone keeps your login. The phone must be upright, and the recorder ignores Home, recents and two-finger gestures. iPhones can't report touches this way, so on iOS you still click the mirror.
+
 <p align="center">
   <img src="https://raw.githubusercontent.com/vattitude-me/QAlprit/main/web/screenshots/record-android.png" alt="QAlprit Workbench recording an add to cart flow on a live Android emulator" width="900" />
 </p>

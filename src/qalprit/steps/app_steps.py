@@ -2,16 +2,32 @@
 
 from __future__ import annotations
 
+import re
+
 from qalprit.spec_loader import StepItem
 from qalprit.steps.base import StepContext, StepOutcome
 
 
+_APP_ID_RE = re.compile(r"^[A-Za-z][\w-]*(\.[A-Za-z_][\w-]*)+$")
+
+
 def exec_launch(ctx: StepContext, step: StepItem) -> StepOutcome:
-    if not ctx.app_id:
+    """Open the app under test, or the installed app named in the step (`launch: com.example.app`).
+
+    With `restart: true` the app is closed first, so it opens on its first screen and keeps its data.
+    """
+    named = str(step.params.get("app") or "").strip()
+    app_id = named if _APP_ID_RE.match(named) else ctx.app_id
+    if not app_id:
         raise ValueError(
             f"No app identifier configured for platform '{ctx.platform}' in environments.yaml"
         )
-    ctx.driver.activate_app(ctx.app_id)
+    if step.params.get("restart"):
+        try:
+            ctx.driver.terminate_app(app_id)
+        except Exception:
+            pass
+    ctx.driver.activate_app(app_id)
     return StepOutcome()
 
 

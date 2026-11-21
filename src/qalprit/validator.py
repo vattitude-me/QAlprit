@@ -29,6 +29,7 @@ from qalprit.spec_loader import (
 _TARGETED_STEPS = {
     "tap",
     "tap_if_visible",
+    "long_press",
     "type",
     "enter_otp",
     "set_toggle",
@@ -129,6 +130,13 @@ def _validate_step_shape(
         if not step.params.get("target"):
             issues.append(
                 ValidationIssue("error", file_path, loc, f"'{step.type}' requires 'target'")
+            )
+
+    if step.type == "long_press" and "duration" in step.params:
+        hold = step.params["duration"]
+        if isinstance(hold, bool) or not isinstance(hold, (int, float)) or hold <= 0:
+            issues.append(
+                ValidationIssue("error", file_path, loc, f"'long_press.duration' must be > 0 ms, got {hold!r}")
             )
 
     if step.type in ("tap", "tap_if_visible"):

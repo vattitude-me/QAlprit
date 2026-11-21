@@ -2019,7 +2019,7 @@
           <div class="rec-toolbar-right">
             <label class="switch-inline" for="recFreshChk" title="Clear the app's data before recording, the same way test runs start">
               <input id="recFreshChk" type="checkbox" switch checked />
-              <span>Fresh app</span>
+              <span id="recFreshLabel">Fresh app</span>
             </label>
             <label class="switch-inline" for="recRedactChk">
               <input id="recRedactChk" type="checkbox" switch checked />
@@ -2972,7 +2972,7 @@
         activeApp: "",
         runCardChoice: {},
         hostOs: "",
-        stepVocab: ["launch", "reset_app", "background", "tap", "tap_if_visible", "type", "clear", "swipe", "scroll_until_visible", "wait", "wait_for_visible", "wait_for_enabled", "wait_for_text", "wait_for_keyboard", "assert_visible", "assert_not_visible", "assert_text", "assert_enabled", "assert_disabled", "back", "hide_keyboard", "enter_otp", "set_toggle", "assert_toggle", "biometric", "set_camera_image", "run_flow", "screenshot", "visual_compare"],
+        stepVocab: ["launch", "reset_app", "background", "tap", "tap_if_visible", "long_press", "type", "clear", "swipe", "scroll_until_visible", "wait", "wait_for_visible", "wait_for_enabled", "wait_for_text", "wait_for_keyboard", "assert_visible", "assert_not_visible", "assert_text", "assert_enabled", "assert_disabled", "back", "hide_keyboard", "enter_otp", "set_toggle", "assert_toggle", "biometric", "set_camera_image", "run_flow", "screenshot", "visual_compare"],
         emuStatus: null,
         emuPollTimer: null,
         recState: null,
@@ -3346,7 +3346,13 @@
           }
         } else {
           const liveAnd = (devs.android || []).filter((x) => !String(x.identifier || "").startsWith("avd:"));
-          liveAnd.forEach((x) => addOpt(`live:android:${x.identifier}`, `${x.name === x.identifier ? x.name : `${x.name} (${x.identifier})`} · running`));
+          liveAnd.forEach((x) => {
+            const named = x.name === x.identifier ? x.name : `${x.name} (${x.identifier})`;
+            if (x.kind !== "device") { addOpt(`live:android:${x.identifier}`, `${named} · running`); return; }
+            const st = String(x.state || "").toLowerCase();
+            const why = st === "unauthorized" ? "allow USB debugging on the phone" : (st === "device" ? "USB phone" : `USB phone, ${st}`);
+            addOpt(`live:android:${x.identifier}`, `${named} · ${why}`);
+          });
           (devs.android || [])
             .filter((x) => String(x.identifier || "").startsWith("avd:"))
             .forEach((x) => addOpt(`avd:${x.name}`, `${x.name} · off, starts when needed`));
@@ -3376,7 +3382,8 @@
           $("btnRecBootDevice").textContent = (anyPlatBooted && !isTargetBooted) ? "Switch & Boot" : "Boot";
         }
         if ($("btnRecShutdownDevice")) {
-          $("btnRecShutdownDevice").hidden = !anyPlatBooted;
+          // A USB phone is not shut down from here; Stop only closes emulators and simulators.
+          $("btnRecShutdownDevice").hidden = !anyPlatBooted || isRecRealDevice();
         }
       }
 
@@ -3414,6 +3421,7 @@
           }
         });
         updateRecDeviceButtons();
+        updateRecDeviceMode();
         if (STATE.guidedReady) refreshContextUi();
       }
       ["recPlatform", "inspectPlatform", "runPlatformSelect", "topQuickPlat"].forEach((id) => {
@@ -3427,7 +3435,35 @@
           if (id === "runPlatformSelect") refreshRunSpecDropdown();
         });
       });
-      if ($("recDeviceSelect")) $("recDeviceSelect").addEventListener("change", updateRecDeviceButtons);
+      // A USB phone, not an emulator: the user works the phone itself and the app is already set up on it.
+      function isRecRealDevice() {
+        const val = $("recDeviceSelect") ? $("recDeviceSelect").value : "";
+        if (!val.startsWith("live:android:")) return false;
+        const serial = val.slice("live:android:".length);
+        const dev = (STATE.devicesData.android || []).find((d) => d.identifier === serial);
+        return dev ? dev.kind === "device" : !serial.startsWith("emulator-");
+      }
+      function updateRecDeviceMode() {
+        const real = isRecRealDevice();
+        if (STATE.recRealMode === real) return;
+        STATE.recRealMode = real;
+        const chk = $("recFreshChk");
+        const label = $("recFreshLabel");
+        if (chk && label) {
+          label.textContent = real ? "Restart app" : "Fresh app";
+          chk.parentElement.title = real
+            ? "Close and reopen the app installed on the phone before recording. Its login and data are kept."
+            : "Clear the app's data before recording, the same way test runs start";
+          chk.checked = true;
+        }
+        const hint = $("recIntroHint");
+        if (hint) {
+          hint.querySelector("span").textContent = real
+            ? "Recording on your phone. The app already set up on the phone is used, so no app file is needed. After Start recording, use the phone itself: taps, long presses, swipes, typing and Back become steps you can replay. Pause about a second on each new screen so the recorder can read it."
+            : "Pick the device and app, name the test, then click Start recording. Click the mirrored screen to tap. Every tap and typed value becomes a step you can replay.";
+        }
+      }
+      if ($("recDeviceSelect")) $("recDeviceSelect").addEventListener("change", () => { updateRecDeviceButtons(); updateRecDeviceMode(); });
 
       function updateTopbarSummary() {
         const ov = STATE.overview || {};
@@ -5466,7 +5502,9 @@
         $("recPhoneFrame").classList.toggle("is-busy", active && STATE.recBusy);
         dot.className = "dot" + (active ? " is-ok" : (failed ? " is-fail" : ""));
         $("recMirrorMeta").textContent = active
-          ? (STATE.recBusy ? "Working..." : `Live · ${st.screen_width}×${st.screen_height}`)
+          ? (STATE.recBusy ? "Working..." : (st.real_device && st.direct_tap_watch
+            ? `Listening to your phone${st.keyboard_up ? " · keyboard up" : ""}`
+            : `Live · ${st.screen_width}×${st.screen_height}`))
           : (starting ? "Starting..." : (failed ? "Session lost" : "Idle"));
         if (st.error) {
           showBanner("recStatusBanner", st.error + (failed && stepCount ? ` Your ${stepCount} recorded step(s) are kept. Save them, or start a new recording.` : ""), "error");
@@ -5626,7 +5664,8 @@
           const go = await uiConfirm(`Starting a new recording discards ${kept} unsaved step(s).`, { title: "Discard unsaved steps?", okLabel: "Discard and start", danger: true });
           if (!go) return;
         }
-        if (!$("recAppSelect").value) { showBanner("recStatusBanner", "Choose an app binary first. Use + to upload an .apk, .ipa or .zip.", "error"); return; }
+        const realDevice = isRecRealDevice();
+        if (!$("recAppSelect").value && !realDevice) { showBanner("recStatusBanner", "Choose an app binary first. Use + to upload an .apk, .ipa or .zip.", "error"); return; }
         STATE.recDirty = false;
         STATE.recBusy = false;
         STATE.recNoticeRev = 0;
@@ -5664,7 +5703,8 @@
             screen_name: $("recScreenName").value.trim() || flowToScreenPrefix(flowName),
             flow_name: flowName,
             redact_sensitive: $("recRedactChk").checked,
-            fresh_start: $("recFreshChk").checked
+            fresh_start: $("recFreshChk").checked,
+            start_mode: realDevice ? ($("recFreshChk").checked ? "restart" : "as_is") : ""
           });
           startRecorderPolling();
           await pollRecorderStatus();
@@ -5679,10 +5719,11 @@
       $("btnRecStop").addEventListener("click", async () => {
         const stopPlat = (STATE.recState && STATE.recState.platform) || $("recPlatform").value || "all";
         $("btnRecStop").disabled = true;
-        showBanner("recStatusBanner", "Stopping the recording and shutting down the virtual device...", "info");
+        const onPhone = Boolean(STATE.recState && STATE.recState.real_device);
+        showBanner("recStatusBanner", onPhone ? "Stopping the recording..." : "Stopping the recording and shutting down the virtual device...", "info");
         try {
           await apiJson("/api/recorder/stop", {});
-          await shutdownDeviceTarget(stopPlat, "", { quiet: false });
+          if (!onPhone) await shutdownDeviceTarget(stopPlat, "", { quiet: false });
           const kept = ((STATE.recState && STATE.recState.steps) || []).length;
           showBanner("recStatusBanner", kept && STATE.recDirty ? `Recording stopped. ${kept} step(s) are still here. Click Save workflow to keep them.` : "Recording stopped.", "info");
         } catch (err) {

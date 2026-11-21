@@ -919,6 +919,7 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
                         flow_name=str(body.get("flow_name") or "recorded_flow"),
                         redact_sensitive=None if raw_redact is None else bool(raw_redact),
                         fresh_start=bool(body.get("fresh_start", True)),
+                        start_mode=str(body.get("start_mode") or ""),
                     )
                 )
                 return

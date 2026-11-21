@@ -17,6 +17,7 @@ STEP_VOCABULARY: frozenset[str] = frozenset(
         "background",
         "tap",
         "tap_if_visible",
+        "long_press",
         "type",
         "clear",
         "swipe",
@@ -146,6 +147,7 @@ def normalize_step(raw_step: Any) -> StepItem:
     elif step_type in (
         "tap",
         "tap_if_visible",
+        "long_press",
         "clear",
         "enter_otp",
         "wait_for_visible",
