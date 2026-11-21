@@ -65,15 +65,39 @@ def _perform_swipe(
     ctx.driver.swipe(sx, sy, ex, ey, int(duration))
 
 
+def _tap_element(
+    ctx: StepContext,
+    elem: Any,
+    *,
+    offset_x: float | None = None,
+    offset_y: float | None = None,
+) -> None:
+    """Click an element at its center, or at a relative (0..1) offset within its bounds."""
+    if offset_x is None and offset_y is None:
+        elem.click()
+        return
+    box = elem.rect
+    fx = max(0.0, min(1.0, float(0.5 if offset_x is None else offset_x)))
+    fy = max(0.0, min(1.0, float(0.5 if offset_y is None else offset_y)))
+    gx = int(round(float(box["x"]) + float(box["width"]) * fx))
+    gy = int(round(float(box["y"]) + float(box["height"]) * fy))
+    if ctx.platform == "ios":
+        ctx.driver.execute_script("mobile: tap", {"x": gx, "y": gy})
+    else:
+        ctx.driver.execute_script("mobile: clickGesture", {"x": gx, "y": gy})
+
+
 def exec_tap(ctx: StepContext, step: StepItem) -> StepOutcome:
     target = step.params["target"]
     tpl_params = step.params.get("params")
     timeout = step.params.get("timeout")
     strict_single = bool(step.params.get("strict_single", False))
+    offset_x = step.params.get("offset_x")
+    offset_y = step.params.get("offset_y")
     _, elem, resolved = perform_with_stale_retry(
         ctx,
         target,
-        lambda el, _res: el.click(),
+        lambda el, _res: _tap_element(ctx, el, offset_x=offset_x, offset_y=offset_y),
         params=tpl_params,
         timeout=timeout,
         strict_single=strict_single,
@@ -86,11 +110,13 @@ def exec_tap_if_visible(ctx: StepContext, step: StepItem) -> StepOutcome:
     target = step.params["target"]
     tpl_params = step.params.get("params")
     timeout = float(step.params.get("timeout", 2.0))
+    offset_x = step.params.get("offset_x")
+    offset_y = step.params.get("offset_y")
     try:
         _, elem, resolved = perform_with_stale_retry(
             ctx,
             target,
-            lambda el, _res: el.click(),
+            lambda el, _res: _tap_element(ctx, el, offset_x=offset_x, offset_y=offset_y),
             params=tpl_params,
             timeout=timeout,
         )

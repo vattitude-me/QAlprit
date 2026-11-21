@@ -14,6 +14,7 @@ from typing import Any
 
 from qalprit import background_devices
 from qalprit.appium_manager import build_appium_env
+from qalprit.camera_injection import get_android_camera_args
 from qalprit.devices import list_android_devices, list_ios_simulators
 from qalprit.doctor import (
     _macos_xcode_env,
@@ -510,6 +511,7 @@ class EmulatorJobManager:
                     "-gpu",
                     "auto",
                     "-no-snapshot-save",
+                    *get_android_camera_args(),
                 ]
                 if hidden:
                     cmd += background_devices.ANDROID_HIDDEN_ARGS

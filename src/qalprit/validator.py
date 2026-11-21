@@ -131,6 +131,20 @@ def _validate_step_shape(
                 ValidationIssue("error", file_path, loc, f"'{step.type}' requires 'target'")
             )
 
+    if step.type in ("tap", "tap_if_visible"):
+        for axis in ("offset_x", "offset_y"):
+            if axis in step.params and step.params[axis] is not None:
+                raw_off = step.params[axis]
+                if isinstance(raw_off, bool) or not isinstance(raw_off, (int, float)) or not (0.0 <= float(raw_off) <= 1.0):
+                    issues.append(
+                        ValidationIssue(
+                            "error",
+                            file_path,
+                            loc,
+                            f"'{step.type}.{axis}' must be a number between 0.0 and 1.0, got {raw_off!r}",
+                        )
+                    )
+
     if "timeout" in step.params and step.params["timeout"] is not None:
         raw_to = step.params["timeout"]
         if isinstance(raw_to, bool) or not isinstance(raw_to, (int, float)) or raw_to <= 0:
@@ -275,6 +289,24 @@ def _validate_step_shape(
                     f"'biometric' action must be one of {sorted(_VALID_BIOMETRIC_ACTIONS)}, got {action!r}",
                 )
             )
+
+    elif step.type == "set_camera_image":
+        raw_img = step.params.get("image") or step.params.get("path")
+        if not raw_img or not str(raw_img).strip():
+            issues.append(
+                ValidationIssue("error", file_path, loc, "'set_camera_image' requires 'image'")
+            )
+        cam = step.params.get("camera", "back")
+        if cam is not None and not (isinstance(cam, str) and "${" in cam):
+            if str(cam).strip().lower() not in ("front", "back"):
+                issues.append(
+                    ValidationIssue(
+                        "error",
+                        file_path,
+                        loc,
+                        f"'set_camera_image.camera' must be 'front' or 'back', got {cam!r}",
+                    )
+                )
 
     elif step.type == "screenshot":
         if not step.params.get("name"):

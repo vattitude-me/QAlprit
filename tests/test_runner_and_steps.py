@@ -316,3 +316,62 @@ def test_real_device_gates_biometric_and_retries_flag_flaky(tmp_path: Path) -> N
     assert "screenshots/FLAKY-1/attempt_2/" in html_text
     parsed_json = json.loads((tmp_path / "r2" / "results.json").read_text(encoding="utf-8"))
     assert parsed_json["summary"]["flaky"] == 1
+
+
+def test_tap_with_relative_offset_uses_click_gesture(tmp_path: Path) -> None:
+    from qalprit.evidence import EvidenceCollector
+    from qalprit.steps import execute_step
+    from qalprit.steps.base import StepContext
+
+    recorded_scripts: list[tuple[str, dict]] = []
+
+    class _RectElem:
+        rect = {"x": 84, "y": 808, "width": 912, "height": 126}
+
+        def is_displayed(self) -> bool:
+            return True
+
+        def click(self) -> None:
+            raise AssertionError("Expected offset tap to use execute_script, not elem.click()")
+
+    class _Driver:
+        def find_elements(self, _strategy: str, _value: str) -> list:
+            return [_RectElem()]
+
+        def execute_script(self, script: str, payload: dict) -> None:
+            recorded_scripts.append((script, payload))
+
+    screens = ScreensCatalog(
+        {
+            "picker": {
+                "select_id": {"android": {"accessibility_id": "Select ID, picker"}}
+            }
+        }
+    )
+    env_cfg = EnvironmentConfig(default_timeout=1.0, poll_interval=0.01)
+    env_ctx = EnvContext()
+    ctx = StepContext(
+        driver=_Driver(),
+        platform="android",
+        target_type="simulator",
+        profile=DeviceProfile(platform="android", target_type="simulator", device_name="emu"),
+        env_cfg=env_cfg,
+        env_ctx=env_ctx,
+        screens=screens,
+        evidence=EvidenceCollector(
+            run_dir=tmp_path,
+            screens=screens,
+            platform="android",
+            env_ctx=env_ctx,
+            extra_env_vars={},
+            masker=env_ctx.masker,
+        ),
+        masker=env_ctx.masker,
+        app_id="com.example.app",
+        app_path=None,
+        reset_mode="none",
+        reset_fn=lambda _m: (True, ""),
+    )
+    step = normalize_step({"tap": {"target": "picker.select_id", "offset_x": 0.92, "offset_y": 0.5}})
+    execute_step(ctx, step)
+    assert recorded_scripts == [("mobile: clickGesture", {"x": 923, "y": 871})]
