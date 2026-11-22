@@ -666,6 +666,7 @@
                   <span>{{ step.action }}</span>
                   <span>· {{ step.duration_fmt }}</span>
                   {% if step.flow_name %}<span class="badge badge-flow">flow: {{ step.flow_name }}</span>{% endif %}
+                  {% if step.manual_label %}<span class="badge badge-tag" title="A person did this step by hand during the run">{{ step.manual_label }}</span>{% endif %}
                   {% if step.redacted_count > 0 %}<span class="badge badge-redact">Redacted {{ step.redacted_count }}</span>{% endif %}
                   {% if step.redaction_status == 'skipped_secure_mode' %}<span class="badge badge-redact">Image Skipped (Secure Mode)</span>{% endif %}
                 </div>
@@ -695,6 +696,7 @@
                   <span>· {{ step.duration_fmt }}</span>
                   {% if step.failure_category %}<span class="badge badge-cat">{{ step.failure_category }}</span>{% endif %}
                   {% if step.flow_name %}<span class="badge badge-flow">flow: {{ step.flow_name }}</span>{% endif %}
+                  {% if step.manual_label %}<span class="badge badge-tag" title="A person did this step by hand during the run">{{ step.manual_label }}</span>{% endif %}
                   {% if step.redacted_count > 0 %}<span class="badge badge-redact">Redacted {{ step.redacted_count }}</span>{% endif %}
                   {% if step.redaction_status == 'skipped_secure_mode' %}<span class="badge badge-redact" title="{{ step.redaction_warning }}">Image Skipped (Secure Mode)</span>{% endif %}
                   {% if step.webview_detected %}<span class="badge badge-webview">WebView</span>{% endif %}

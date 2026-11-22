@@ -12,6 +12,27 @@ Ideas planned for a later release. Nothing here ships yet.
 
 ---
 
+## [v0.1.42] - 2026-11-21
+
+### Added
+
+- **`wait_for_user` step.** Pauses a run for something only a person can do: take a selfie, scan an ID card with the phone camera, sign in with a fingerprint, or type a value. The Run page shows the prompt with Done, Fail (with an optional note) and, for `optional: true` steps, Skip. `until: screen.element` ends the wait on its own when the next screen of the app shows up, and is checked again after Done. `input: NAME` asks for a value, saves it as `${NAME}` and types it into `target`. A value already set in `.env` or the dataset is used without asking, so CI runs do not stop. Screenshots are off for this step unless it sets `capture: on`. The report marks the step as done by a person and how long it took.
+- **Wait for user in the recorder.** A new button adds the step with a prompt you type and pauses recording, so the taps you make while taking the selfie or scanning the ID are not saved as steps. Press Done on the bar to carry on recording.
+- **`POST /api/runs/handoff`** answers a waiting step with `done`, `skip` or `fail`. `GET /api/runs/status` reports `handoff_pending` (and still `otp_pending`).
+- **TNG account opening workflows** (`flows/tng-non-prod-acc-open-2.md`, `-3.md`). The ID scan and selfie are now one `wait_for_user` step on a real phone, and the phone number is the `${phone_number}` parameter.
+
+### Changed
+
+- `enter_otp` uses the same hand-off broker (`qalprit/handoff.py`). `qalprit.otp` keeps the old names working.
+- A long wait for a person touches the Appium session every few seconds, so the 180 second idle timeout no longer ends the session.
+- A run with no Workbench and no terminal fails a hand-off step at once with a clear message instead of hanging.
+
+### Lessons learned
+
+- A person's step must never be retried like a flaky locator. Hand-off failures use `application_failure` (the person said it failed) or `environment_configuration` (nobody could answer), not a transient category.
+
+---
+
 ## [v0.1.41] - 2026-11-21
 
 ### Added

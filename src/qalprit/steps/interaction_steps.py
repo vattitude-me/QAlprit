@@ -5,8 +5,9 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from qalprit.otp import BROKER
+from qalprit.handoff import BROKER, HandoffUnavailableError
 from qalprit.spec_loader import StepItem
+from qalprit.steps.handoff_steps import keep_session_alive
 from qalprit.steps.base import (
     StepContext,
     StepFailureError,
@@ -289,7 +290,19 @@ def exec_enter_otp(ctx: StepContext, step: StepItem) -> StepOutcome:
     code = str(ctx.extra_env_vars.get(variable) or "").strip()
     if not code:
         label = str(target or variable)
-        code = BROKER.request(label, timeout=timeout)
+        try:
+            code = BROKER.request(
+                label,
+                timeout=timeout,
+                kind="input",
+                prompt=f"Enter the one-time code for {label}",
+                secret=True,
+                poll=lambda: keep_session_alive(ctx),
+            ).value
+        except HandoffUnavailableError as exc:
+            raise StepFailureError(
+                str(exc), failure_category="environment_configuration", diagnostics={"manual": True}
+            ) from exc
     ctx.masker.add(code)
     ctx.captured_vars[variable] = code
     if not target:

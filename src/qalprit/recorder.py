@@ -222,6 +222,11 @@ def _step_to_yaml_dict(step: dict[str, Any]) -> Any:
         return {"type": inner}
     if action == "enter_otp":
         return {"enter_otp": target}
+    if action == "wait_for_user":
+        inner_w: dict[str, Any] = {"prompt": value or "Finish this step on the device"}
+        if step.get("until"):
+            inner_w["until"] = str(step["until"])
+        return {"wait_for_user": inner_w}
     if action in ("set_toggle", "assert_toggle"):
         return {action: {"target": target, "state": "off" if value.strip().lower() in {"off", "false", "0"} else "on"}}
     if action == "assert_text":
@@ -391,6 +396,9 @@ class RecorderManager:
         self._step_shots: dict[str, bytes] = {}
         self._shot_owner = ""
         self._last_ref_png: bytes = b""
+        # While a person does a step by hand (selfie, ID scan), taps on the device and app
+        # switches are not recorded, and no screenshot is kept for any step.
+        self._handoff = False
 
         self._active = False
         self._starting = False
@@ -458,6 +466,7 @@ class RecorderManager:
                 "keyboard_up": self._keyboard_top is not None,
                 "redact_sensitive": self._redact_sensitive,
                 "auto_dismiss_prompts": self._auto_dismiss_prompts,
+                "handoff": self._handoff,
                 "notice": self._notice,
                 "notice_rev": self._notice_rev,
                 "elements": list(self._elements[:250]),
@@ -755,6 +764,9 @@ class RecorderManager:
         with self._lock:
             before = self._front_app
             self._front_app = now
+            if self._handoff:
+                # The camera or another app the person opened by hand is not a step.
+                return
             first_time = now not in self._apps_seen
             if not is_home_app(now):
                 self._apps_seen.add(now)
@@ -890,13 +902,17 @@ class RecorderManager:
                     list(self._elements), self._screen_name, self._keyboard_top, self._last_ref_png, self._front_app,
                 )
                 self._device_gestures += 1
+                handoff = self._handoff
                 prev_owner = self._shot_owner
                 if before_png and prev_owner:
                     # The screen right before this gesture is what the previous step led to.
                     self._step_shots[prev_owner] = before_png
 
             step: dict[str, Any] | None = None
-            if kind == "back_key" or (gesture is not None and gesture.kind == "back"):
+            if handoff:
+                # The person is doing this part by hand. Nothing they do is recorded.
+                pass
+            elif kind == "back_key" or (gesture is not None and gesture.kind == "back"):
                 step = {"action": "back", "target": "", "value": "", "secret": False, "label": "Press Back"}
             elif gesture is not None and gesture.kind == "system":
                 self._set_notice("Skipped a system gesture (Home, recents or notifications). It is not part of the app's flow.")
@@ -963,7 +979,7 @@ class RecorderManager:
                 if not self._shot_owner:
                     self._shot_owner = prev_owner
             # Text typed on the device right before this gesture (the field may now be gone).
-            for changed_el, typed_val in detect_changed_editable_inputs(prev_elems, new_elems):
+            for changed_el, typed_val in ([] if handoff else detect_changed_editable_inputs(prev_elems, new_elems)):
                 loc = self._register_locator_locked(changed_el, screen_name)
                 step_val = "${SECRET_VALUE}" if loc["sensitive"] else typed_val
                 typed_step = {
@@ -1064,6 +1080,7 @@ class RecorderManager:
             self._elements = []
             self._locators = {}
             self._steps = []
+            self._handoff = False
             self._screenshot_png = b""
             self._last_raw_hash = ""
             self._notice = ""
@@ -1240,6 +1257,43 @@ class RecorderManager:
             driver = self._driver
             if driver is None:
                 raise RuntimeError("Recording session ended.")
+
+            with self._lock:
+                in_handoff = self._handoff
+            if act == "wait_for_user":
+                if in_handoff:
+                    raise ValueError("A hand-off is already open. Do the step on the device, then press Done.")
+                prompt = " ".join(str(value or "").split()) or "Finish this step on the device"
+                step = {"action": "wait_for_user", "target": "", "value": prompt, "secret": False, "label": f"Wait for user: {prompt}"}
+                self._append_or_merge_step(step)
+                with self._lock:
+                    self._handoff = True
+                    # Screens from here on can show a face or an ID card. Keep none of them.
+                    self._shot_owner = ""
+                    self._rev += 1
+                self._log("Hand-off started. Do the step on the device, then press Done. Nothing you do now is recorded.")
+                return self.status()
+            if act == "wait_for_user_done":
+                if not in_handoff:
+                    raise ValueError("No hand-off is open.")
+                with self._lock:
+                    self._handoff = False
+                    self._shot_owner = ""
+                    self._rev += 1
+                # Learn which app is in front now, without recording the switch back as a step.
+                self._track_front_app_locked()
+                self._capture_snapshot_locked()
+                self._log("Hand-off finished. Recording again.")
+                return self.status()
+            if in_handoff:
+                if act == "tap" and x is not None and y is not None and element_index is None:
+                    # Pass the tap through to the device (for example the camera shutter) but
+                    # do not record it.
+                    self._tap_point_locked(float(x), float(y))
+                    time.sleep(0.6)
+                    self._capture_snapshot_locked()
+                    return self.status()
+                raise ValueError("Finish the hand-off first: do the step on the device, then press Done.")
 
             if act in {"back", "swipe", "wait", "hide_keyboard"}:
                 if act == "back":
@@ -1485,6 +1539,8 @@ class RecorderManager:
         with self._lock:
             if self._steps:
                 removed = self._steps.pop()
+                if removed.get("action") == "wait_for_user":
+                    self._handoff = False
                 self._rev += 1
                 self._logs.append(f"Removed step: {removed.get('label')}")
         return self.status()
@@ -1496,6 +1552,7 @@ class RecorderManager:
         """
         with self._lock:
             had = len(self._steps)
+            self._handoff = False
             if flow_name.strip():
                 self._flow_name = flow_name.strip()
                 self._screen_name = _safe_slug(self._flow_name.split("/")[-1], "screen")
@@ -1548,6 +1605,9 @@ class RecorderManager:
                 if st["action"] == "type":
                     shown = SecretMasker.REPLACEMENT if st["secret"] else st["value"]
                     st["label"] = f"Type '{shown}' into {st['target']}"
+                elif st["action"] == "wait_for_user":
+                    st["value"] = " ".join(str(st["value"] or "").split()) or "Finish this step on the device"
+                    st["label"] = f"Wait for user: {st['value']}"
             self._rev += 1
         res = self.status()
         res["selected_index"] = selected_idx

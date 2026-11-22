@@ -412,6 +412,11 @@ def format_step_description(step: StepItem, masker: SecretMasker | None = None) 
     elif t in ("set_toggle", "assert_toggle"):
         word = "on" if toggle_want(step) else "off"
         desc = (f"Turn {p.get('target')} {word}" if t == "set_toggle" else f"Assert {p.get('target')} is {word}")
+    elif t == "wait_for_user":
+        if p.get("input"):
+            desc = f"Wait for a person to enter {p.get('input')}" + (f" into {p.get('target')}" if p.get("target") else "")
+        else:
+            desc = f"Wait for a person: {p.get('prompt') or 'finish this step on the device'}"
     elif t == "enter_otp":
         desc = "Enter one-time code" + (f" into {p.get('target')}" if p.get("target") else "")
     elif t == "biometric":
