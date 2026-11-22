@@ -16,7 +16,7 @@ from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse
 
 from qalprit import __version__, background_devices
-from qalprit.otp import BROKER
+from qalprit.handoff import BROKER
 from qalprit.cleanup import execute_selective_cleanup, inspect_cleanup_targets
 from qalprit.config_loader import load_screens
 from qalprit.datasets import (
@@ -535,7 +535,8 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
             return
 
         if req_path == "/api/runs/status":
-            self._send_json({**self.job_manager.status(), "otp_pending": BROKER.pending()})
+            pending = BROKER.pending()
+            self._send_json({**self.job_manager.status(), "handoff_pending": pending, "otp_pending": pending})
             return
 
         if req_path == "/api/emulator/status":
@@ -944,6 +945,21 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
             if req_path == "/api/runs/otp":
                 if not BROKER.submit(str(body.get("code") or "")):
                     raise ValueError("No run is waiting for a code right now, or the code was empty.")
+                self._send_json({"ok": True})
+                return
+
+            if req_path == "/api/runs/handoff":
+                raw_id = body.get("id")
+                if not BROKER.respond(
+                    str(body.get("answer") or ""),
+                    value=str(body.get("value") or ""),
+                    note=str(body.get("note") or ""),
+                    request_id=int(raw_id) if raw_id is not None else None,
+                ):
+                    raise ValueError(
+                        "No run is waiting for a person right now, or the answer was incomplete. "
+                        "A typed value cannot be empty."
+                    )
                 self._send_json({"ok": True})
                 return
 

@@ -72,6 +72,27 @@ def _image_src(run_dir: Path, rel: str | None, external_assets: bool) -> str | N
     return f"data:{mime};base64,{b64}"
 
 
+_MANUAL_LABELS = {
+    "done": "Done by a person",
+    "auto": "Done by a person, run carried on by itself",
+    "skip": "Skipped by a person",
+    "fail": "Marked failed by a person",
+    "preset": "Value from dataset or .env",
+    "none": "Nobody answered",
+}
+
+
+def _manual_label(diag: dict[str, Any]) -> str:
+    """Badge text for a step a person finished by hand, so nobody reads it as automated."""
+    if not isinstance(diag, dict) or not diag.get("manual"):
+        return ""
+    label = _MANUAL_LABELS.get(str(diag.get("answer") or ""), "Needs a person")
+    waited = diag.get("waited_sec")
+    if isinstance(waited, (int, float)) and waited > 0:
+        label += f" after {waited:.0f}s"
+    return label
+
+
 def _build_step_view(
     step: Any,
     run_dir: Path,
@@ -79,6 +100,7 @@ def _build_step_view(
 ) -> dict[str, Any]:
     data = step.model_dump() if hasattr(step, "model_dump") else dict(step)
     data["duration_fmt"] = _format_duration(int(data.get("duration_ms", 0)))
+    data["manual_label"] = _manual_label(data.get("diagnostics") or {})
     shot_rel = data.get("screenshot_path")
     data["image_src"] = None
     data["image_error"] = ""

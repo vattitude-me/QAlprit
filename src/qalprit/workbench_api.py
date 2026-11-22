@@ -19,7 +19,7 @@ from typing import Any
 import frontmatter
 import yaml
 
-from qalprit.otp import BROKER
+from qalprit.handoff import BROKER
 from qalprit.appium_manager import AppiumManager
 from qalprit.config_loader import (
     DeviceProfile,

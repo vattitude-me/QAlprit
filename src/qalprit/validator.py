@@ -46,6 +46,7 @@ _TARGETED_STEPS = {
     "assert_disabled",
 }
 _VALID_DIRECTIONS = {"up", "down", "left", "right"}
+_VAR_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _VALID_BIOMETRIC_ACTIONS = {"enroll", "match", "fail"}
 
 
@@ -164,13 +165,13 @@ def _validate_step_shape(
                     f"'timeout' must be a positive number > 0, got {raw_to!r}",
                 )
             )
-        elif raw_to > 300:
+        elif raw_to > (1800 if step.type == "wait_for_user" else 300):
             issues.append(
                 ValidationIssue(
                     "warning",
                     file_path,
                     loc,
-                    f"Timeout {raw_to}s exceeds 300s recommended maximum",
+                    f"Timeout {raw_to}s exceeds {1800 if step.type == 'wait_for_user' else 300}s recommended maximum",
                 )
             )
 
@@ -286,6 +287,39 @@ def _validate_step_shape(
                     ValidationIssue("error", file_path, loc, f"'wait_for_keyboard.{kb_key}' must be boolean")
                 )
 
+    elif step.type == "wait_for_user":
+        if not str(step.params.get("prompt") or "").strip():
+            issues.append(
+                ValidationIssue(
+                    "error", file_path, loc, "'wait_for_user' requires 'prompt', the instruction shown to the person"
+                )
+            )
+        var = step.params.get("input")
+        if var is not None and not _VAR_NAME_RE.match(str(var)):
+            issues.append(
+                ValidationIssue(
+                    "error",
+                    file_path,
+                    loc,
+                    f"'wait_for_user.input' must be a variable name (letters, digits, underscore), got {var!r}",
+                )
+            )
+        if step.params.get("target") and var is None:
+            issues.append(
+                ValidationIssue(
+                    "error", file_path, loc, "'wait_for_user.target' needs 'input', the value to type into it"
+                )
+            )
+        if step.params.get("until") and var is not None:
+            issues.append(
+                ValidationIssue(
+                    "warning",
+                    file_path,
+                    loc,
+                    "'wait_for_user.until' is ignored when 'input' is set. The run carries on when the value is entered",
+                )
+            )
+
     elif step.type == "biometric":
         action = step.params.get("action")
         if action not in _VALID_BIOMETRIC_ACTIONS:
@@ -365,6 +399,32 @@ def _validate_locator_and_env(
                         f"Missing environment variable '${{{missing_var}}}'",
                     )
                 )
+
+    if step.type == "wait_for_user" and screens is not None:
+        for key in ("target", "until"):
+            ref = step.params.get(key)
+            if not ref:
+                continue
+            if not screens.has_target(str(ref)):
+                issues.append(
+                    ValidationIssue(
+                        "error",
+                        file_path,
+                        loc,
+                        f"Unknown locator '{ref}' in 'wait_for_user.{key}' (not in screens/screens.yaml)",
+                    )
+                )
+                continue
+            for plat in platforms:
+                if not screens.has_target(str(ref), platform=plat):
+                    issues.append(
+                        ValidationIssue(
+                            "error",
+                            file_path,
+                            loc,
+                            f"Locator '{ref}' in 'wait_for_user.{key}' is missing a definition for platform '{plat}'",
+                        )
+                    )
 
     target = step.params.get("target")
     if target and screens is not None and step.type in _TARGETED_STEPS:

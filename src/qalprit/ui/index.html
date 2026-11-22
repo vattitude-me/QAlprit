@@ -2119,12 +2119,26 @@
                 </div>
               </div>
 
+              <!-- Hand-off bar: the person does a step by hand (selfie, ID scan) -->
+              <div class="rec-inline-bar" id="recHandoffBar" hidden>
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">
+                  <strong style="font-size:12px;">Your turn on the device</strong>
+                  <span class="muted" style="font-size:11px;">Paused</span>
+                </div>
+                <div style="font-size:12px;" id="recHandoffPrompt"></div>
+                <div class="muted" style="font-size:11px;">Taps on the device are not recorded and no screenshots are kept until you press Done. On a replay the run pauses here and asks you to do this again.</div>
+                <div style="display:flex;gap:6px;">
+                  <button type="button" class="btn btn-primary btn-sm" id="btnRecHandoffDone">Done, keep recording</button>
+                </div>
+              </div>
+
               <div class="btn-row" id="recGestureRow">
                 <button type="button" class="btn btn-sm" id="btnRecSwipeUp">Swipe &uarr;</button>
                 <button type="button" class="btn btn-sm" id="btnRecSwipeDown">Swipe &darr;</button>
                 <button type="button" class="btn btn-sm" id="btnRecBack">Back</button>
                 <button type="button" class="btn btn-sm" id="btnRecHideKeyboard" title="Lower the on-screen keyboard and record a hide_keyboard step">Hide keyboard</button>
                 <button type="button" class="btn btn-sm" id="btnRecWait" title="Record a 2 second pause">Wait 2s</button>
+                <button type="button" class="btn btn-sm" id="btnRecWaitUser" title="Pause here for a person to do something on the device, such as a selfie or an ID scan">Wait for user</button>
               </div>
             </div>
           </div>
@@ -2401,9 +2415,14 @@
             <div class="progress-track"><div class="progress-fill" id="runProgressFill"></div></div>
             <div id="runStatusBanner" class="status-banner" hidden aria-live="polite"></div>
             <div id="runOtpBox" class="status-banner warn" hidden role="alert" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-              <strong id="runOtpLabel">The run is waiting for a one-time code.</strong>
-              <input id="runOtpInput" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="Code" style="width:140px;" />
-              <button type="button" class="btn btn-primary btn-sm" id="btnRunOtpSend">Send code</button>
+              <div style="flex:1 1 100%;">
+                <strong id="runOtpLabel">The run is waiting for you.</strong>
+                <div class="muted" id="runOtpHint" style="font-size:12px;margin-top:2px;"></div>
+              </div>
+              <input id="runOtpInput" type="text" autocomplete="off" placeholder="Value" style="width:180px;" />
+              <button type="button" class="btn btn-primary btn-sm" id="btnRunOtpSend">Send</button>
+              <button type="button" class="btn btn-sm" id="btnRunHandoffSkip" hidden>Skip</button>
+              <button type="button" class="btn btn-sm btn-danger" id="btnRunHandoffFail">Mark failed</button>
             </div>
             <pre id="runLiveLog" class="console" hidden></pre>
           </div>
@@ -3077,7 +3096,7 @@
         activeApp: "",
         runCardChoice: {},
         hostOs: "",
-        stepVocab: ["launch", "reset_app", "background", "tap", "tap_if_visible", "long_press", "type", "clear", "swipe", "scroll_until_visible", "wait", "wait_for_visible", "wait_for_enabled", "wait_for_text", "wait_for_keyboard", "assert_visible", "assert_not_visible", "assert_text", "assert_enabled", "assert_disabled", "back", "hide_keyboard", "enter_otp", "set_toggle", "assert_toggle", "biometric", "set_camera_image", "run_flow", "screenshot", "visual_compare"],
+        stepVocab: ["launch", "reset_app", "background", "tap", "tap_if_visible", "long_press", "type", "clear", "swipe", "scroll_until_visible", "wait", "wait_for_visible", "wait_for_enabled", "wait_for_text", "wait_for_keyboard", "assert_visible", "assert_not_visible", "assert_text", "assert_enabled", "assert_disabled", "back", "hide_keyboard", "enter_otp", "wait_for_user", "set_toggle", "assert_toggle", "biometric", "set_camera_image", "run_flow", "screenshot", "visual_compare"],
         emuStatus: null,
         emuPollTimer: null,
         recState: null,
@@ -5886,7 +5905,14 @@
         ["recPlatform", "recDeviceSelect", "recAppSelect", "recEnvSelect", "recFlowNameInput", "btnRecQuickUpload"].forEach((id) => {
           if ($(id)) $(id).disabled = active || starting;
         });
-        $("recGestureRow").querySelectorAll("button").forEach((b) => { b.disabled = !active; });
+        const inHandoff = Boolean(active && st.handoff);
+        $("recGestureRow").querySelectorAll("button").forEach((b) => { b.disabled = !active || inHandoff; });
+        $("recHandoffBar").hidden = !inHandoff;
+        if (inHandoff) {
+          const last = (st.steps || []).filter((x) => x.action === "wait_for_user").pop();
+          $("recHandoffPrompt").textContent = last ? last.value : "";
+          $("recMirrorMeta").textContent = "Paused for you";
+        }
 
         if (active || starting) {
           const rOn = st.redact_sensitive !== undefined ? Boolean(st.redact_sensitive) : true;
@@ -6141,6 +6167,12 @@
         const idx = Number(box.dataset.recBox);
         const el = ((STATE.recState && STATE.recState.elements) || [])[idx];
         if (!el) return;
+        if (STATE.recState.handoff) {
+          // During a hand-off a click only passes the tap through to the device. Nothing is recorded.
+          const r = el.rect;
+          if (Array.isArray(r) && r.length === 4) runRecorderAction({ action: "tap", x: (r[0] + r[2]) / 2, y: (r[1] + r[3]) / 2 });
+          return;
+        }
         STATE.recSelectedIdx = idx;
         updateInspectorForElement(el);
         if (STATE.recMode === "assert_text") openAssertPromptForElement(idx);
@@ -6155,7 +6187,7 @@
         if (!rect.width || !rect.height) return;
         const x = ((e.clientX - rect.left) / rect.width) * (st.screen_width || 1080);
         const y = ((e.clientY - rect.top) / rect.height) * (st.screen_height || 2400);
-        runRecorderAction({ action: STATE.recMode === "assert_text" ? "assert_visible" : "tap", x, y });
+        runRecorderAction({ action: STATE.recMode === "assert_text" && !st.handoff ? "assert_visible" : "tap", x, y });
       });
       $("recElementsList").addEventListener("click", (e) => {
         const t = e.target.closest("[data-rec-tap]");
@@ -6215,6 +6247,18 @@
         else if (e.key === "Escape") { $("recAssertBar").hidden = true; }
       });
       $("btnRecWait").addEventListener("click", () => runRecorderAction({ action: "wait", value: "2" }));
+      $("btnRecWaitUser").addEventListener("click", async () => {
+        const prompt = await uiAsk({
+          title: "Wait for user",
+          message: "What should the person do on the device? The run shows this and waits until they press Done.",
+          input: "Take a selfie in the app",
+          placeholder: "For example: Scan the front of your ID card",
+          okLabel: "Start hand-off",
+        });
+        if (prompt === null || !String(prompt).trim()) return;
+        runRecorderAction({ action: "wait_for_user", value: String(prompt).trim() });
+      });
+      $("btnRecHandoffDone").addEventListener("click", () => runRecorderAction({ action: "wait_for_user_done" }));
       const recStepEdit = (payload) => { STATE.recDirty = true; return recorderCall("/api/recorder/update", payload); };
       $("btnRecUndo").addEventListener("click", () => recorderCall("/api/recorder/undo", {}));
 
@@ -6599,16 +6643,31 @@
             $("runLiveLog").scrollTop = $("runLiveLog").scrollHeight;
           }
           $("btnStopLiveRun").hidden = !st.running;
-          const otp = st.otp_pending;
+          const otp = st.handoff_pending || st.otp_pending;
           const otpBox = $("runOtpBox");
-          if (otp && !otpBox.dataset.otpId) {
-            $("runOtpLabel").textContent = `The run is waiting for a one-time code for ${otp.label}.`;
-            $("runOtpInput").value = "";
+          if (otp && otpBox.dataset.otpId !== String(otp.id)) {
+            const isInput = otp.kind !== "action";
+            $("runOtpLabel").textContent = otp.prompt || (isInput ? `The run is waiting for ${otp.label}.` : "The run is waiting for you to finish a step on the device.");
+            const inp = $("runOtpInput");
+            inp.value = "";
+            inp.hidden = !isInput;
+            inp.type = isInput && otp.secret ? "password" : "text";
+            inp.placeholder = otp.secret ? "Code" : "Value";
+            $("btnRunOtpSend").textContent = isInput ? "Send" : "Done";
+            $("btnRunHandoffSkip").hidden = !otp.can_skip;
             otpBox.hidden = false;
             otpBox.style.display = "flex";
             otpBox.dataset.otpId = String(otp.id);
-            $("runOtpInput").focus();
-          } else if (!otp && otpBox.dataset.otpId) {
+            otpBox.dataset.kind = otp.kind || "input";
+            if (isInput) inp.focus();
+          }
+          if (otp) {
+            const left = Math.max(0, Math.round(Number(otp.timeout_sec || 0) - Number(otp.waited_sec || 0)));
+            const mm = Math.floor(left / 60), ss = String(left % 60).padStart(2, "0");
+            const auto = otp.kind === "action" && otp.until ? `The run carries on by itself when ${otp.until} shows up. ` : "";
+            const how = otp.kind === "action" ? "Do this on the device, then press Done. " : "";
+            $("runOtpHint").textContent = `${how}${auto}Time left ${mm}:${ss}.`;
+          } else if (otpBox.dataset.otpId) {
             otpBox.hidden = true;
             otpBox.dataset.otpId = "";
           }
@@ -6632,19 +6691,30 @@
         pollRunStatus();
       }
       window.addEventListener("beforeunload", (e) => { if (STATE.stepsDirty) { e.preventDefault(); e.returnValue = ""; } });
-      async function sendRunOtp() {
-        const code = $("runOtpInput").value.trim();
-        if (!code) return;
+      async function answerHandoff(answer) {
+        const box = $("runOtpBox");
+        const id = box.dataset.otpId ? Number(box.dataset.otpId) : null;
+        const isInput = box.dataset.kind !== "action";
+        const value = $("runOtpInput").value.trim();
+        if (answer === "done" && isInput && !value) { $("runOtpInput").focus(); return; }
+        let note = "";
+        if (answer === "fail") {
+          note = await uiAsk({ title: "Mark this step failed", message: "What went wrong? This goes into the report.", input: "", placeholder: "Optional", okLabel: "Mark failed", danger: true });
+          if (note === null) return;
+        }
         try {
-          await apiJson("/api/runs/otp", { code });
-          $("runOtpBox").hidden = true;
-          $("runOtpBox").dataset.otpId = "";
+          await apiJson("/api/runs/handoff", { id, answer, value: answer === "done" ? value : "", note });
+          box.hidden = true;
+          box.dataset.otpId = "";
+          $("runOtpInput").value = "";
         } catch (err) {
           showBanner("runStatusBanner", err.message, "error");
         }
       }
-      $("btnRunOtpSend").addEventListener("click", sendRunOtp);
-      $("runOtpInput").addEventListener("keydown", (e) => { if (e.key === "Enter") sendRunOtp(); });
+      $("btnRunOtpSend").addEventListener("click", () => answerHandoff("done"));
+      $("btnRunHandoffSkip").addEventListener("click", () => answerHandoff("skip"));
+      $("btnRunHandoffFail").addEventListener("click", () => answerHandoff("fail"));
+      $("runOtpInput").addEventListener("keydown", (e) => { if (e.key === "Enter") answerHandoff("done"); });
       $("btnStopLiveRun").addEventListener("click", async () => { await apiJson("/api/runs/stop", {}); pollRunStatus(); });
 
       async function launchRunFromModal(dryRun) {

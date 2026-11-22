@@ -35,6 +35,7 @@ STEP_VOCABULARY: frozenset[str] = frozenset(
         "back",
         "hide_keyboard",
         "enter_otp",
+        "wait_for_user",
         "set_toggle",
         "assert_toggle",
         "biometric",
@@ -171,6 +172,8 @@ def normalize_step(raw_step: Any) -> StepItem:
         params = {"app": str(val)}
     elif step_type == "swipe":
         params = {"direction": str(val)}
+    elif step_type == "wait_for_user":
+        params = {"prompt": str(val)}
     elif step_type == "biometric":
         params = {"action": str(val)}
     elif step_type == "set_camera_image":
@@ -183,6 +186,11 @@ def normalize_step(raw_step: Any) -> StepItem:
         params = {"flow": str(val)}
     else:
         params = {"value": val}
+
+    if step_type == "wait_for_user" and step_capture is None:
+        # The screen right after a selfie or ID scan often shows the photo. Take no screenshot
+        # unless the step asks for one.
+        step_capture = "off"
 
     return StepItem(
         type=step_type,

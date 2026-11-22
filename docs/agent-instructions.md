@@ -100,6 +100,7 @@ Classify the failure (`failure_category` in `results.json` / `report.html`) and 
 - **Read `AGENTS.md` first.** It maps every module, explains how a test goes from recording to report, and lists the open work.
 - **Run on the device the user names.** For a USB phone use `--device live:android:<serial>` (see `qalprit devices`). Do not fall back to an emulator without asking.
 - **One-time codes.** `enter_otp` asks for the code and waits. Submit it in the Workbench or with `POST /api/runs/otp`. Typing it on the phone makes the step fail, because the step is waiting for the field itself.
+- **Steps a person does by hand.** `wait_for_user` pauses the run (selfie, ID scan, fingerprint, or a typed value). `GET /api/runs/status` reports `handoff_pending` with the prompt. Answer with `POST /api/runs/handoff {"answer": "done" | "skip" | "fail", "value": "...", "note": "...", "request_id": N}`. With `until`, the run carries on by itself once that element shows up.
 - **Camera steps.** `set_camera_image` only works on the Android emulator. On a phone, ask the user to take the photo.
 - **AI check.** `qalprit run ... --ai-review --ai-provider <anthropic|agy|copilot>` or `qalprit review results/<run-id>`. It compares screenshots with the Jira and Confluence links on the journey and on the workflows it runs. It never changes pass or fail. Report unclear and fail verdicts to the user with the step and the reason.
 - **Jira and Confluence access.** The user connects them in Settings & setup > Jira & Confluence. Never print or commit tokens from `.env`.
