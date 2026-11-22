@@ -6,6 +6,7 @@ import hashlib
 import platform as py_platform
 import subprocess
 import time
+from collections import deque
 from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
@@ -26,8 +27,28 @@ from qalprit.results import (
     TestResult,
     classify_failure,
 )
-from qalprit.spec_loader import FlowSpec, StepItem, TestSpec, effective_references, expand_steps
+from qalprit.spec_loader import (
+    BLOCK_STEP_KEYS,
+    FlowSpec,
+    StepItem,
+    TestSpec,
+    block_children,
+    effective_references,
+    expand_steps,
+    launched_app_id,
+)
 from qalprit.steps import StepContext, execute_step, format_step_description
+from qalprit.steps.base import StepOutcome
+from qalprit.steps.flow_control import (
+    REPEAT_NEXT,
+    if_visible_branch,
+    next_round,
+    repeat_next_step,
+    repeat_plan,
+)
+
+# Steps that only hold other steps. They take no screenshot of their own when they pass.
+_CONTAINER_STEPS = frozenset({*BLOCK_STEP_KEYS, REPEAT_NEXT})
 
 
 def _utc_now_iso() -> str:
@@ -49,6 +70,44 @@ def _compute_file_sha256(path: Path | None) -> str:
         return h.hexdigest()
     except Exception:
         return ""
+
+
+_NO_APP_FILE_MSG = (
+    "Reset '{mode}' needs the app file, because it removes {app_id} and installs it again. "
+    "Pick the app file, or use reset 'none' to run against the app already on the device."
+)
+
+
+def installed_app_problems(
+    specs: list[TestSpec],
+    flows: dict[str, FlowSpec],
+    env_cfg: EnvironmentConfig,
+    platform: str,
+    reset_override: str = "",
+) -> list[str]:
+    """Why these journeys cannot run against the app already installed (no app file given).
+
+    Each journey needs an app id, from the environment or its own ``launch: {app: ...}`` step,
+    and a reset that does not uninstall the app.
+    """
+    env_app = (env_cfg.android_package if platform == "android" else env_cfg.ios_bundle_id) or ""
+    problems: list[str] = []
+    for spec in specs:
+        if platform not in spec.platforms:
+            continue
+        app_id = env_app or launched_app_id(
+            expand_steps(spec.setup, flows) + expand_steps(spec.steps, flows)
+        )
+        if not app_id:
+            problems.append(
+                f"{spec.id}: no app to open. Start the steps with 'launch: com.example.app', "
+                "set the app id for the environment, or pick the app file."
+            )
+            continue
+        reset = reset_override or spec.reset
+        if reset == "reinstall" or (reset == "clear_data" and platform == "ios"):
+            problems.append(f"{spec.id}: " + _NO_APP_FILE_MSG.format(mode=reset, app_id=app_id))
+    return problems
 
 
 def apply_app_reset(
@@ -78,6 +137,9 @@ def apply_app_reset(
             return True, ""
 
         if mode == "reinstall":
+            if app_path is None:
+                # Without an app file there is nothing to put back, so never uninstall.
+                return False, _NO_APP_FILE_MSG.format(mode="reinstall", app_id=app_id)
             try:
                 driver.remove_app(app_id)
             except Exception as exc:
@@ -130,6 +192,8 @@ def apply_app_reset(
                 return True, ""
 
             # iOS simulator container reset via uninstall/reinstall
+            if app_path is None:
+                return False, _NO_APP_FILE_MSG.format(mode="clear_data", app_id=app_id)
             try:
                 driver.terminate_app(app_id)
             except Exception as exc:
@@ -209,9 +273,10 @@ class TestRunner:
         self.reset_override = reset_override
         self._last_driver: Any = None
         effective_redact = env_cfg.redact_screenshots if redact_screenshots is None else bool(redact_screenshots)
-        self.app_id = (
+        self._env_app_id = (
             env_cfg.android_package if profile.platform == "android" else env_cfg.ios_bundle_id
-        )
+        ) or ""
+        self.app_id = self._env_app_id
         merged_extra_env = {**env_cfg.as_env_vars(), **self.dataset_vars}
         self.evidence = EvidenceCollector(
             run_dir=run_dir,
@@ -233,6 +298,24 @@ class TestRunner:
             profile=self.profile,
             app_path=self.app_path,
             masker=self.env_ctx.masker,
+        )
+
+    def _missing_app_error(self, driver: Any) -> str:
+        """When no app file was given, make sure the app is on the device before resetting it."""
+        if self.app_path is not None or not self.app_id:
+            return ""
+        check = getattr(driver, "is_app_installed", None)
+        if check is None:
+            return ""
+        try:
+            installed = bool(check(self.app_id))
+        except Exception:
+            return ""
+        if installed:
+            return ""
+        return (
+            f"{self.app_id} is not installed on this device. Install it on the device, "
+            "or pick the app file before starting the run."
         )
 
     def _check_target_gate(self, spec: TestSpec, expanded_steps: list[StepItem]) -> str | None:
@@ -262,17 +345,45 @@ class TestRunner:
         interrupted = False
         aborted = False
 
-        for offset, step in enumerate(step_list):
-            step_idx = start_index + offset
-            desc = format_step_description(step, masker=ctx.masker)
-            target = step.params.get("target")
+        # A queue, so a block (if_visible, repeat) can put the steps it picked at the front.
+        queue: deque[tuple[StepItem, str]] = deque((s, "") for s in step_list)
+        step_idx = start_index - 1
+        while queue:
+            step, prefix = queue.popleft()
+            repeat_exc: Exception | None = None
+            repeat_summary = ""
+            if step.type == REPEAT_NEXT:
+                if aborted:
+                    continue
+                plan = step.params["plan"]
+                try:
+                    round_no, repeat_summary = next_round(ctx, plan, int(step.params["rounds_done"]))
+                except Exception as exc:
+                    round_no, repeat_exc = None, exc
+                if round_no is not None:
+                    children = step.params["children"]
+                    nxt = repeat_next_step(step.params["block"], plan, round_no)
+                    nxt.params["children"] = children
+                    nxt.capture = step.capture
+                    queue.extendleft(
+                        reversed([(c, f"{prefix}Round {round_no}: ") for c in children] + [(nxt, prefix)])
+                    )
+                    continue
+
+            step_idx += 1
+            action = "repeat" if step.type == REPEAT_NEXT else step.type
+            if step.type == REPEAT_NEXT:
+                desc = prefix + (f"Repeat ended: {repeat_summary}" if repeat_exc is None else "Repeat did not finish")
+            else:
+                desc = prefix + format_step_description(step, masker=ctx.masker)
+            target = step.params.get("target") if step.type != REPEAT_NEXT else step.params["plan"].until or None
 
             if aborted:
                 results.append(
                     StepResult(
                         index=step_idx,
                         phase=phase,  # type: ignore[arg-type]
-                        action=step.type,
+                        action=action,
                         target=target,
                         flow_name=step.flow_name,
                         description=desc,
@@ -296,14 +407,21 @@ class TestRunner:
             visual_diff_score: float | None = None
 
             try:
-                outcome = execute_step(ctx, step)
+                if step.type == REPEAT_NEXT:
+                    if repeat_exc is not None:
+                        raise repeat_exc
+                    outcome = StepOutcome(diagnostics={"rounds": int(step.params["rounds_done"])})
+                elif step.type in BLOCK_STEP_KEYS:
+                    outcome, desc = self._open_block(ctx, step, prefix, desc, queue)
+                else:
+                    outcome = execute_step(ctx, step)
                 secret_elems = outcome.secret_elements
                 visual_diff_path = outcome.visual_diff_path
                 visual_diff_score = outcome.visual_diff_score
                 step_diag = dict(outcome.diagnostics or {})
                 if outcome.status == "skipped":
                     step_status = "skipped"
-                if step.capture != "off":
+                if step.capture != "off" and step.type not in _CONTAINER_STEPS:
                     stem_name = outcome.screenshot_name or f"{step_idx:02d}_{step.type}"
                     rel_stem = f"{_slug(spec_id)}/attempt_{attempt_num}/{phase}_{_slug(stem_name)}"
                     shot_res = self.evidence.capture_screenshot_detailed(
@@ -324,12 +442,12 @@ class TestRunner:
                     first_category = step_cat
                     first_exc_type = step_exc_type
                     failed_step_idx = step_idx
-                    failed_step_action = step.type
+                    failed_step_action = action
                 aborted = True
             except Exception as exc:
                 step_status = "failed"
                 step_error = ctx.masker.mask(str(exc))
-                step_cat, step_exc_type = classify_failure(exc, step_action=step.type, phase=phase)
+                step_cat, step_exc_type = classify_failure(exc, step_action=action, phase=phase)
                 raw_diag = getattr(exc, "diagnostics", None)
                 if isinstance(raw_diag, dict):
                     step_diag = ctx.masker.mask_obj(raw_diag)
@@ -342,8 +460,8 @@ class TestRunner:
                     first_category = step_cat
                     first_exc_type = step_exc_type
                     failed_step_idx = step_idx
-                    failed_step_action = step.type
-                rel_stem = f"{_slug(spec_id)}/attempt_{attempt_num}/{phase}_{step_idx:02d}_{step.type}_FAIL"
+                    failed_step_action = action
+                rel_stem = f"{_slug(spec_id)}/attempt_{attempt_num}/{phase}_{step_idx:02d}_{action}_FAIL"
                 if step.capture != "off":
                     shot_res = self.evidence.capture_screenshot_detailed(
                         ctx.driver, rel_stem, extra_secret_elements=secret_elems
@@ -373,7 +491,7 @@ class TestRunner:
                 StepResult(
                     index=step_idx,
                     phase=phase,  # type: ignore[arg-type]
-                    action=step.type,
+                    action=action,
                     target=target,
                     flow_name=step.flow_name,
                     description=desc,
@@ -410,6 +528,41 @@ class TestRunner:
             failed_step_action,
             interrupted,
         )
+
+    def _open_block(
+        self,
+        ctx: StepContext,
+        step: StepItem,
+        prefix: str,
+        desc: str,
+        queue: deque[tuple[StepItem, str]],
+    ) -> tuple[StepOutcome, str]:
+        """Start an if_visible or repeat block: queue the steps it runs next. Returns its outcome and report text."""
+        if step.type == "if_visible":
+            shown, branch = if_visible_branch(ctx, step)
+            children = block_children(step, branch, self.flows)
+            label = "If shown" if shown else "Otherwise"
+            queue.extendleft(reversed([(c, f"{prefix}{label}: ") for c in children]))
+            n = len(children)
+            if shown:
+                what = f"yes, running {n} step{'s' if n != 1 else ''}"
+            elif n:
+                what = f"no, running the {n} 'else' step{'s' if n != 1 else ''}"
+            else:
+                what = "no, nothing to do"
+            return (
+                StepOutcome(diagnostics={"condition": step.params.get("target"), "shown": shown, "branch": branch, "steps": n}),
+                f"{desc} ({what})",
+            )
+        plan = repeat_plan(step)
+        children = block_children(step, "steps", self.flows)
+        if not children:
+            raise ValueError("'repeat' needs at least one step under 'steps'")
+        nxt = repeat_next_step(step, plan, 0)
+        nxt.params["children"] = children
+        nxt.capture = step.capture
+        queue.appendleft((nxt, prefix))
+        return StepOutcome(diagnostics={"max_rounds": plan.max_rounds, "until": plan.until, "var": plan.var}), desc
 
     def run(
         self,
@@ -484,6 +637,9 @@ class TestRunner:
                     )
                     continue
 
+                # With no app named in the environment, use the app the journey opens itself.
+                self.app_id = self._env_app_id or launched_app_id(expanded_setup + expanded_steps)
+
                 attempts: list[AttemptResult] = []
                 effective_retries = self.retries if spec.retries is None else max(0, spec.retries)
                 max_attempts = 1 + effective_retries
@@ -494,10 +650,14 @@ class TestRunner:
                     att_t0 = time.monotonic()
                     reset_status = "ok"
                     reset_error = ""
+                    missing_app = ""
                     effective_reset = self.reset_override or spec.reset
                     try:
                         active_driver = _ensure_session(spec.auto_accept_alerts)
-                        if effective_reset != "none" or len(test_results) > 0 or attempt_num > 1:
+                        missing_app = self._missing_app_error(active_driver)
+                        if missing_app:
+                            reset_status, reset_error = "failed", missing_app
+                        elif effective_reset != "none" or len(test_results) > 0 or attempt_num > 1:
                             reset_ok, reset_error = self._apply_reset(active_driver, effective_reset)
                             if not reset_ok:
                                 reset_status = "failed"
@@ -527,7 +687,11 @@ class TestRunner:
                                 attempt=attempt_num,
                                 status="failed",
                                 duration_ms=int((time.monotonic() - att_t0) * 1000),
-                                error=f"Pre-test reset ({effective_reset}) failed: {reset_error}",
+                                error=(
+                                    reset_error
+                                    if missing_app
+                                    else f"Pre-test reset ({effective_reset}) failed: {reset_error}"
+                                ),
                                 failure_category="app_launch_failure",
                                 exception_type="RuntimeError",
                                 reset_status="failed",
@@ -538,6 +702,7 @@ class TestRunner:
                         )
                         can_retry = (
                             attempt_num < max_attempts
+                            and not missing_app
                             and spec.retriable
                             and ("app_launch_failure" in TRANSIENT_FAILURE_CATEGORIES)
                         )

@@ -13,7 +13,9 @@ These project rules and architecture notes govern git workflow, codebase navigat
   - **Execution & Validation**:
     - `spec_loader.py` & `validator.py`: Parse Markdown+YAML journeys (`specs/`), reusable flows (`flows/`, optional `platforms:` scoping locator checks), screen locators (`screens/screens.yaml`), and `validate_project()` pre-flight checks.
     - `datasets.py`: CSV dynamic variable parameterization (`datasets/flows/`, `datasets/specs/`), secret column detection, and UI masking (`mask_bundle_for_ui()`).
-    - `runner.py` & `steps/`: Step execution (`execute_step()`), flow expansion, retries, teardown, `SecretMasker`, and `FailureCategory` classification.
+    - `runner.py` & `steps/`: Step execution (`execute_step()`), flow expansion, retries, teardown, `SecretMasker`, and `FailureCategory` classification. `_run_step_list` works through a queue so block steps can push the steps they pick.
+    - `steps/flow_control.py`: `if_visible` (`then`/`else`) and `repeat` (`times`, or `until` with `max`, `${round}`). Nested steps stay raw YAML in the block's params (`BLOCK_STEP_KEYS`) and are read with `spec_loader.block_children()` when the block runs. The validator walks them with `iter_block_children()`.
+    - Runs without an app file: `runner.installed_app_problems()` (used by `qalprit run` and `start_run`) needs an app id from the environment or `spec_loader.launched_app_id()`, and refuses `reinstall` (and iOS `clear_data`), which would uninstall. `apply_app_reset()` never calls `remove_app` without an app file. `TestRunner._missing_app_error()` checks `is_app_installed` first.
     - `driver_factory.py`: `AppiumDriverAdapter` and `create_appium_driver()` (Android UiAutomator2 AVD resolution + iOS XCUITest auto-boot via `_ensure_ios_simulator_ready()` + multi-strategy `hide_keyboard()`).
     - `inspector.py`: XML hierarchy parser (`parse_page_source_elements()` / `extract_interactive_elements()`) filtering keyboard overlays and ranking locators.
     - `evidence.py`, `visual_diff.py`, `results.py`, `report/`: Secret-redacted screenshots, XML failure dumps, visual baseline comparisons, and Jinja2 HTML/JUnit/Markdown report generation (`report/templates/report.html.j2`).
@@ -150,6 +152,8 @@ Latest release: see `CHANGELOG.md`. Everything below is not done yet. Check `git
 - **Copilot AI provider is unverified.** `agy` was verified live against Antigravity CLI 1.5.14. `copilot` follows the documented `-p`, `--silent` and `--add-dir` flags but has not run against a real install (`npm install -g @github/copilot`, then sign in).
 - **Jira and Confluence connection is tested only with fakes.** Try Test connection against a real Atlassian Cloud site and a Data Center PAT.
 - **Recorder cannot reopen a saved workflow** to add, remove or reorder steps (listed under Upcoming in `CHANGELOG.md`).
+- **`if_visible`, `repeat` and installed-app runs are tested only with the fake driver.** Try a run on the user's phone with *App already on the device* and a permission popup marked Only if shown.
+- **Recorder Only if shown wraps one step at a time.** A popup that needs two taps gets two conditional steps. Grouping them into one `if_visible` block has to be done in the step editor.
 
 ## 11. Writing and UI rules agents keep breaking
 

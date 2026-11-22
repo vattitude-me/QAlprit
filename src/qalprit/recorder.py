@@ -106,6 +106,31 @@ def find_system_prompt_dismiss(elements: list[dict[str, Any]]) -> tuple[str, dic
     return None
 
 
+# Android permission and installer dialogs. They show on the first run after a reset and not
+# after the user answered them, so a tap on one is recorded as "only if shown".
+_SYSTEM_DIALOG_RE = re.compile(
+    r"permissioncontroller|packageinstaller|permission_allow|permission_deny|com\.android\.systemui:id/(?:allow|deny)",
+    re.IGNORECASE,
+)
+
+# Steps that can be made conditional on their target being on screen.
+OPTIONAL_STEP_ACTIONS = frozenset(
+    {"tap", "long_press", "type", "set_toggle", "assert_visible", "assert_text", "enter_otp"}
+)
+
+
+def is_system_dialog_element(el: dict[str, Any]) -> bool:
+    """True when the element belongs to an OS permission or installer dialog."""
+    parts = [str(el.get("recommended_value") or ""), str(el.get("xml_snippet") or "")]
+    parts += [str(a.get("value") or "") for a in (el.get("alternatives") or []) if isinstance(a, dict)]
+    return bool(_SYSTEM_DIALOG_RE.search(" ".join(parts)))
+
+
+def _label_optional(step: dict[str, Any]) -> None:
+    base = str(step.get("label") or "").removesuffix(" (only if shown)")
+    step["label"] = f"{base} (only if shown)" if step.get("optional") else base
+
+
 def hit_test_element(elements: list[dict[str, Any]], x: float, y: float) -> tuple[int, dict[str, Any]] | None:
     """Return index and dict of the smallest-area visible element containing point (x, y)."""
     best: tuple[int, int, dict[str, Any]] | None = None
@@ -211,6 +236,22 @@ def parameterize_typed_steps(
 
 
 def _step_to_yaml_dict(step: dict[str, Any]) -> Any:
+    """One recorded step as it is written in the workflow file.
+
+    A step marked optional runs only when its element is on screen: a tap becomes
+    ``tap_if_visible`` and anything else is wrapped in ``if_visible``.
+    """
+    action = str(step.get("action") or "").strip()
+    target = str(step.get("target") or "").strip()
+    if step.get("optional") and target and action in OPTIONAL_STEP_ACTIONS:
+        if action == "tap":
+            return {"tap_if_visible": target}
+        inner = _plain_step_to_yaml_dict(step)
+        return {"if_visible": {"target": target, "then": [inner]}}
+    return _plain_step_to_yaml_dict(step)
+
+
+def _plain_step_to_yaml_dict(step: dict[str, Any]) -> Any:
     action = str(step.get("action") or "").strip()
     target = str(step.get("target") or "").strip()
     value = str(step.get("value") or "")
@@ -959,6 +1000,9 @@ class RecorderManager:
                             "secret": loc["sensitive"],
                             "label": f"Tap {loc['display_label']}",
                         }
+                        if is_system_dialog_element(tapped):
+                            step["optional"] = True
+                            _label_optional(step)
 
             if not self._gesture_queue.empty():
                 # More gestures are waiting and each carries its own screen, so skip the refresh.
@@ -1494,6 +1538,9 @@ class RecorderManager:
                     "secret": is_secret,
                     "label": f"Tap {loc['display_label']}",
                 }
+                if is_system_dialog_element(target_el):
+                    step["optional"] = True
+                    _label_optional(step)
                 time.sleep(0.75)
                 if str(target_el.get("role") or "") == "toggle":
                     # A bare tap replays as a flip, so a rerun can land on the wrong side.
@@ -1575,6 +1622,7 @@ class RecorderManager:
         delete: bool = False,
         duplicate: bool = False,
         move_to: int | None = None,
+        optional: bool | None = None,
     ) -> dict[str, Any]:
         selected_idx: int | None = index
         with self._lock:
@@ -1602,12 +1650,19 @@ class RecorderManager:
                     st["value"] = value
                 if secret is not None:
                     st["secret"] = secret
+                if optional is not None:
+                    if optional and (st["action"] not in OPTIONAL_STEP_ACTIONS or not st.get("target")):
+                        raise ValueError(
+                            f"A '{st['action']}' step has no element to look for, so it cannot be 'only if shown'."
+                        )
+                    st["optional"] = bool(optional)
                 if st["action"] == "type":
                     shown = SecretMasker.REPLACEMENT if st["secret"] else st["value"]
                     st["label"] = f"Type '{shown}' into {st['target']}"
                 elif st["action"] == "wait_for_user":
                     st["value"] = " ".join(str(st["value"] or "").split()) or "Finish this step on the device"
                     st["label"] = f"Wait for user: {st['value']}"
+                _label_optional(st)
             self._rev += 1
         res = self.status()
         res["selected_index"] = selected_idx

@@ -417,6 +417,16 @@ def format_step_description(step: StepItem, masker: SecretMasker | None = None) 
             desc = f"Wait for a person to enter {p.get('input')}" + (f" into {p.get('target')}" if p.get("target") else "")
         else:
             desc = f"Wait for a person: {p.get('prompt') or 'finish this step on the device'}"
+    elif t == "if_visible":
+        desc = f"If {p.get('target')} is shown"
+    elif t == "repeat":
+        n_steps = len(p.get("steps") or [])
+        what = f"{n_steps} step{'s' if n_steps != 1 else ''}"
+        if p.get("until"):
+            cap = p.get("times") or p.get("max") or 10
+            desc = f"Repeat {what} until {p.get('until')} is shown (at most {cap} rounds)"
+        else:
+            desc = f"Repeat {what} {p.get('times')} times"
     elif t == "enter_otp":
         desc = "Enter one-time code" + (f" into {p.get('target')}" if p.get("target") else "")
     elif t == "biometric":

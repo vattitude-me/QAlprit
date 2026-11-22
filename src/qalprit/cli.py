@@ -23,7 +23,7 @@ from qalprit.env_loader import load_env
 from qalprit.inspector import extract_interactive_elements, format_inspect_output
 from qalprit.report.generator import generate_batch_report, generate_reports
 from qalprit.results import load_results_json, write_results_json
-from qalprit.runner import TestRunner
+from qalprit.runner import TestRunner, installed_app_problems
 from qalprit.spec_loader import TestSpec, effective_references, load_flows, load_specs
 from qalprit.ui_server import create_ui_server
 from qalprit.validator import validate_project
@@ -377,11 +377,8 @@ def run(
     project_root: Path | None,
 ) -> None:
     """Execute automated UI tests and generate report.html, summary.md, results.json, and junit.xml."""
-    if not dry_run:
-        if app_path is None:
-            raise click.UsageError("--app is required unless --dry-run is set.")
-        if not app_path.exists():
-            raise click.UsageError(f"App path does not exist: {app_path}")
+    if not dry_run and app_path is not None and not app_path.exists():
+        raise click.UsageError(f"App path does not exist: {app_path}")
 
     root = _resolve_root(project_root)
     tag_list = [t.strip() for t in tags.split(",") if t.strip()] if tags else None
@@ -447,6 +444,14 @@ def run(
             selected_rows = [r for r in dataset_bundle.rows if r.selected]
         if not selected_rows:
             raise click.ClickException("No matching dataset rows selected in CSV.")
+
+    if not dry_run and app_path is None:
+        # No app file: run against the app already installed on the device.
+        problems = installed_app_problems(selected_specs, val.flows, env_cfg, platform)
+        if problems:
+            raise click.ClickException(
+                "Cannot run without --app:\n" + "\n".join(f"  - {p}" for p in problems)
+            )
 
     if dry_run:
         ds_note = f" | datasets={len(selected_rows)}" if selected_rows else ""

@@ -12,6 +12,34 @@ Ideas planned for a later release. Nothing here ships yet.
 
 ---
 
+## [v0.1.43] - 2026-11-22
+
+### Added
+
+- **Run on the app already installed.** A run no longer needs an app file. The Workbench app pickers (Run page, test run card, quick run, rerun) have *App already on the device*, and `qalprit run` works without `--app`. The app comes from the environment or from the journey's own `launch: {app: ...}` step, so tests recorded on a USB phone replay there as they are. Before the first step the run checks the app is installed (`is_app_installed`) and stops with "X is not installed on this device" if not.
+- **`if_visible` step.** Runs its `then` steps when an element shows up within `timeout` (default 3s), and its `else` steps when it does not. Meant for popups and permission dialogs that show on the first run and not on the second.
+- **`repeat` step.** Runs nested steps `times: N`, or `until: screen.element` with `max` rounds (default 10, at most 100). An `until` that never shows up fails the step, so the repeat is a check too. Each round sets `${round}` (or the `as:` name).
+- Every step inside `if_visible` and `repeat` gets its own report row ("If shown:", "Otherwise:", "Round N:"), screenshot and failure handling. Workflow params reach nested steps, and a journey's blocks may call `run_flow`.
+- `qalprit validate` checks blocks: branch and step lists, `times`/`max` range, `as` names, and the locators and variables of nested steps.
+- **Only if shown in the recorder.** Click a recorded step and tick **Only if shown**: a tap is saved as `tap_if_visible`, other steps are wrapped in `if_visible`. Taps on Android permission and installer dialogs get this automatically. `POST /api/recorder/update` takes `optional`.
+- The workflow and journey step editor lists `if_visible` and `repeat`, with their settings (and those of `wait_for_user`) as JSON in the value box.
+
+### Changed
+
+- Locator template values can use run variables, for example `params: {n: "${round}"}` or a dataset value. Before, only workflow params were filled in.
+
+### Fixed
+
+- `reset: reinstall` without an app file uninstalled the app and had nothing to install back. It now refuses before touching the device, and so does `clear_data` on iOS, which also uninstalls.
+- Saving steps from the workflow and journey editor dropped fields the editor does not show (`wait_for_user` settings, `timeout`, `capture: off`, tap offsets) and silently left out steps it had no row type for. A row nobody edited is now saved exactly as loaded.
+
+### Lessons learned
+
+- A reset mode that removes the app must know it can put the app back. Check for the app file before the uninstall, not after.
+- Nested steps are kept as raw YAML in the block's params and normalized when the block runs. That keeps workflow param substitution working and makes saving round-trip, at the cost of checking them separately in the validator.
+
+---
+
 ## [v0.1.42] - 2026-11-21
 
 ### Added

@@ -2165,6 +2165,7 @@
                   <span class="muted mono" id="recStepEditLabel" style="font-size:11.5px;margin-right:auto;"></span>
                   <input id="recStepEditVal" type="text" placeholder="Value or ${variable}" style="flex:1;min-width:140px;" />
                   <label class="chk-inline" id="recStepEditSecretWrap"><input type="checkbox" id="recStepEditSecret" /> Secret</label>
+                  <label class="chk-inline" id="recStepEditOptionalWrap" title="Run this step only when its element is on screen, for a popup that shows the first time and not the next"><input type="checkbox" id="recStepEditOptional" /> Only if shown</label>
                   <button type="button" class="btn btn-sm btn-primary" id="btnRecStepEditApply">Update</button>
                   <button type="button" class="btn btn-sm" id="btnRecStepMoveUp" title="Move step up">&#8593;</button>
                   <button type="button" class="btn btn-sm" id="btnRecStepMoveDown" title="Move step down">&#8595;</button>
@@ -3764,6 +3765,26 @@
       // ================================================================
       // STEP ROW BUILDER (Used by Workflows & Journeys)
       // ================================================================
+      // Steps whose extra settings (nested steps, prompts, rounds) are edited as JSON in the value box.
+      const JSON_PARAM_STEPS = ["if_visible", "repeat", "wait_for_user"];
+      const JSON_NO_TARGET_STEPS = ["repeat"];
+
+      // The step as it is written in the .md file, so a row nobody edited is saved exactly as loaded.
+      function rawStepFrom(initial) {
+        if (!initial) return null;
+        if (typeof initial === "string") return initial;
+        if (typeof initial !== "object") return null;
+        if (initial.type && initial.params !== undefined) {
+          const params = JSON.parse(JSON.stringify(initial.params || {}));
+          if (initial.secret && !params.secret) params.secret = true;
+          const out = Object.keys(params).length ? { [initial.type]: params } : { [initial.type]: true };
+          if (!Object.keys(params).length && initial.capture !== "off") return initial.type;
+          if (initial.capture === "off") out.capture = "off";
+          return out;
+        }
+        return JSON.parse(JSON.stringify(initial));
+      }
+
       function createStepRowElement(initial) {
         const row = document.createElement("div");
         row.className = "step-row";
@@ -3841,9 +3862,13 @@
           targetIn.setAttribute("list", isFlow ? "flowNameOptions" : "screenTargetOptions");
           targetIn.placeholder = isFlow ? "flow/name" : "screen.element";
 
-          const needsValue = ["type", "wait", "background", "swipe", "biometric", "set_camera_image", "screenshot", "visual_compare", "assert_text", "wait_for_text", "launch", "run_flow"].includes(t);
+          if (JSON_NO_TARGET_STEPS.includes(t)) targetIn.hidden = true;
+          const needsValue = ["type", "wait", "background", "swipe", "biometric", "set_camera_image", "screenshot", "visual_compare", "assert_text", "wait_for_text", "launch", "run_flow", ...JSON_PARAM_STEPS].includes(t);
           valueIn.hidden = !needsValue;
           if (t === "run_flow") valueIn.placeholder = 'params JSON (e.g. {"username":"${username}"})';
+          else if (t === "if_visible") valueIn.placeholder = 'JSON, e.g. {"then":[{"tap":"popup.allow"}],"else":[]}';
+          else if (t === "repeat") valueIn.placeholder = 'JSON, e.g. {"until":"cart.total","max":5,"steps":[{"tap":"list.add"}]}';
+          else if (t === "wait_for_user") valueIn.placeholder = 'JSON, e.g. {"prompt":"Take the selfie","until":"home.title"}';
           else if (t === "assert_text" || t === "wait_for_text") valueIn.placeholder = "expected text or ${expected}";
           else if (t === "wait" || t === "background") valueIn.placeholder = "seconds (e.g. 2)";
           else if (t === "swipe") valueIn.placeholder = "up / down / left / right";
@@ -3868,6 +3893,10 @@
             if (initType === "run_flow") {
               initTarget = p.flow || "";
               initValue = p.params ? JSON.stringify(p.params) : "";
+            } else if (JSON_PARAM_STEPS.includes(initType)) {
+              const { target, secret, ...rest } = p;
+              initTarget = JSON_NO_TARGET_STEPS.includes(initType) ? "" : (target || "");
+              initValue = Object.keys(rest).length ? JSON.stringify(rest) : "";
             } else {
               initTarget = p.target || "";
               initState = asState(p.state);
@@ -3881,6 +3910,10 @@
             if (initType === "run_flow") {
               if (typeof v === "string") initTarget = v;
               else if (v && typeof v === "object") { initTarget = v.flow || ""; initValue = v.params ? JSON.stringify(v.params) : ""; }
+            } else if (JSON_PARAM_STEPS.includes(initType) && v && typeof v === "object") {
+              const { target, secret, ...rest } = v;
+              initTarget = JSON_NO_TARGET_STEPS.includes(initType) ? "" : (target || "");
+              initValue = Object.keys(rest).length ? JSON.stringify(rest) : "";
             } else if (v && typeof v === "object") {
               initTarget = v.target || "";
               initState = asState(v.state);
@@ -3892,15 +3925,30 @@
             }
           }
         }
-        typeSel.value = STATE.stepVocab.includes(initType) ? initType : "tap";
+        if (!STATE.stepVocab.includes(initType) && initType) {
+          // A step this editor has no row type for still shows, and saves as it was.
+          const o = document.createElement("option");
+          o.value = initType; o.textContent = initType; typeSel.appendChild(o);
+        }
+        typeSel.value = initType || "tap";
         targetIn.value = initTarget;
         valueIn.value = initValue !== undefined ? String(initValue) : "";
         secretChk.checked = initSecret;
         stateSel.value = initState;
         applyFieldModes();
+        const raw = initial && typeof initial === "object" ? rawStepFrom(initial) : null;
+        if (raw) {
+          row._rawStep = raw;
+          row._rawSig = stepRowSignature(row, typeSel, targetIn, valueIn, stateSel, secretChk);
+        }
+        row._sig = () => stepRowSignature(row, typeSel, targetIn, valueIn, stateSel, secretChk);
 
         row.append(typeSel, targetIn, valueIn, stateSel, secretLabel, moveUpBtn, moveDownBtn, dupBtn, delBtn);
         return row;
+      }
+
+      function stepRowSignature(row, typeSel, targetIn, valueIn, stateSel, secretChk) {
+        return JSON.stringify([typeSel.value, targetIn.value, valueIn.value, stateSel.value, secretChk.checked]);
       }
 
       function readStepRows(containerEl) {
@@ -3913,6 +3961,25 @@
           const target = inputs[0].value.trim();
           const val = inputs[1].value;
           const secret = inputs[2].checked;
+
+          // Nothing changed on this row: keep every field of the step, not only the ones shown.
+          if (row._rawStep && row._sig && row._sig() === row._rawSig) {
+            steps.push(JSON.parse(JSON.stringify(row._rawStep)));
+            return;
+          }
+
+          if (JSON_PARAM_STEPS.includes(t)) {
+            let extra = {};
+            if (val.trim()) {
+              try { extra = JSON.parse(val); } catch (_) { throw new Error(`The settings for '${t}' are not valid JSON.`); }
+              if (!extra || typeof extra !== "object" || Array.isArray(extra)) throw new Error(`The settings for '${t}' must be a JSON object.`);
+            }
+            const obj = { ...extra };
+            if (target && !JSON_NO_TARGET_STEPS.includes(t)) obj.target = target;
+            if (t === "if_visible" && !obj.target) throw new Error("'if_visible' needs the element to look for.");
+            steps.push({ [t]: obj });
+            return;
+          }
 
           if (t === "run_flow") {
             if (!target) return;
@@ -4045,7 +4112,10 @@
         const choiceKey = `${kind}:${isFlow ? item.name : item.id}:${plat}`;
         const savedChoice = STATE.runCardChoice[choiceKey] || {};
         const chosenDev = devOpts.some((d) => d.value === savedChoice.device) ? savedChoice.device : "";
-        const chosenApp = appOpts.find((a) => a.rel_path === savedChoice.app) || defaultAppFor(plat, savedAppFor(item, isFlow, plat));
+        // savedChoice.app === "" means the person picked the app already on the device.
+        const chosenApp = savedChoice.app === ""
+          ? null
+          : (appOpts.find((a) => a.rel_path === savedChoice.app) || defaultAppFor(plat, savedAppFor(item, isFlow, plat)));
         const previewIdx = Math.min(Math.max(0, isFlow ? STATE.flowPreviewRowIdx : STATE.specPreviewRowIdx), Math.max(0, rows.length - 1));
         const previewRow = rows[previewIdx] || null;
         const paramCount = variables.length;
@@ -4150,7 +4220,8 @@
               <div>
                 <label>App</label>
                 <select class="ds-run-app">
-                  ${appOpts.length ? appOpts.map((a) => `<option value="${esc(a.rel_path)}" ${chosenApp && a.rel_path === chosenApp.rel_path ? "selected" : ""}>${esc(a.name)}</option>`).join("") : `<option value="">No ${plat === "ios" ? "iOS" : "Android"} app added</option>`}
+                  <option value="" ${chosenApp ? "" : "selected"}>App already on the device</option>
+                  ${appOpts.map((a) => `<option value="${esc(a.rel_path)}" ${chosenApp && a.rel_path === chosenApp.rel_path ? "selected" : ""}>${esc(a.name)}</option>`).join("")}
                 </select>
               </div>
               <div class="form-grid" style="grid-template-columns:1fr 78px;">
@@ -4451,11 +4522,6 @@
             banner.hidden = false;
             setBannerKind(banner, "");
             banner.textContent = isDry ? "Validating execution plan..." : "Launching batch run...";
-            if (!isDry && !activeApp) {
-              setBannerKind(banner, "error");
-              banner.textContent = `Add ${plat === "ios" ? "an iOS" : "an Android"} app first, then pick it under App.`;
-              return;
-            }
             try {
               const rawDev = devSel ? devSel.value : "";
               const resolvedDev = isDry
@@ -5174,7 +5240,7 @@
         ["activeAppSelect", "recAppSelect", "inspectAppSelect", "runAppSelect"].forEach((id) => {
           const s = $(id);
           if (!s) return;
-          if (keepPageChoices && id !== "activeAppSelect" && s.value) return;
+          if (keepPageChoices && id !== "activeAppSelect" && (s.value || s.dataset.userPicked)) return;
           if (Array.from(s.options).some((o) => o.value === STATE.activeApp)) s.value = STATE.activeApp;
         });
         renderAppsTable(apps);
@@ -5241,7 +5307,7 @@
         populateSelect("activeAppSelect", appOpts, apps.length ? null : "-- Upload app --");
         populateSelect("recAppSelect", appOpts, "-- Installed app --");
         populateSelect("inspectAppSelect", appOpts, "-- Installed app --");
-        populateSelect("runAppSelect", appOpts, "-- Select app --");
+        populateSelect("runAppSelect", appOpts, "App already on the device");
 
         const envs = data.environments || {};
         const envOpts = (Object.keys(envs).length ? Object.keys(envs) : ["qa"]).map((k) => ({ value: k, label: k }));
@@ -6332,6 +6398,9 @@
         }
         $("recStepEditSecret").checked = Boolean(st.secret);
         $("recStepEditVal").type = (isType && st.secret) ? "password" : "text";
+        const canBeOptional = Boolean(st.target) && ["tap", "long_press", "type", "set_toggle", "assert_visible", "assert_text", "enter_otp"].includes(act);
+        if ($("recStepEditOptionalWrap")) $("recStepEditOptionalWrap").hidden = !canBeOptional;
+        if ($("recStepEditOptional")) $("recStepEditOptional").checked = Boolean(st.optional);
         if ($("btnRecStepMoveUp")) $("btnRecStepMoveUp").disabled = idx <= 0;
         if ($("btnRecStepMoveDown")) $("btnRecStepMoveDown").disabled = idx >= steps.length - 1;
       }
@@ -6372,6 +6441,12 @@
           secret: $("recStepEditSecret").checked
         });
       });
+      if ($("recStepEditOptional")) {
+        $("recStepEditOptional").addEventListener("change", async () => {
+          if (STATE.recSelectedStepIdx === null) return;
+          await recStepEdit({ index: STATE.recSelectedStepIdx, optional: $("recStepEditOptional").checked });
+        });
+      }
       if ($("btnRecStepMoveUp")) {
         $("btnRecStepMoveUp").addEventListener("click", async () => {
           if (STATE.recSelectedStepIdx === null || STATE.recSelectedStepIdx <= 0) return;
@@ -6599,7 +6674,7 @@
           ["Test", what],
           ["Platform", plat === "ios" ? "iOS" : "Android"],
           ["Device", $("runDeviceSelect").value ? optionLabel("runDeviceSelect") : ""],
-          ["App", $("runAppSelect").value ? optionLabel("runAppSelect") : ""],
+          ["App", optionLabel("runAppSelect") || "App already on the device"],
           ["Environment", $("runEnvSelect").value],
           ["Options", parts.join(", ")],
         ];
@@ -6620,6 +6695,7 @@
           else updateRunSummary();
         });
       });
+      if ($("runAppSelect")) $("runAppSelect").addEventListener("change", () => { $("runAppSelect").dataset.userPicked = "1"; });
       function openRunDialog(preferredTarget) {
         if (preferredTarget) STATE.runMode = "one";
         navigateTo("run");
@@ -7263,11 +7339,8 @@
         if (!item) return;
         const isFlow = kind === "flow";
         const plat = currentPlatform();
+        // Without an app file the run uses the app already installed on the device.
         const app = activeAppForPlatform(plat);
-        if (!app) {
-          toast(`Add ${plat === "ios" ? "an iOS" : "an Android"} app first. Open Settings & setup, or click the app chip in the top bar.`, "error");
-          return;
-        }
         const rows = ((item.datasets || {}).rows || []);
         const prevText = btn ? btn.textContent : "";
         if (btn) { btn.disabled = true; btn.textContent = "Starting..."; }
@@ -7280,7 +7353,7 @@
             suite: isFlow ? "" : item.suite,
             spec_id: isFlow ? "" : item.id,
             flow_name: isFlow ? item.name : "",
-            app_path: app.rel_path,
+            app_path: app ? app.rel_path : "",
             retries: 0,
             reset_mode: "",
             run_datasets: rows.length > 0,

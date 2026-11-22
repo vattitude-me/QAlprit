@@ -1087,6 +1087,7 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
                         delete=bool(body.get("delete", False)),
                         duplicate=bool(body.get("duplicate", False)),
                         move_to=(int(body["move_to"]) if body.get("move_to") is not None else None),
+                        optional=(bool(body["optional"]) if body.get("optional") is not None else None),
                     )
                 )
                 return
