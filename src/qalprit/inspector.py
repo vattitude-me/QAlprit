@@ -437,6 +437,9 @@ def extract_interactive_elements(
                 "visible": el.visible,
                 "bounds": el.bounds,
                 "text": display_text,
+                # Whether a field holds typed text. Password text is hidden, so this is the only
+                # way to tell an empty password field from a filled one.
+                "filled": bool(el.editable and el.text and el.text != el.hint),
                 "xml_snippet": masker.mask(el.xml_snippet) if masker and el.xml_snippet else el.xml_snippet,
                 "alternatives": candidates[1:],
                 "warnings": warnings,

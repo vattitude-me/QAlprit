@@ -1165,14 +1165,35 @@
     .run-insp-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     .run-insp-title { font-family: var(--mono); font-size: 13px; font-weight: 700; letter-spacing: 0.02em; }
     .run-err-box {
-      padding: 10px 12px;
+      padding: 10px 12px 10px 14px;
       border-radius: 8px;
-      border: 1px solid var(--fail-border);
-      background: rgba(127, 29, 29, 0.25);
-      color: #fca5a5;
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--fail);
+      background: var(--fail-soft);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+    }
+    .run-err-step { font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: 0.02em; }
+    .run-err-head { font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.4; overflow-wrap: anywhere; }
+    .run-err-hint { font-size: 12px; color: var(--text-soft); line-height: 1.5; }
+    .run-err-box details { margin-top: 2px; }
+    .run-err-box summary { cursor: pointer; font-size: 11.5px; color: var(--muted); width: max-content; }
+    .run-err-box summary:hover { color: var(--text-soft); }
+    .run-err-box pre {
+      margin: 6px 0 0;
+      padding: 8px 10px;
+      max-height: 180px;
+      overflow: auto;
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.25);
+      color: var(--text-soft);
       font-family: var(--mono);
-      font-size: 12px;
+      font-size: 11px;
       line-height: 1.5;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
     }
     .run-proof-grid {
       display: grid;
@@ -1754,6 +1775,9 @@
     .choice-title { font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .choice-note { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .choice-list { display: flex; flex-direction: column; gap: 8px; max-height: 208px; overflow-y: auto; padding-right: 2px; }
+    .source-tiles .choice.is-tile { padding: 14px 16px; gap: 8px; }
+    .source-tiles .choice.is-tile svg { width: 26px; height: 26px; }
+    .wl-file-pick { display: flex; flex-direction: column; gap: 12px; }
     .dropzone {
       border: 1px dashed var(--border-strong);
       border-radius: var(--radius);
@@ -2003,7 +2027,7 @@
       <section class="view-pane" id="view-record" hidden aria-label="Record App Flow">
         <div class="view-hint" id="recIntroHint">
           <strong>Record a test.</strong>
-          <span>Pick the device and app, name the test, then click Start recording. Click the mirrored screen to tap. Every tap and typed value becomes a step you can replay.</span>
+          <span>Pick a device and app, then Start recording. On an emulator, click the mirrored screen. Every tap becomes a step.</span>
         </div>
         <form class="rec-toolbar" id="recStartForm" onsubmit="return false;">
           <div class="rec-toolbar-left">
@@ -2163,6 +2187,10 @@
               <div id="recStepEditBar" class="mirror-footer" hidden>
                 <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
                   <span class="muted mono" id="recStepEditLabel" style="font-size:11.5px;margin-right:auto;"></span>
+                  <select id="recStepEditAction" aria-label="Step action" title="Change what this step does" style="width:auto;" hidden>
+                    <option value="tap">Tap</option>
+                    <option value="type">Type</option>
+                  </select>
                   <input id="recStepEditVal" type="text" placeholder="Value or ${variable}" style="flex:1;min-width:140px;" />
                   <label class="chk-inline" id="recStepEditSecretWrap"><input type="checkbox" id="recStepEditSecret" /> Secret</label>
                   <label class="chk-inline" id="recStepEditOptionalWrap" title="Run this step only when its element is on screen, for a popup that shows the first time and not the next"><input type="checkbox" id="recStepEditOptional" /> Only if shown</label>
@@ -2954,7 +2982,7 @@
           <h1 id="wlTitle">Test your mobile app <em>without writing code</em></h1>
           <p class="welcome-lede">Use your app once while QAlprit watches. It saves every tap as a test you can replay whenever the app changes.</p>
           <ol class="welcome-story">
-            <li><div class="story-num">1</div><div><strong>Record</strong><span>Tap through your app on a simulator. Each tap and typed value becomes a step.</span></div></li>
+            <li><div class="story-num">1</div><div><strong>Record</strong><span>Use your app on a phone or emulator. Each tap and typed value becomes a step.</span></div></li>
             <li><div class="story-num">2</div><div><strong>Run</strong><span>Replay the test with one click, with different logins or data if you want.</span></div></li>
             <li><div class="story-num">3</div><div><strong>Review</strong><span>Open a report with a screenshot of every step and the reason for any failure.</span></div></li>
           </ol>
@@ -2977,7 +3005,7 @@
             <div class="plat-tiles">
               <button type="button" class="choice is-tile" data-wl-plat="android" aria-pressed="false">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M5 16a7 7 0 0 1 14 0v1H5z"/><path d="M8 6.5 6.5 4M16 6.5 17.500 4"/><circle cx="9" cy="12.500" r=".6" fill="currentColor"/><circle cx="15" cy="12.500" r=".6" fill="currentColor"/></svg>
-                <span class="choice-main"><span class="choice-title">Android app</span><span class="choice-note">An .apk file on an emulator or phone</span></span>
+                <span class="choice-main"><span class="choice-title">Android app</span><span class="choice-note">On your phone or an emulator</span></span>
               </button>
               <button type="button" class="choice is-tile" data-wl-plat="ios" aria-pressed="false">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="6.500" y="2.500" width="11" height="19" rx="2.600"/><path d="M10.500 5h3" stroke-linecap="round"/></svg>
@@ -2989,18 +3017,30 @@
           <div class="wizard-body" data-wl-step="2" hidden>
             <h2 id="wlAppHeading">Which app?</h2>
             <p class="page-sub" id="wlAppSub">Pick an app you added before, or add a new one.</p>
+            <div class="plat-tiles source-tiles" id="wlSourceTiles" hidden>
+              <button type="button" class="choice is-tile" data-wl-source="phone" aria-pressed="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="6.500" y="2.500" width="11" height="19" rx="2.600"/><path d="M10.500 18.500h3" stroke-linecap="round"/></svg>
+                <span class="choice-main"><span class="choice-title">On my phone</span><span class="choice-note">Already installed</span></span>
+              </button>
+              <button type="button" class="choice is-tile" data-wl-source="file" aria-pressed="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M6 2.500h8l4 4v15H6z"/><path d="M14 2.500v4h4M12 10v7M9 14l3 3 3-3" stroke-linecap="round"/></svg>
+                <span class="choice-main"><span class="choice-title">App file</span><span class="choice-note">Installed for you</span></span>
+              </button>
+            </div>
+            <div class="wl-file-pick" id="wlFilePick">
             <div class="choice-list" id="wlAppList"></div>
             <div class="dropzone" id="wlDropzone">
               <span id="wlDropText">Drop a file here, or choose one from your computer.</span>
               <input id="wlAppFile" type="file" accept=".apk,.ipa,.zip" hidden />
               <button type="button" class="btn btn-sm" id="btnWlChooseFile">Choose file</button>
             </div>
+            </div>
             <div id="wlAppStatus" class="status-banner" hidden aria-live="polite"></div>
           </div>
 
           <div class="wizard-body" data-wl-step="3" hidden>
-            <h2>Where should it run?</h2>
-            <p class="page-sub">QAlprit starts the device for you if it is not running yet.</p>
+            <h2 id="wlDeviceHeading">Where should it run?</h2>
+            <p class="page-sub" id="wlDeviceSub">QAlprit starts the device for you if it is not running yet.</p>
             <div class="choice-list" id="wlDeviceList"></div>
             <div id="wlDeviceHint" class="view-hint" hidden></div>
             <div>
@@ -3649,11 +3689,7 @@
       });
       // A USB phone, not an emulator: the user works the phone itself and the app is already set up on it.
       function isRecRealDevice() {
-        const val = $("recDeviceSelect") ? $("recDeviceSelect").value : "";
-        if (!val.startsWith("live:android:")) return false;
-        const serial = val.slice("live:android:".length);
-        const dev = (STATE.devicesData.android || []).find((d) => d.identifier === serial);
-        return dev ? dev.kind === "device" : !serial.startsWith("emulator-");
+        return isRealPhoneValue($("recDeviceSelect") ? $("recDeviceSelect").value : "");
       }
       function updateRecDeviceMode() {
         const real = isRecRealDevice();
@@ -3671,8 +3707,8 @@
         const hint = $("recIntroHint");
         if (hint) {
           hint.querySelector("span").textContent = real
-            ? "Recording on your phone. The app already set up on the phone is used, so no app file is needed. After Start recording, use the phone itself: taps, long presses, swipes, typing and Back become steps you can replay. Pause about a second on each new screen so the recorder can read it."
-            : "Pick the device and app, name the test, then click Start recording. Click the mirrored screen to tap. Every tap and typed value becomes a step you can replay.";
+            ? "Recording on your phone. No app file needed. After Start recording, use the phone itself: taps, long presses, swipes, typing and Back become steps you can replay. Pause about a second on each new screen so the recorder can read it."
+            : "Pick a device and app, then Start recording. On an emulator, click the mirrored screen. Every tap becomes a step.";
         }
       }
       if ($("recDeviceSelect")) $("recDeviceSelect").addEventListener("change", () => { updateRecDeviceButtons(); updateRecDeviceMode(); });
@@ -5098,10 +5134,7 @@
             <span class="badge ${isFail ? "b-fail" : "b-ok"}">${isFail ? "Failed" : "Passed"}</span>
           </div>
           ${isFail && focusTest && focusTest.failure_reason ? `
-            <div class="run-err-box">
-              <div><strong>Step ${focusTest.failed_step_index || "?"} ${esc(focusTest.failed_step_action || "")}</strong></div>
-              <div>${esc(focusTest.failure_reason)}</div>
-            </div>
+            ${renderRunErrBox(focusTest)}
           ` : ""}
           <div class="run-proof-grid">
             <div class="run-thumb" id="runInspThumb" title="${shotUrl ? "Click to enlarge screenshot" : "No screenshot"}">
@@ -5305,8 +5338,8 @@
         const apps = data.apps || [];
         const appOpts = apps.map((a) => ({ value: a.rel_path, label: `${a.name}${a.detected_package ? " · " + a.detected_package : ""}` }));
         populateSelect("activeAppSelect", appOpts, apps.length ? null : "-- Upload app --");
-        populateSelect("recAppSelect", appOpts, "-- Installed app --");
-        populateSelect("inspectAppSelect", appOpts, "-- Installed app --");
+        populateSelect("recAppSelect", appOpts, "App already on the device");
+        populateSelect("inspectAppSelect", appOpts, "App already on the device");
         populateSelect("runAppSelect", appOpts, "App already on the device");
 
         const envs = data.environments || {};
@@ -6127,7 +6160,7 @@
           if (!go) return;
         }
         const realDevice = isRecRealDevice();
-        if (!$("recAppSelect").value && !realDevice) { showBanner("recStatusBanner", "Choose an app binary first. Use + to upload an .apk, .ipa or .zip.", "error"); return; }
+        if (!$("recAppSelect").value && !realDevice) { showBanner("recStatusBanner", "Choose an app file (+ adds one), or pick your USB phone to use the app on it.", "error"); return; }
         STATE.recDirty = false;
         STATE.recBusy = false;
         STATE.recNoticeRev = 0;
@@ -6398,6 +6431,9 @@
         }
         $("recStepEditSecret").checked = Boolean(st.secret);
         $("recStepEditVal").type = (isType && st.secret) ? "password" : "text";
+        const canSwitch = Boolean(st.target) && (act === "tap" || act === "type");
+        $("recStepEditAction").hidden = !canSwitch;
+        if (canSwitch) $("recStepEditAction").value = act;
         const canBeOptional = Boolean(st.target) && ["tap", "long_press", "type", "set_toggle", "assert_visible", "assert_text", "enter_otp"].includes(act);
         if ($("recStepEditOptionalWrap")) $("recStepEditOptionalWrap").hidden = !canBeOptional;
         if ($("recStepEditOptional")) $("recStepEditOptional").checked = Boolean(st.optional);
@@ -6440,6 +6476,11 @@
           value: $("recStepEditVal").value,
           secret: $("recStepEditSecret").checked
         });
+      });
+      $("recStepEditAction").addEventListener("change", async () => {
+        if (STATE.recSelectedStepIdx === null) return;
+        await recStepEdit({ index: STATE.recSelectedStepIdx, action: $("recStepEditAction").value });
+        if ($("recStepEditAction").value === "type") $("recStepEditVal").focus();
       });
       if ($("recStepEditOptional")) {
         $("recStepEditOptional").addEventListener("change", async () => {
@@ -7603,6 +7644,26 @@
         const name = String(label).replace(/\s*·\s*(running|off, starts when needed)\s*$/, "").replace(/\s*\([a-z0-9_-]+\)$/, "");
         return { name, running };
       }
+      function renderRunErrBox(test) {
+        const sum = test.failure_summary || {};
+        const headline = sum.headline || test.failure_reason || "";
+        const detail = sum.detail || test.failure_reason || "";
+        const stepLabel = test.failed_step_index ? `Step ${test.failed_step_index}${test.failed_step_action ? ` · ${test.failed_step_action}` : ""}` : "";
+        return `<div class="run-err-box" role="alert">
+          ${stepLabel ? `<div class="run-err-step">${esc(stepLabel)}</div>` : ""}
+          <div class="run-err-head">${esc(headline)}</div>
+          ${sum.hint ? `<div class="run-err-hint">${esc(sum.hint)}</div>` : ""}
+          ${detail && detail !== headline ? `<details><summary>Show details</summary><pre>${esc(detail)}</pre></details>` : ""}
+        </div>`;
+      }
+
+      function isRealPhoneValue(val) {
+        const v = String(val || "");
+        if (!v.startsWith("live:android:")) return false;
+        const serial = v.slice("live:android:".length);
+        const dev = (STATE.devicesData.android || []).find((d) => d.identifier === serial);
+        return dev ? dev.kind === "device" : !serial.startsWith("emulator-");
+      }
       function renderWelcome() {
         const w = STATE.welcome;
         if (!w.open) return;
@@ -7638,13 +7699,22 @@
         // Step 2
         const plat = w.platform || "android";
         const apps = appsForPlatform(plat);
+        // Recording by hand on a USB phone is Android only, so iOS always needs an app file.
+        const canUsePhone = plat === "android";
+        if (!canUsePhone) w.source = "file";
+        else if (!w.source) w.source = apps.length ? "file" : "phone";
         if (w.app && !apps.some((a) => a.rel_path === w.app)) w.app = "";
         if (!w.app && apps.length) {
           const active = activeAppForPlatform(plat);
           w.app = active ? active.rel_path : apps[0].rel_path;
         }
-        $("wlAppHeading").textContent = `Which ${PLAT_LABEL[plat]} app?`;
-        $("wlAppSub").textContent = apps.length ? "Pick an app you added before, or add a new one." : "Add the app you want to test. It stays on this computer.";
+        const onDevice = w.source === "phone";
+        $("wlAppHeading").textContent = `Where is the ${PLAT_LABEL[plat]} app?`;
+        $("wlAppSub").hidden = canUsePhone;
+        $("wlAppSub").textContent = onDevice ? "" : (apps.length ? "Pick an app file, or add a new one." : "Add the app file you want to test.");
+        $("wlSourceTiles").hidden = !canUsePhone;
+        document.querySelectorAll("[data-wl-source]").forEach((b) => b.setAttribute("aria-pressed", b.dataset.wlSource === w.source ? "true" : "false"));
+        $("wlFilePick").hidden = onDevice;
         $("wlDropText").textContent = plat === "ios"
           ? "Drop a simulator build (.app in a .zip) or an .ipa here."
           : "Drop an .apk file here.";
@@ -7656,32 +7726,45 @@
         $("wlAppList").hidden = !apps.length;
 
         // Step 3
-        const devices = getDeviceOptionsForPlatform(plat);
+        const allDevices = getDeviceOptionsForPlatform(plat);
+        const devices = onDevice ? allDevices.filter((d) => isRealPhoneValue(d.value)) : allDevices;
         if (w.device && !devices.some((d) => d.value === w.device)) w.device = "";
         if (!w.device && devices.length) {
           const live = devices.find((d) => d.value.startsWith("live:"));
           w.device = (live || devices[0]).value;
         }
+        $("wlDeviceHeading").textContent = onDevice ? "Which phone?" : "Where should it run?";
+        $("wlDeviceSub").textContent = onDevice
+          ? "Connected by USB, with USB debugging on."
+          : "QAlprit starts the device if it is not running yet.";
         setHtmlIfChanged("wlDeviceList", devices.map((d) => {
           const parts = deviceChoiceParts(d.label);
+          const phone = isRealPhoneValue(d.value) || /_device$/.test(d.value);
+          const note = phone
+            ? (plat === "ios" ? "A real iPhone plugged in by USB" : "A real phone plugged in with USB debugging on")
+            : (parts.running ? "Running now" : "Starts automatically");
           return `<button type="button" class="choice" data-wl-device="${esc(d.value)}" aria-pressed="${d.value === w.device}">
-            <span class="choice-main"><span class="choice-title">${esc(parts.name)}</span><span class="choice-note">${parts.running ? "Running now" : (/_device$/.test(d.value) ? (plat === "ios" ? "A real iPhone plugged in by USB" : "A real phone plugged in with USB debugging on") : "Starts automatically")}</span></span>
+            <span class="choice-main"><span class="choice-title">${esc(parts.name)}</span><span class="choice-note">${note}</span></span>
             ${parts.running ? '<span class="badge b-ok">Running</span>' : ""}
           </button>`;
         }).join(""));
+        $("wlDeviceList").hidden = !devices.length;
         const emu = STATE.emuStatus || {};
         const noAndroidDevice = plat === "android"
           && !(emu.avds || []).length
           && !(STATE.devicesData.android || []).length;
-        $("wlDeviceHint").hidden = !noAndroidDevice;
-        if (noAndroidDevice) {
+        const noPhone = onDevice && !devices.length;
+        $("wlDeviceHint").hidden = !(noPhone || noAndroidDevice);
+        if (noPhone) {
+          setHtmlIfChanged("wlDeviceHint", 'No phone found. <button type="button" class="btn btn-sm" id="btnWlDeviceRecheck">Check again</button>');
+        } else if (noAndroidDevice) {
           setHtmlIfChanged("wlDeviceHint", 'No Android emulator found yet. <button type="button" class="btn btn-sm" id="btnWlDeviceSetup">Set one up</button>');
         }
 
         // Footer button
         const next = $("btnWlNext");
         if (w.step === 1) { next.textContent = "Continue"; next.disabled = !w.platform; }
-        else if (w.step === 2) { next.textContent = "Continue"; next.disabled = !w.app || w.busy; }
+        else if (w.step === 2) { next.textContent = "Continue"; next.disabled = (!onDevice && !w.app) || w.busy; }
         else { next.innerHTML = '<span class="rec-btn-dot"></span> Start recording'; next.disabled = !w.device || w.busy; }
       }
       async function welcomeAddApp(file) {
@@ -7714,13 +7797,15 @@
         const name = ($("wlTestName").value || "").trim().replace(/\s+/g, "_") || "my_first_test";
         w.busy = true;
         renderWelcome();
+        const onDevice = w.source === "phone";
         try {
           switchTargetPlatformAndApp(w.platform);
-          await selectSessionApp(w.app, { autoSave: true });
+          if (!onDevice) await selectSessionApp(w.app, { autoSave: true });
           $("recPlatform").value = w.platform;
           syncDeviceSelects();
           if (Array.from($("recDeviceSelect").options).some((o) => o.value === w.device)) $("recDeviceSelect").value = w.device;
-          $("recAppSelect").value = w.app;
+          $("recAppSelect").value = onDevice ? "" : w.app;
+          updateRecDeviceMode();
           syncFlowNameFields(name, "welcome");
           updateRecDeviceButtons();
         } finally {
@@ -7733,12 +7818,15 @@
       $("welcomeOverlay").addEventListener("click", (e) => {
         const w = STATE.welcome;
         const p = e.target.closest("[data-wl-plat]");
-        if (p && !p.disabled) { w.platform = p.dataset.wlPlat; w.app = ""; w.device = ""; w.step = 2; showBanner("wlAppStatus", "", ""); renderWelcome(); return; }
+        if (p && !p.disabled) { w.platform = p.dataset.wlPlat; w.app = ""; w.source = ""; w.device = ""; w.step = 2; showBanner("wlAppStatus", "", ""); renderWelcome(); return; }
         const a = e.target.closest("[data-wl-app]");
         if (a) { w.app = a.dataset.wlApp; renderWelcome(); return; }
+        const src = e.target.closest("[data-wl-source]");
+        if (src) { w.source = src.dataset.wlSource; renderWelcome(); return; }
         const d = e.target.closest("[data-wl-device]");
         if (d) { w.device = d.dataset.wlDevice; renderWelcome(); return; }
         if (e.target.closest("#btnWlDeviceSetup")) { closeWelcome(); navigateTo("settings", "devices"); }
+        if (e.target.closest("#btnWlDeviceRecheck")) { runPreflightChecks({ devices: true, doctor: false }); }
       });
       $("btnWlBack").addEventListener("click", () => { STATE.welcome.step = Math.max(1, STATE.welcome.step - 1); renderWelcome(); });
       $("btnWlNext").addEventListener("click", () => {

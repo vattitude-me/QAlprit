@@ -117,6 +117,8 @@ _SYSTEM_DIALOG_RE = re.compile(
 OPTIONAL_STEP_ACTIONS = frozenset(
     {"tap", "long_press", "type", "set_toggle", "assert_visible", "assert_text", "enter_otp"}
 )
+# Recorded steps that can be switched between each other in the recorder's step editor.
+SWITCHABLE_STEP_ACTIONS = {"tap", "type"}
 
 
 def is_system_dialog_element(el: dict[str, Any]) -> bool:
@@ -132,7 +134,24 @@ def _label_optional(step: dict[str, Any]) -> None:
 
 
 def hit_test_element(elements: list[dict[str, Any]], x: float, y: float) -> tuple[int, dict[str, Any]] | None:
-    """Return index and dict of the smallest-area visible element containing point (x, y)."""
+    """Return index and dict of the smallest-area visible element containing point (x, y).
+
+    A label drawn on top of a text field (a floating "First name" hint, for example) is not
+    something a person means to tap. When the smallest hit is a plain label inside a field,
+    the field is returned instead, so the tap and the typing that follows land on the field.
+    """
+    best = _smallest_hit(elements, x, y)
+    if best is None:
+        return None
+    el = best[1]
+    if not el.get("editable") and not el.get("clickable"):
+        field = _smallest_hit([e if e.get("editable") else {} for e in elements], x, y)
+        if field is not None:
+            return field
+    return best
+
+
+def _smallest_hit(elements: list[dict[str, Any]], x: float, y: float) -> tuple[int, dict[str, Any]] | None:
     best: tuple[int, int, dict[str, Any]] | None = None
     for idx, el in enumerate(elements):
         if el.get("visible") is False:
@@ -172,11 +191,17 @@ def detect_changed_editable_inputs(
             continue
         new_txt = str(cur.get("text") or "").strip()
         hint = str(cur.get("hint") or "").strip()
-        if not new_txt or new_txt == hint or new_txt == SecretMasker.REPLACEMENT:
-            continue
         sig = (str(cur.get("recommended_strategy") or ""), str(cur.get("recommended_value") or ""))
         prev = prev_by_sig.get(sig)
         if require_previous and prev is None:
+            continue
+        if new_txt == SecretMasker.REPLACEMENT:
+            # A password field. Its text is hidden, so only "it was empty and now has something"
+            # can be seen. The caller records it as a secret value to fill in later.
+            if cur.get("filled") and not (prev and prev.get("filled")):
+                changes.append((cur, SecretMasker.REPLACEMENT))
+            continue
+        if not new_txt or new_txt == hint:
             continue
         old_txt = str(prev.get("text") or "").strip() if prev else ""
         if new_txt != old_txt:
@@ -1623,6 +1648,7 @@ class RecorderManager:
         duplicate: bool = False,
         move_to: int | None = None,
         optional: bool | None = None,
+        action: str | None = None,
     ) -> dict[str, Any]:
         selected_idx: int | None = index
         with self._lock:
@@ -1646,6 +1672,17 @@ class RecorderManager:
                 selected_idx = target_idx
             else:
                 st = self._steps[index]
+                if action is not None and action != st["action"]:
+                    new_action = str(action).strip().lower()
+                    if new_action not in SWITCHABLE_STEP_ACTIONS or st["action"] not in SWITCHABLE_STEP_ACTIONS:
+                        raise ValueError(f"A '{st['action']}' step cannot be changed to '{action}'.")
+                    if not st.get("target"):
+                        raise ValueError("This step has no element, so it cannot be changed to a tap or type.")
+                    st["action"] = new_action
+                    if new_action == "tap":
+                        st["value"] = ""
+                        st["secret"] = False
+                        st["label"] = f"Tap {st['target']}"
                 if value is not None:
                     st["value"] = value
                 if secret is not None:

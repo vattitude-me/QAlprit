@@ -10,6 +10,7 @@ from typing import Any, Literal
 
 from qalprit.config_loader import DeviceProfile, EnvironmentConfig, ResolvedLocator, ScreensCatalog
 from qalprit.env_loader import EnvContext, SecretMasker
+from qalprit.error_text import clean_error, is_session_dead
 from qalprit.evidence import EvidenceCollector
 from qalprit.spec_loader import StepItem
 
@@ -187,6 +188,7 @@ def wait_for_element(
     last_state = "not_found"
     last_match_count = 0
     polls = 0
+    session_dead = False
 
     while True:
         polls += 1
@@ -244,6 +246,10 @@ def wait_for_element(
             last_err = exc
             if _is_stale_error(exc):
                 last_state = "stale_reference"
+            elif is_session_dead(exc):
+                # Appium or the on-device helper is gone. Polling until the deadline cannot help.
+                session_dead = True
+                break
 
         if time.monotonic() >= deadline:
             break
@@ -254,6 +260,8 @@ def wait_for_element(
     resolved_category = failure_category
     if last_state in ("hidden", "disabled", "stale_reference") and failure_category == "locator_not_found":
         resolved_category = "element_not_interactable"
+    if session_dead:
+        resolved_category = "appium_session_failure"
 
     diagnostics = {
         "target": target,
@@ -265,7 +273,14 @@ def wait_for_element(
         "last_state": last_state,
         "last_match_count": last_match_count,
     }
-    detail = f"; last error: {ctx.masker.mask(str(last_err))}" if last_err else ""
+    detail = f"; last error: {ctx.masker.mask(clean_error(last_err, limit=400))}" if last_err else ""
+    if session_dead:
+        raise StepTimeoutError(
+            f"Lost the device session while waiting for '{target}' on {ctx.platform} "
+            f"[{resolved.strategy}={masked_val!r}] (polls={polls}{detail})",
+            failure_category=resolved_category,
+            diagnostics=diagnostics,
+        )
     raise StepTimeoutError(
         f"Timed out after {wait_seconds:.1f}s waiting for '{target}' on {ctx.platform} "
         f"[{resolved.strategy}={masked_val!r}] (state={last_state}, matches={last_match_count}, polls={polls}{detail})",

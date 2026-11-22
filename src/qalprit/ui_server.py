@@ -31,7 +31,7 @@ from qalprit.datasets import (
 from qalprit.devices import list_android_devices, list_ios_simulators
 from qalprit.doctor import discover_system_software, run_doctor
 from qalprit.emulator_manager import DEFAULT_AVD_NAME, EmulatorJobManager
-from qalprit.error_text import friendly_error
+from qalprit.error_text import explain_failure, friendly_error
 from qalprit.ai_review import review_run_dir, set_step_review
 from qalprit.atlassian_refs import check_connection, fetch_reference_docs, read_connection, save_connection
 from qalprit.env_loader import load_env
@@ -131,6 +131,7 @@ def collect_workspace_overview(
                                 "flaky": t.flaky,
                                 "failure_category": t.failure_category,
                                 "failure_reason": t.failure_reason or "",
+                                "failure_summary": explain_failure(t.failure_reason, t.failure_category),
                                 "failed_step_index": t.failed_step_index,
                                 "failed_step_action": t.failed_step_action,
                                 "duration_ms": t.duration_ms,
@@ -1088,6 +1089,7 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
                         duplicate=bool(body.get("duplicate", False)),
                         move_to=(int(body["move_to"]) if body.get("move_to") is not None else None),
                         optional=(bool(body["optional"]) if body.get("optional") is not None else None),
+                        action=(str(body["action"]) if body.get("action") else None),
                     )
                 )
                 return
