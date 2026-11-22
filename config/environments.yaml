@@ -11,6 +11,11 @@ environments:
     default_timeout: 12
     variables:
       ENV_LABEL: DEMO
+  tng:
+    android_package: ca.tangerine.mobile.banking.app.nonProd
+    default_timeout: 12
+    variables:
+      ENV_LABEL: TNG
   staging:
     android_package: com.example.qalprit.staging
     ios_bundle_id: com.example.qalprit.staging

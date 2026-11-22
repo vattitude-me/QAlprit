@@ -13,7 +13,9 @@ These project rules and architecture notes govern git workflow, codebase navigat
   - **Execution & Validation**:
     - `spec_loader.py` & `validator.py`: Parse Markdown+YAML journeys (`specs/`), reusable flows (`flows/`, optional `platforms:` scoping locator checks), screen locators (`screens/screens.yaml`), and `validate_project()` pre-flight checks.
     - `datasets.py`: CSV dynamic variable parameterization (`datasets/flows/`, `datasets/specs/`), secret column detection, and UI masking (`mask_bundle_for_ui()`).
-    - `runner.py` & `steps/`: Step execution (`execute_step()`), flow expansion, retries, teardown, `SecretMasker`, and `FailureCategory` classification.
+    - `runner.py` & `steps/`: Step execution (`execute_step()`), flow expansion, retries, teardown, `SecretMasker`, and `FailureCategory` classification. `_run_step_list` works through a queue so block steps can push the steps they pick.
+    - `steps/flow_control.py`: `if_visible` (`then`/`else`) and `repeat` (`times`, or `until` with `max`, `${round}`). Nested steps stay raw YAML in the block's params (`BLOCK_STEP_KEYS`) and are read with `spec_loader.block_children()` when the block runs. The validator walks them with `iter_block_children()`.
+    - Runs without an app file: `runner.installed_app_problems()` (used by `qalprit run` and `start_run`) needs an app id from the environment or `spec_loader.launched_app_id()`, and refuses `reinstall` (and iOS `clear_data`), which would uninstall. `apply_app_reset()` never calls `remove_app` without an app file. `TestRunner._missing_app_error()` checks `is_app_installed` first.
     - `driver_factory.py`: `AppiumDriverAdapter` and `create_appium_driver()` (Android UiAutomator2 AVD resolution + iOS XCUITest auto-boot via `_ensure_ios_simulator_ready()` + multi-strategy `hide_keyboard()`).
     - `inspector.py`: XML hierarchy parser (`parse_page_source_elements()` / `extract_interactive_elements()`) filtering keyboard overlays and ranking locators.
     - `evidence.py`, `visual_diff.py`, `results.py`, `report/`: Secret-redacted screenshots, XML failure dumps, visual baseline comparisons, and Jinja2 HTML/JUnit/Markdown report generation (`report/templates/report.html.j2`).
@@ -145,11 +147,18 @@ Driving the Workbench from a script: start `qalprit ui --workspace . --port 8766
 Latest release: see `CHANGELOG.md`. Everything below is not done yet. Check `git log` and the changelog before starting, because this list can go stale.
 
 - **TNG non-prod app journey (`TNG-001`, in the user's Workbench workspace; copies of the workflows are in `flows/`).** It runs `tng-non-prod-acc-open-2` then `-3` with `reset: clear_data`, on a real phone. The ID scan and selfie are a `wait_for_user` step that resumes by itself when the occupation screen shows up. Never completed end to end on a device. The emulator camera injection (`set_camera_image`) crashes the app according to the user and has not been investigated (start at `camera_injection.py` and `steps/device_steps.py`). The two Ontario licence mock-up images in `docs/` are the user's untracked local files. Do not stage them.
+- **TNG onboarding (`TNG-002`, `flows/tng-onboarding.md`).** Replaces the recorded TNG flows with stable locators. On the phone it reached the tax step, not yet the ID check. Things learned on the device:
+  - Under a test run the debug menu's "Show Business Waitlist" switch shows off while the app still uses on, so the flow switches it on and then off. Without that, "Become a client" opens the business waitlist.
+  - The server keeps an application per phone number. A number used before skips the name, date of birth, address and email screens after the passcode, so a run with new details needs an unused number (the user's non-prod numbers take a `#N` suffix).
+  - The notifications screen shows "Not Now" or only "You're All Set" when the permission is already granted. The ID picker opens only when tapped near its right edge (`offset_x: 0.92`).
+  - The identity check compares the scan with the name, date of birth and address entered earlier, so they must match the ID. The user's real details live only in their workspace copy, never in this repo.
 - **Read the SMS code directly (not built, user has not said yes).** Idea: in `enter_otp`, before prompting, poll `adb shell content query --uri content://sms/inbox` for a message newer than the step start, extract a 4 to 8 digit code, type it, never log the message body, and fall back to the prompt after about 60 seconds. Physical Android phones only. Typing the code by hand on the device makes `enter_otp` fail with `not_found`, because it waits for the field itself, so users must answer in the Workbench.
 - **MDA-004 payment screenshots.** The run passes on a Pixel 9 Pro, with 2 steps marked unclear by the AI check because the keyboard clipboard panel hides the payment fields. Add `hide_keyboard: true` before those screenshots.
 - **Copilot AI provider is unverified.** `agy` was verified live against Antigravity CLI 1.5.14. `copilot` follows the documented `-p`, `--silent` and `--add-dir` flags but has not run against a real install (`npm install -g @github/copilot`, then sign in).
 - **Jira and Confluence connection is tested only with fakes.** Try Test connection against a real Atlassian Cloud site and a Data Center PAT.
 - **Recorder cannot reopen a saved workflow** to add, remove or reorder steps (listed under Upcoming in `CHANGELOG.md`).
+- **`if_visible`, `repeat` and installed-app runs are tested only with the fake driver.** Try a run on the user's phone with *App already on the device* and a permission popup marked Only if shown.
+- **Recorder Only if shown wraps one step at a time.** A popup that needs two taps gets two conditional steps. Grouping them into one `if_visible` block has to be done in the step editor.
 
 ## 11. Writing and UI rules agents keep breaking
 

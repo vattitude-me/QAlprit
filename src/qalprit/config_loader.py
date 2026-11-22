@@ -212,7 +212,15 @@ class ScreensCatalog:
                     f"Locator '{target}' missing template parameter(s): {', '.join(missing)}"
                 )
             for p in needed:
-                value = value.replace(f"{{{p}}}", str(provided[p]))
+                filled = str(provided[p])
+                if "${" in filled:
+                    # Template values can name run variables, such as ${round} inside a repeat.
+                    if env_ctx is not None:
+                        filled = env_ctx.substitute(filled, extra_vars=extra_vars)
+                    elif extra_vars:
+                        for k, v in extra_vars.items():
+                            filled = filled.replace(f"${{{k}}}", v)
+                value = value.replace(f"{{{p}}}", filled)
 
         return ResolvedLocator(
             target=target,

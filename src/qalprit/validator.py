@@ -17,11 +17,15 @@ from qalprit.config_loader import (
 )
 from qalprit.env_loader import EnvContext, load_env
 from qalprit.spec_loader import (
+    BLOCK_STEP_KEYS,
+    DEFAULT_REPEAT_VAR,
     STEP_VOCABULARY,
     FlowSpec,
     StepItem,
     TestSpec,
     expand_steps,
+    iter_block_children,
+    normalize_step,
     load_flows,
     load_specs,
 )
@@ -29,6 +33,7 @@ from qalprit.spec_loader import (
 _TARGETED_STEPS = {
     "tap",
     "tap_if_visible",
+    "if_visible",
     "long_press",
     "type",
     "enter_otp",
@@ -126,6 +131,9 @@ def _validate_step_shape(
                 ValidationIssue("error", file_path, loc, "'run_flow' requires a 'flow' name")
             )
         return
+
+    if step.type in BLOCK_STEP_KEYS:
+        _validate_block_shape(step, file_path, loc, issues, allow_run_flow)
 
     if step.type in _TARGETED_STEPS:
         if not step.params.get("target"):
@@ -374,6 +382,70 @@ def _validate_step_shape(
                 )
 
 
+def _block_child_items(step: StepItem) -> list[tuple[str, Any]]:
+    out: list[tuple[str, Any]] = []
+    for key in BLOCK_STEP_KEYS.get(step.type, ()):
+        raw = step.params.get(key)
+        if isinstance(raw, list):
+            out.extend((f"{key}[{i}]", item) for i, item in enumerate(raw, start=1))
+    return out
+
+
+def _validate_block_shape(
+    step: StepItem,
+    file_path: Path,
+    loc: str,
+    issues: list[ValidationIssue],
+    allow_run_flow: bool,
+) -> None:
+    """Check an if_visible or repeat step and every step nested in it."""
+    p = step.params
+
+    def err(msg: str) -> None:
+        issues.append(ValidationIssue("error", file_path, loc, msg))
+
+    for key in BLOCK_STEP_KEYS[step.type]:
+        if key in p and p[key] is not None and not isinstance(p[key], list):
+            err(f"'{step.type}.{key}' must be a list of steps")
+
+    if step.type == "if_visible":
+        if not p.get("then") and not p.get("else"):
+            err("'if_visible' needs steps under 'then' (when it is shown) or 'else' (when it is not)")
+    else:
+        if not p.get("steps"):
+            err("'repeat' needs at least one step under 'steps'")
+        if p.get("times") is None and not p.get("until"):
+            err("'repeat' needs 'times' (how many rounds) or 'until' (an element that ends it)")
+        for key in ("times", "max"):
+            if p.get(key) is None:
+                continue
+            val = p[key]
+            if isinstance(val, bool) or not isinstance(val, int) or val < 1:
+                err(f"'repeat.{key}' must be a whole number of 1 or more, got {val!r}")
+            elif val > 100:
+                err(f"'repeat.{key}' is {val}. The limit is 100 rounds")
+        if p.get("max") is not None and p.get("times") is not None:
+            issues.append(ValidationIssue("warning", file_path, loc, "'repeat' has both 'times' and 'max'. 'times' is used"))
+        if p.get("max") is not None and not p.get("until"):
+            issues.append(ValidationIssue("warning", file_path, loc, "'repeat.max' only matters with 'until'"))
+        var = p.get("as")
+        if var is not None and not _VAR_NAME_RE.match(str(var)):
+            err(f"'repeat.as' must be a variable name (letters, digits, _), got {var!r}")
+        if "until_timeout" in p:
+            ut = p["until_timeout"]
+            if isinstance(ut, bool) or not isinstance(ut, (int, float)) or ut < 0:
+                err(f"'repeat.until_timeout' must be a number of 0 or more, got {ut!r}")
+
+    for path, raw in _block_child_items(step):
+        child_loc = f"{loc}.{path}"
+        try:
+            child = normalize_step(raw)
+        except ValueError as exc:
+            issues.append(ValidationIssue("error", file_path, child_loc, str(exc)))
+            continue
+        _validate_step_shape(child, file_path, child_loc, issues, allow_run_flow)
+
+
 def _validate_locator_and_env(
     step: StepItem,
     platforms: list[str],
@@ -385,9 +457,11 @@ def _validate_locator_and_env(
     loc: str,
     issues: list[ValidationIssue],
 ) -> None:
-    # Check env vars across all step string values
+    block_keys = BLOCK_STEP_KEYS.get(step.type, ())
+    own_params = {k: v for k, v in step.params.items() if k not in block_keys}
+    # Check env vars across all step string values (nested steps are checked on their own below)
     if env_ctx is not None:
-        for text in _iter_strings(step.params):
+        for text in _iter_strings(own_params):
             for missing_var in env_ctx.find_missing(text, extra_vars=extra_env_vars):
                 if missing_var in allowed_flow_params:
                     continue
@@ -400,8 +474,25 @@ def _validate_locator_and_env(
                     )
                 )
 
-    if step.type == "wait_for_user" and screens is not None:
-        for key in ("target", "until"):
+    if block_keys:
+        child_vars = set(allowed_flow_params)
+        if step.type == "repeat":
+            child_vars.add(str(step.params.get("as") or DEFAULT_REPEAT_VAR))
+        for path, raw in _block_child_items(step):
+            try:
+                child = normalize_step(raw)
+            except ValueError:
+                continue  # reported by the shape check
+            if child.type == "run_flow":
+                continue  # checked with the journey's other run_flow steps
+            child.flow_name = step.flow_name
+            _validate_locator_and_env(
+                child, platforms, screens, env_ctx, extra_env_vars, child_vars, file_path, f"{loc}.{path}", issues
+            )
+
+    extra_locators = {"wait_for_user": ("target", "until"), "repeat": ("until",)}.get(step.type, ())
+    if extra_locators and screens is not None:
+        for key in extra_locators:
             ref = step.params.get(key)
             if not ref:
                 continue
@@ -411,7 +502,7 @@ def _validate_locator_and_env(
                         "error",
                         file_path,
                         loc,
-                        f"Unknown locator '{ref}' in 'wait_for_user.{key}' (not in screens/screens.yaml)",
+                        f"Unknown locator '{ref}' in '{step.type}.{key}' (not in screens/screens.yaml)",
                     )
                 )
                 continue
@@ -422,7 +513,7 @@ def _validate_locator_and_env(
                             "error",
                             file_path,
                             loc,
-                            f"Locator '{ref}' in 'wait_for_user.{key}' is missing a definition for platform '{plat}'",
+                            f"Locator '{ref}' in '{step.type}.{key}' is missing a definition for platform '{plat}'",
                         )
                     )
 
@@ -642,7 +733,8 @@ def validate_project(
                 step.params.get("flow")
                 for spec in selected_specs
                 for phase_steps in (spec.setup, spec.steps, spec.teardown)
-                for step in phase_steps
+                for top in phase_steps
+                for step in [top, *(c for _, c in iter_block_children(top))]
                 if step.type == "run_flow" and step.params.get("flow")
             }
             flows_to_validate = [
@@ -736,105 +828,110 @@ def validate_project(
                 pass
         spec_platforms = [platform] if platform else list(spec.platforms)
         for phase_name, step_list in (("setup", spec.setup), ("steps", spec.steps), ("teardown", spec.teardown)):
-            for idx, step in enumerate(step_list, start=1):
-                loc = f"{spec.id}.{phase_name}[{idx}]"
-                _validate_step_shape(step, spec.source_path, loc, result.issues, allow_run_flow=True)
+            for idx, top_step in enumerate(step_list, start=1):
+                top_loc = f"{spec.id}.{phase_name}[{idx}]"
+                _validate_step_shape(top_step, spec.source_path, top_loc, result.issues, allow_run_flow=True)
+                # A run_flow inside an if_visible or repeat block gets the same checks as one at the top.
+                items = [(top_loc, top_step)] + [
+                    (f"{top_loc}.{path}", c) for path, c in iter_block_children(top_step) if c.type == "run_flow"
+                ]
+                for loc, step in items:
 
-                if step.type == "run_flow":
-                    ref_flow_name = step.params.get("flow")
-                    if not ref_flow_name:
-                        continue
-                    if ref_flow_name not in flows:
-                        result.issues.append(
-                            ValidationIssue(
-                                "error",
-                                spec.source_path,
-                                loc,
-                                f"Unknown flow '{ref_flow_name}'",
+                    if step.type == "run_flow":
+                        ref_flow_name = step.params.get("flow")
+                        if not ref_flow_name:
+                            continue
+                        if ref_flow_name not in flows:
+                            result.issues.append(
+                                ValidationIssue(
+                                    "error",
+                                    spec.source_path,
+                                    loc,
+                                    f"Unknown flow '{ref_flow_name}'",
+                                )
                             )
-                        )
-                        continue
-                    flow = flows[ref_flow_name]
-                    provided = step.params.get("params") or {}
-                    if not isinstance(provided, dict):
-                        result.issues.append(
-                            ValidationIssue(
-                                "error",
-                                spec.source_path,
-                                loc,
-                                "'run_flow.params' must be a mapping",
+                            continue
+                        flow = flows[ref_flow_name]
+                        provided = step.params.get("params") or {}
+                        if not isinstance(provided, dict):
+                            result.issues.append(
+                                ValidationIssue(
+                                    "error",
+                                    spec.source_path,
+                                    loc,
+                                    "'run_flow.params' must be a mapping",
+                                )
                             )
-                        )
-                        continue
-                    # When running a flow directly (flow_name == ref_flow_name) or with datasets,
-                    # flow params can come from spec_dynamic_vars or env_ctx as well.
-                    # A workflow's own data rows also give its params a value when a journey calls it.
-                    ref_flow_vars: set[str] = set()
-                    try:
-                        ref_ds = load_datasets(project_root, "flow", ref_flow_name)
-                        if ref_ds.rows and ref_ds.variables:
-                            ref_flow_vars = set(ref_ds.variables) | {"expected", "dataset"}
-                    except Exception:
-                        pass
-                    step_dynamic_vars = spec_dynamic_vars | ref_flow_vars
-                    available_for_flow = set(provided.keys()) | step_dynamic_vars
-                    if result.env_ctx is not None:
-                        available_for_flow |= set(result.env_ctx.variables.keys())
-                    missing_fp = sorted(set(flow.params) - available_for_flow)
-                    if missing_fp:
-                        result.issues.append(
-                            ValidationIssue(
-                                "error",
-                                spec.source_path,
-                                loc,
-                                f"Flow '{ref_flow_name}' missing required param(s): {', '.join(missing_fp)}",
+                            continue
+                        # When running a flow directly (flow_name == ref_flow_name) or with datasets,
+                        # flow params can come from spec_dynamic_vars or env_ctx as well.
+                        # A workflow's own data rows also give its params a value when a journey calls it.
+                        ref_flow_vars: set[str] = set()
+                        try:
+                            ref_ds = load_datasets(project_root, "flow", ref_flow_name)
+                            if ref_ds.rows and ref_ds.variables:
+                                ref_flow_vars = set(ref_ds.variables) | {"expected", "dataset"}
+                        except Exception:
+                            pass
+                        step_dynamic_vars = spec_dynamic_vars | ref_flow_vars
+                        available_for_flow = set(provided.keys()) | step_dynamic_vars
+                        if result.env_ctx is not None:
+                            available_for_flow |= set(result.env_ctx.variables.keys())
+                        missing_fp = sorted(set(flow.params) - available_for_flow)
+                        if missing_fp:
+                            result.issues.append(
+                                ValidationIssue(
+                                    "error",
+                                    spec.source_path,
+                                    loc,
+                                    f"Flow '{ref_flow_name}' missing required param(s): {', '.join(missing_fp)}",
+                                )
                             )
-                        )
-                    unexpected_fp = sorted(set(provided.keys()) - set(flow.params))
-                    if unexpected_fp:
-                        result.issues.append(
-                            ValidationIssue(
-                                "warning",
-                                spec.source_path,
-                                loc,
-                                f"Flow '{ref_flow_name}' received unused param(s): {', '.join(unexpected_fp)}",
+                        unexpected_fp = sorted(set(provided.keys()) - set(flow.params))
+                        if unexpected_fp:
+                            result.issues.append(
+                                ValidationIssue(
+                                    "warning",
+                                    spec.source_path,
+                                    loc,
+                                    f"Flow '{ref_flow_name}' received unused param(s): {', '.join(unexpected_fp)}",
+                                )
                             )
-                        )
-                    # Check expanded steps for env vars & platform locators
-                    try:
-                        expanded = expand_steps([step], flows)
-                    except Exception as exc:
-                        result.issues.append(
-                            ValidationIssue("error", spec.source_path, loc, str(exc))
-                        )
-                        continue
-                    for e_idx, e_step in enumerate(expanded, start=1):
-                        e_loc = f"{loc}->flow:{ref_flow_name}[{e_idx}]"
-                        _validate_step_shape(
-                            e_step, spec.source_path, e_loc, result.issues, allow_run_flow=False
-                        )
+                        # Check expanded steps for env vars & platform locators
+                        try:
+                            expanded = expand_steps([step], flows)
+                        except Exception as exc:
+                            result.issues.append(
+                                ValidationIssue("error", spec.source_path, loc, str(exc))
+                            )
+                            continue
+                        for e_idx, e_step in enumerate(expanded, start=1):
+                            e_loc = f"{loc}->flow:{ref_flow_name}[{e_idx}]"
+                            _validate_step_shape(
+                                e_step, spec.source_path, e_loc, result.issues, allow_run_flow=False
+                            )
+                            _validate_locator_and_env(
+                                e_step,
+                                spec_platforms,
+                                result.screens,
+                                result.env_ctx,
+                                extra_env_vars,
+                                step_dynamic_vars,
+                                spec.source_path,
+                                e_loc,
+                                result.issues,
+                            )
+                    else:
                         _validate_locator_and_env(
-                            e_step,
+                            step,
                             spec_platforms,
                             result.screens,
                             result.env_ctx,
                             extra_env_vars,
-                            step_dynamic_vars,
+                            spec_dynamic_vars,
                             spec.source_path,
-                            e_loc,
+                            loc,
                             result.issues,
                         )
-                else:
-                    _validate_locator_and_env(
-                        step,
-                        spec_platforms,
-                        result.screens,
-                        result.env_ctx,
-                        extra_env_vars,
-                        spec_dynamic_vars,
-                        spec.source_path,
-                        loc,
-                        result.issues,
-                    )
 
     return result

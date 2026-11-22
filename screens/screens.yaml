@@ -208,3 +208,181 @@ mda_complete:
   continue_shopping_button:
     android: {accessibility_id: "Tap to open catalog"}
     ios: {accessibility_id: "ContinueShopping"}
+tng_onboarding:
+  business_waitlist_toggle:
+    android:
+      xpath: //android.widget.TextView[@text='Show Business Waitlist']/following-sibling::android.view.View[@checkable='true'][1]
+  security_tab:
+    android:
+      text: Security
+  general_tab:
+    android:
+      text: General
+  root_detection_toggle:
+    android:
+      xpath: //android.widget.TextView[@text='Root/Jailbreak Detection']/following-sibling::android.view.View[@checkable='true'][1]
+  tamper_detection_toggle:
+    android:
+      xpath: //android.widget.TextView[@text='Tamper Detection']/following-sibling::android.view.View[@checkable='true'][1]
+  runtime_detection_toggle:
+    android:
+      xpath: //android.widget.TextView[@text='Runtime Detection']/following-sibling::android.view.View[@checkable='true'][1]
+  apply_and_continue_btn:
+    android:
+      text: Apply and Continue
+  accept_all_btn:
+    android:
+      text: Accept All
+  start_btn:
+    android:
+      xpath: //*[@resource-id='Button'][.//*[@text='Start']]
+  become_a_client_btn:
+    android:
+      android_uiautomator: new UiSelector().resourceId("GetStartedOpenAccountOption")
+  savings_account_btn:
+    android:
+      text: Savings Account
+  add_account_btn:
+    android:
+      android_uiautomator: new UiSelector().resourceId("ProductIntroCTA")
+  sign_up_btn:
+    android:
+      text: Sign Up
+  phone_input:
+    android:
+      id: ca.tangerine.mobile.banking.app.nonProd:id/phoneNumberEdit
+  phone_picker_cancel_btn:
+    android:
+      accessibility_id: Cancel
+  phone_next_btn:
+    android:
+      id: ca.tangerine.mobile.banking.app.nonProd:id/nextButton
+  sms_code_input:
+    android:
+      id: ca.tangerine.mobile.banking.app.nonProd:id/verificationCodeEdit
+  sms_code_next_btn:
+    android:
+      id: ca.tangerine.mobile.banking.app.nonProd:id/verificationNextButton
+  notifications_not_now_btn:
+    android:
+      id: ca.tangerine.mobile.banking.app.nonProd:id/denyButton
+  notifications_all_set_btn:
+    android:
+      id: ca.tangerine.mobile.banking.app.nonProd:id/requestPermissionButton
+  passcode_only_btn:
+    android:
+      text: Passcode only
+  passcode_key:
+    android:
+      id: ca.tangerine.mobile.banking.app.nonProd:id/keyboard_key_{d}
+  passcode_title:
+    android:
+      id: ca.tangerine.mobile.banking.app.nonProd:id/passcode_info_title
+  first_name_input:
+    android:
+      xpath: //*[@resource-id='NameFieldFirstName']//android.widget.EditText
+  last_name_input:
+    android:
+      xpath: //*[@resource-id='NameFieldLastName']//android.widget.EditText
+  name_next_btn:
+    android:
+      android_uiautomator: new UiSelector().resourceId("PersonNameCaptureNextButton")
+  dob_day_input:
+    android:
+      xpath: //*[@resource-id='DateOfBirthFieldDayOfMonth']//android.widget.EditText
+  dob_month_input:
+    android:
+      xpath: //*[@resource-id='DateOfBirthFieldMonth']//android.widget.EditText
+  dob_year_input:
+    android:
+      xpath: //*[@resource-id='DateOfBirthFieldYear']//android.widget.EditText
+  dob_next_btn:
+    android:
+      android_uiautomator: new UiSelector().resourceId("PersonDateOfBirthCaptureNextButton")
+  enter_address_btn:
+    android:
+      android_uiautomator: new UiSelector().resourceId("AddressLookupIntroEnterYourAddressButton")
+  address_search_input:
+    android:
+      xpath: //android.widget.EditText
+  address_suggestion:
+    android:
+      android_uiautomator: new UiSelector().textContains("{pick}")
+  address_continue_btn:
+    android:
+      text: Continue
+  address_confirm_btn:
+    android:
+      id: ca.tangerine.mobile.banking.app.nonProd:id/ctaButton
+  home_same_as_mailing:
+    android:
+      android_uiautomator: new UiSelector().resourceId("AddressLookupIntroExistingAddress")
+  home_address_next_btn:
+    android:
+      android_uiautomator: new UiSelector().resourceId("AddressLookupIntroFooterButton")
+  email_input:
+    android:
+      xpath: //*[@resource-id='PersonEmailAddressCaptureTextField']//android.widget.EditText
+  email_next_btn:
+    android:
+      android_uiautomator: new UiSelector().resourceId("PersonEmailAddressCaptureNextButton")
+  details_title:
+    android:
+      android_uiautomator: new UiSelector().resourceId("ConfirmPersonDetailsTitle")
+  details_name:
+    android:
+      android_uiautomator: new UiSelector().textContains("{name}")
+  details_confirm_btn:
+    android:
+      xpath: //*[@resource-id='ConfirmPersonDetailsSubmitButton']//*[@resource-id='Button']
+  email_code_input:
+    android:
+      id: ca.tangerine.mobile.banking.app.nonProd:id/otpEditText
+  email_code_continue_btn:
+    android:
+      xpath: //android.widget.Button[@text='Continue']
+  tax_resident_yes:
+    android:
+      xpath: //*[@resource-id='DomesticTaxResidencyStatusOptionItem'][.//*[@text='Yes']]
+  tax_resident_next_btn:
+    android:
+      android_uiautomator: new UiSelector().resourceId("DomesticTaxResidencyStatusNextButton")
+  tax_number_no:
+    android:
+      xpath: (//*[@resource-id='DomesticTaxNumberRequestOptionItem'])[2]
+  tax_number_next_btn:
+    android:
+      android_uiautomator: new UiSelector().resourceId("DomesticTaxNumberRequestNextButton")
+  other_tax_no:
+    android:
+      android_uiautomator: new UiSelector().resourceId("OtherTaxResidencyStatusOptionItem_No")
+  other_tax_next_btn:
+    android:
+      android_uiautomator: new UiSelector().resourceId("OtherTaxResidencyStatusNextButton")
+  id_intro_continue_btn:
+    android:
+      text: Continue
+  id_picker:
+    android:
+      accessibility_id: Select ID, picker
+  drivers_licence_option:
+    android:
+      text: Driver's licence
+  id_type_continue_btn:
+    android:
+      text: Continue
+  camera_allow_btn:
+    android:
+      id: com.android.permissioncontroller:id/permission_allow_foreground_only_button
+  id_matched:
+    android:
+      text: Matched!
+  matched_continue_btn:
+    android:
+      accessibility_id: Continue
+  id_result:
+    android:
+      xpath: //*[contains(@text,'verify you') or contains(@text,'occupation')]
+  id_rejected:
+    android:
+      xpath: //*[contains(@text,'verify you')]

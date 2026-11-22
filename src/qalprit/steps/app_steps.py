@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import re
-
-from qalprit.spec_loader import StepItem
+from qalprit.spec_loader import APP_ID_RE, StepItem
 from qalprit.steps.base import StepContext, StepOutcome
 
 
-_APP_ID_RE = re.compile(r"^[A-Za-z][\w-]*(\.[A-Za-z_][\w-]*)+$")
+_APP_ID_RE = APP_ID_RE
 
 
 def exec_launch(ctx: StepContext, step: StepItem) -> StepOutcome:

@@ -61,6 +61,8 @@ class DriverProtocol(Protocol):
 
     def install_app(self, app_path: str) -> None: ...
 
+    def is_app_installed(self, app_id: str) -> bool: ...
+
     def background_app(self, seconds: int | float) -> None: ...
 
     def back(self) -> None: ...
@@ -212,6 +214,9 @@ class AppiumDriverAdapter:
 
     def install_app(self, app_path: str) -> None:
         self._driver.install_app(app_path)
+
+    def is_app_installed(self, app_id: str) -> bool:
+        return bool(self._driver.is_app_installed(app_id))
 
     def background_app(self, seconds: int | float) -> None:
         self._driver.background_app(int(seconds))

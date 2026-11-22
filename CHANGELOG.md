@@ -12,6 +12,42 @@ Ideas planned for a later release. Nothing here ships yet.
 
 ---
 
+## [v0.1.43] - 2026-11-22
+
+### Added
+
+- **Run on the app already installed.** A run no longer needs an app file. The Workbench app pickers (Run page, test run card, quick run, rerun) have *App already on the device*, and `qalprit run` works without `--app`. The app comes from the environment or from the journey's own `launch: {app: ...}` step, so tests recorded on a USB phone replay there as they are. Before the first step the run checks the app is installed (`is_app_installed`) and stops with "X is not installed on this device" if not.
+- **`if_visible` step.** Runs its `then` steps when an element shows up within `timeout` (default 3s), and its `else` steps when it does not. Meant for popups and permission dialogs that show on the first run and not on the second.
+- **`repeat` step.** Runs nested steps `times: N`, or `until: screen.element` with `max` rounds (default 10, at most 100). An `until` that never shows up fails the step, so the repeat is a check too. Each round sets `${round}` (or the `as:` name).
+- Every step inside `if_visible` and `repeat` gets its own report row ("If shown:", "Otherwise:", "Round N:"), screenshot and failure handling. Workflow params reach nested steps, and a journey's blocks may call `run_flow`.
+- `qalprit validate` checks blocks: branch and step lists, `times`/`max` range, `as` names, and the locators and variables of nested steps.
+- **Only if shown in the recorder.** Click a recorded step and tick **Only if shown**: a tap is saved as `tap_if_visible`, other steps are wrapped in `if_visible`. Taps on Android permission and installer dialogs get this automatically. `POST /api/recorder/update` takes `optional`.
+- **TNG onboarding journey (`specs/tng/TNG-002.md`, `flows/tng-onboarding.md`).** Goes from a clean app to the ID check on a real Android phone: debug menu, sign up, SMS code, passcode, name, date of birth, address, email code, tax questions, then the ID scan and selfie by hand. Locators use the app's test tags and labels (`tng_onboarding` in `screens/screens.yaml`) instead of positions on screen. The phone and email come from `TNG_PHONE` and `TNG_EMAIL`, and a `tng` environment is added.
+- The workflow and journey step editor lists `if_visible` and `repeat`, with their settings (and those of `wait_for_user`) as JSON in the value box.
+
+### Changed
+
+- Locator template values can use run variables, for example `params: {n: "${round}"}` or a dataset value. Before, only workflow params were filled in.
+- The welcome guide asks where the Android app is, with two choices: **On my phone** (already installed, no file needed) or **App file** (installed for you). Picking the phone lists only USB phones on the next step, with Check again when none is plugged in. The recorder's empty app choice reads *App already on the device*, and the Record page and welcome text are shorter.
+
+### Fixed
+
+- Typing by hand on a phone was recorded as a plain tap when the tap landed on a field's label ("First name" drawn on top of the text field). A tap on a label inside a field now counts as the field, so the typed text becomes a `type` step.
+- Typing a password on the phone recorded nothing, because a password field's text is always hidden and so never looked changed. The recorder now sees the field go from empty to filled and records a secret `type` step (`${SECRET_VALUE}`) for you to fill in. Elements carry a `filled` flag for this; the password itself is never read.
+- The recorder's step editor can switch a recorded step between **Tap** and **Type** (`POST /api/recorder/update` takes `action`), so a missed text entry can be fixed without recording again.
+- A failed run showed the raw Appium error, stack trace included, as a large block of red text. The Run page now shows the step, a one-line headline ("Could not find tng.code within 12 s", "The connection to the phone dropped"), a hint on what to do next, and the full error behind **Show details**. Hints point out locators that break easily: generated ids with a UUID and xpaths that pick an element by its position. The run API adds `failure_summary` (`error_text.explain_failure()`).
+- When the UiAutomator2 helper on the phone crashed or Appium stopped, a step kept polling until its timeout ran out. `wait_for_element` now stops at the first such error and reports `appium_session_failure`.
+
+- `reset: reinstall` without an app file uninstalled the app and had nothing to install back. It now refuses before touching the device, and so does `clear_data` on iOS, which also uninstalls.
+- Saving steps from the workflow and journey editor dropped fields the editor does not show (`wait_for_user` settings, `timeout`, `capture: off`, tap offsets) and silently left out steps it had no row type for. A row nobody edited is now saved exactly as loaded.
+
+### Lessons learned
+
+- A reset mode that removes the app must know it can put the app back. Check for the app file before the uninstall, not after.
+- Nested steps are kept as raw YAML in the block's params and normalized when the block runs. That keeps workflow param substitution working and makes saving round-trip, at the cost of checking them separately in the validator.
+
+---
+
 ## [v0.1.42] - 2026-11-21
 
 ### Added

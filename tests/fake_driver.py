@@ -89,6 +89,7 @@ class FakeDriver:
         self.secret_paint_boxes: list[dict[str, int]] = []
         self.on_swipe_hook: Any = None
         self.keyboard_shown: bool = False
+        self.installed_apps: set[str] | None = None  # None means every app counts as installed
 
     def set_page_source(self, xml: str) -> None:
         self._page_source = xml
@@ -189,6 +190,10 @@ class FakeDriver:
 
     def install_app(self, app_path: str) -> None:
         self.calls.append(("install_app", app_path))
+
+    def is_app_installed(self, app_id: str) -> bool:
+        self.calls.append(("is_app_installed", app_id))
+        return self.installed_apps is None or app_id in self.installed_apps
 
     def background_app(self, seconds: int | float) -> None:
         self.calls.append(("background_app", seconds))

@@ -62,10 +62,42 @@ Every test lives in a `.md` file under `specs/`. The YAML front matter between `
 | `assert_toggle` | `target`, `state: on \| off`, `timeout?` | Waits for the switch to reach the state, then fails with the actual state if it does not |
 | `biometric` | `action: enroll \| match \| fail` | Simulator/emulator only; auto-skipped on real devices |
 | `run_flow` | `flow`, `params?` | Expands a 1-level flow from `flows/` |
+| `if_visible` | `target`, `then?`, `else?`, `timeout?`, `params?` | Runs the `then` steps when `target` shows up within `timeout` (default 3s), otherwise the `else` steps. Needs `then` or `else`. Use it for a popup or permission dialog that shows on the first run and not on the next. A missing element is not a failure, a failing step inside a branch is. In a journey a branch may call `run_flow`, in a workflow it may not |
+| `repeat` | `steps`, plus `times` or `until` (with `max?`, `until_timeout?`, `as?`, `params?`) | Runs `steps` again and again. `times: 3` runs them three times. `until: screen.element` checks before every round and stops when that element is on screen. It fails when the element has not shown up after `max` rounds (default 10, at most 100), so the repeat itself is the check. Each round sets `${round}` (1, 2, 3...), or the name given in `as`, for the steps inside. `repeat: 3` is short for `times: 3` |
 | `screenshot` | `name` (or `{name, baseline?, threshold?, mask?}`) | Captures screenshot and optionally compares against baseline PNG |
 | `visual_compare` | `target?`, `baseline`, `threshold?`, `mask?` | Compares current screenshot (or cropped element) against a stored baseline |
 
 Add `capture: off` to any step when a full screen contains sensitive information and no screenshot should be captured after that step.
+
+### Steps that only run sometimes, and steps that repeat
+
+A popup that asks for a permission the first time, and never again once you answered it:
+
+```yaml
+steps:
+  - launch: {app: com.example.shop, restart: true}
+  - if_visible:
+      target: permission.allow_button
+      then:
+        - tap: permission.allow_button
+  - assert_visible: home.title
+```
+
+For a single tap, `tap_if_visible: permission.allow_button` does the same thing.
+
+Add items to a cart until the total shows up, and fail if it never does:
+
+```yaml
+steps:
+  - repeat:
+      until: cart.total
+      max: 5
+      steps:
+        - tap: {target: products.item_row, params: {n: "${round}"}}
+        - tap: products.add_to_cart
+```
+
+Each step inside a block gets its own row in the report, with "If shown:", "Otherwise:" or "Round N:" in front of it, and its own screenshot. Steps inside blocks also take `${variables}` from the workflow, the dataset and earlier steps. `qalprit validate` checks the locators and variables inside blocks too.
 
 ---
 
@@ -185,6 +217,14 @@ The Workbench **Record** view writes the flow, its locators, and (optionally) a 
 - the same value typed into the same field twice shares one variable
 
 The values you typed are saved as the `recorded` row of the flow's dataset. Saving the same flow again keeps rows you added.
+
+Click a recorded step and tick **Only if shown** to make it conditional. A tap is saved as `tap_if_visible`, any other step is wrapped in `if_visible` on its own element. Taps on Android permission and installer dialogs are marked this way when you record them, because those dialogs show once.
+
+### Running against the app already on the device
+
+You do not need an app file to run a test. Leave **App** on *App already on the device* in the Workbench, or leave out `--app` on `qalprit run`. The run opens the app named in the environment (`android_package` or `ios_bundle_id`), or else the app the journey opens itself with `launch: {app: com.example.app}`. That is what the recorder writes when you record on a USB phone. Before starting, the run checks the app is installed and says so if it is not.
+
+A reset that uninstalls the app needs the file to put it back, so without one these are refused: `reset: reinstall` on both platforms, and `reset: clear_data` on iOS. `clear_data` on Android (`pm clear`) and `none` work as usual.
 
 ### Datasets (`datasets/flows/<name>.csv`, `datasets/specs/<id>.csv`)
 

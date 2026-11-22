@@ -35,7 +35,7 @@ from qalprit.env_loader import load_env
 from qalprit.inspector import extract_interactive_elements, format_inspect_output
 from qalprit.report.generator import generate_batch_report, generate_reports
 from qalprit.results import write_results_json
-from qalprit.runner import TestRunner
+from qalprit.runner import TestRunner, installed_app_problems
 from qalprit.spec_loader import TestSpec, load_flows, load_specs
 from qalprit.validator import validate_project
 
@@ -1443,8 +1443,6 @@ class RunJobManager:
             cand = Path(app_raw)
             resolved_app = cand if cand.is_absolute() else (project_root / cand)
             resolved_app = resolved_app.resolve()
-        elif not dry_run:
-            raise ValueError("Select or upload an app (.apk/.app/.ipa/.zip) before starting a live run.")
 
         val = validate_project(
             project_root,
@@ -1495,6 +1493,12 @@ class RunJobManager:
                     "or create a Test Journey in Step 3."
                 )
             raise ValueError("No matching test journeys found to run. Record a Workflow in Step 2 or create a Test Journey in Step 3.")
+
+        if resolved_app is None and not dry_run:
+            # No app file: run against the app already installed on the device.
+            problems = installed_app_problems(specs, val.flows, env_cfg, platform, reset_override or "")
+            if problems:
+                raise ValueError("Cannot run without an app file. " + " ".join(problems))
 
         dataset_bundle: DatasetBundle | None = None
         selected_rows: list[DatasetRow] = []

@@ -40,11 +40,24 @@ STEP_VOCABULARY: frozenset[str] = frozenset(
         "assert_toggle",
         "biometric",
         "set_camera_image",
+        "if_visible",
+        "repeat",
         "run_flow",
         "screenshot",
         "visual_compare",
     }
 )
+
+# Steps that hold other steps. The nested steps stay as raw YAML in ``params`` (so flow params
+# are filled in and saving writes them back unchanged) and are read with ``block_children``.
+BLOCK_STEP_KEYS: dict[str, tuple[str, ...]] = {
+    "if_visible": ("then", "else"),
+    "repeat": ("steps",),
+}
+DEFAULT_REPEAT_VAR = "round"
+
+# An installed app id, such as com.example.app (Android package or iOS bundle id).
+APP_ID_RE = re.compile(r"^[A-Za-z][\w-]*(\.[A-Za-z_][\w-]*)+$")
 
 _FLOW_PARAM_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 
@@ -154,6 +167,7 @@ def normalize_step(raw_step: Any) -> StepItem:
     elif step_type in (
         "tap",
         "tap_if_visible",
+        "if_visible",
         "long_press",
         "clear",
         "enter_otp",
@@ -174,6 +188,8 @@ def normalize_step(raw_step: Any) -> StepItem:
         params = {"direction": str(val)}
     elif step_type == "wait_for_user":
         params = {"prompt": str(val)}
+    elif step_type == "repeat" and isinstance(val, int):
+        params = {"times": val}
     elif step_type == "biometric":
         params = {"action": str(val)}
     elif step_type == "set_camera_image":
@@ -335,13 +351,73 @@ def _substitute_flow_params_in_value(value: Any, flow_params: dict[str, Any]) ->
 def effective_references(spec: TestSpec, flows: dict[str, FlowSpec]) -> list[str]:
     """The journey's own references first, then those of each workflow it runs, without repeats."""
     refs = list(spec.references)
-    for step in [*spec.setup, *spec.steps, *spec.teardown]:
+    tops = [*spec.setup, *spec.steps, *spec.teardown]
+    for step in [s for top in tops for s in (top, *(c for _, c in iter_block_children(top)))]:
         if step.type != "run_flow":
             continue
         flow = flows.get(str(step.params.get("flow") or ""))
         if flow is not None:
             refs.extend(flow.references)
     return list(dict.fromkeys(r for r in refs if r))
+
+
+def block_children(step: StepItem, key: str, flows: dict[str, FlowSpec] | None = None) -> list[StepItem]:
+    """The steps nested under ``key`` (``then``, ``else`` or ``steps``) of a block step.
+
+    They keep the block's workflow name and its ``capture: off``. A ``run_flow`` inside a
+    journey's block is expanded. Inside a workflow it is refused, as workflows stay one level deep.
+    """
+    raw = step.params.get(key)
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise ValueError(f"'{step.type}.{key}' must be a list of steps")
+    out: list[StepItem] = []
+    for item in raw:
+        child = normalize_step(item)
+        if step.capture == "off":
+            child.capture = "off"
+        if child.type == "run_flow":
+            if step.flow_name:
+                raise ValueError(
+                    f"'run_flow' inside '{step.type}' in workflow '{step.flow_name}' is not allowed (max 1 level)"
+                )
+            out.extend(expand_steps([child], flows or {}))
+            continue
+        child.flow_name = step.flow_name
+        out.append(child)
+    return out
+
+
+def iter_block_children(step: StepItem) -> list[tuple[str, StepItem]]:
+    """Every step nested in ``step`` at any depth, with its path (``then[1]``), without expanding flows."""
+    found: list[tuple[str, StepItem]] = []
+    for key in BLOCK_STEP_KEYS.get(step.type, ()):
+        raw = step.params.get(key)
+        if not isinstance(raw, list):
+            continue
+        for i, item in enumerate(raw, start=1):
+            try:
+                child = normalize_step(item)
+            except ValueError:
+                continue
+            path = f"{key}[{i}]"
+            found.append((path, child))
+            found.extend((f"{path}.{sub}", c) for sub, c in iter_block_children(child))
+    return found
+
+
+def launched_app_id(steps: list[StepItem]) -> str:
+    """The app the steps open with ``launch: {app: com.example.app}``, or "" when none names one.
+
+    Lets a run use the app already installed on the device when the environment names no app.
+    """
+    for step in steps:
+        if step.type == "launch":
+            named = str(step.params.get("app") or "").strip()
+            if APP_ID_RE.match(named):
+                return named
+    return ""
 
 
 def expand_steps(steps: list[StepItem], flows: dict[str, FlowSpec]) -> list[StepItem]:
