@@ -523,6 +523,9 @@
     .b-fail { background: var(--fail-soft); color: var(--fail); }
     .b-skip { background: var(--surface-2); color: var(--muted); border: 1px solid var(--border); }
 
+    .error-details { margin-top: 8px; color: var(--muted); }
+    .error-details summary { cursor: pointer; font-size: 12px; }
+    .error-details pre { margin: 6px 0 0; max-height: 220px; overflow: auto; white-space: pre-wrap; word-break: break-word; font-size: 11px; color: var(--muted); }
     .status-banner {
       padding: 9px 12px;
       border-radius: 8px;
@@ -2439,6 +2442,8 @@
                 <span class="muted" id="runProgressMeta">0% &middot; 0.0s</span>
                 <button type="button" class="btn btn-sm btn-danger" id="btnStopLiveRun" hidden>Stop run</button>
                 <a id="openFinishedReportLink" class="btn btn-sm btn-primary" href="#" target="_blank" rel="noopener" hidden>Open report &rarr;</a>
+                <a id="runSaveLogLink" class="btn btn-sm" href="/api/runs/log" download title="Save the run log and full error text as a file to share or investigate" hidden>Save log</a>
+                <button type="button" class="btn btn-sm" id="btnDismissRun" title="Hide this run's status and log" hidden>Dismiss</button>
               </div>
             </div>
             <div class="progress-track"><div class="progress-fill" id="runProgressFill"></div></div>
@@ -3203,7 +3208,8 @@
         if (!el) return;
         if (!msg) { el.hidden = true; el.textContent = ""; return; }
         el.hidden = false;
-        setBannerKind(el, "") + (kind ? " status-" + kind : "");
+        el.classList.remove("status-warn");
+        setBannerKind(el, kind);
         el.textContent = msg;
       }
 
@@ -6760,6 +6766,8 @@
             $("runLiveLog").scrollTop = $("runLiveLog").scrollHeight;
           }
           $("btnStopLiveRun").hidden = !st.running;
+          $("btnDismissRun").hidden = Boolean(st.running);
+          $("runSaveLogLink").hidden = Boolean(st.running) || st.status === "idle";
           const otp = st.handoff_pending || st.otp_pending;
           const otpBox = $("runOtpBox");
           if (otp && otpBox.dataset.otpId !== String(otp.id)) {
@@ -6797,6 +6805,14 @@
             await loadOverview({ skipAutoSync: true, preserveFormInputs: true });
           } else if (st.status === "error") {
             showBanner("runStatusBanner", st.error || "Run failed.", "error");
+            if (st.error_detail) {
+              // Keep the raw Appium text out of sight, one click away for anyone who needs it.
+              const more = document.createElement("details");
+              more.className = "error-details";
+              more.innerHTML = `<summary>Show details</summary><pre></pre>`;
+              more.querySelector("pre").textContent = st.error_detail;
+              $("runStatusBanner").appendChild(more);
+            }
           } else if (st.status === "stopped") {
             showBanner("runStatusBanner", "Run stopped by user.", "warn");
           }
@@ -6833,6 +6849,15 @@
       $("btnRunHandoffFail").addEventListener("click", () => answerHandoff("fail"));
       $("runOtpInput").addEventListener("keydown", (e) => { if (e.key === "Enter") answerHandoff("done"); });
       $("btnStopLiveRun").addEventListener("click", async () => { await apiJson("/api/runs/stop", {}); pollRunStatus(); });
+      $("btnDismissRun").addEventListener("click", async () => {
+        // Clears the last run on the server too, so the card stays gone after a reload.
+        try { await apiJson("/api/runs/clear", {}); } catch (_) {}
+        $("runLiveCard").hidden = true;
+        $("runLiveLog").textContent = "";
+        $("runLiveLog").hidden = true;
+        $("openFinishedReportLink").hidden = true;
+        showBanner("runStatusBanner", "");
+      });
 
       async function launchRunFromModal(dryRun) {
         $("openFinishedReportLink").hidden = true;
@@ -6872,6 +6897,8 @@
             $("runProgressFill").style.width = "100%";
             $("runLiveLog").hidden = false;
             $("runLiveLog").textContent = res.specs.map((s) => `• ${s.id}: ${s.title} (${s.steps} steps)`).join("\n");
+            $("btnDismissRun").hidden = false;
+            $("runSaveLogLink").hidden = true;
             showBanner("runStatusBanner", `Dry run OK: ${res.specs.length} journey(s) matched.`, "ok");
           } else {
             startRunPolling();

@@ -453,6 +453,13 @@ def run(
                 "Cannot run without --app:\n" + "\n".join(f"  - {p}" for p in problems)
             )
 
+    if not dry_run and app_path is not None:
+        from qalprit.workbench_api import env_for_app_file
+
+        env_cfg, app_note = env_for_app_file(env_cfg, app_path, platform)
+        if app_note:
+            click.echo(f"Note: {app_note}")
+
     if dry_run:
         ds_note = f" | datasets={len(selected_rows)}" if selected_rows else ""
         click.echo(

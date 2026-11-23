@@ -32,6 +32,7 @@ from qalprit.datasets import DatasetBundle, DatasetRow, load_datasets, resolve_d
 from qalprit.doctor import find_android_sdk, win_subprocess_kwargs
 from qalprit.driver_factory import create_appium_driver
 from qalprit.env_loader import load_env
+from qalprit.error_text import friendly_error
 from qalprit.inspector import extract_interactive_elements, format_inspect_output
 from qalprit.report.generator import generate_batch_report, generate_reports
 from qalprit.results import write_results_json
@@ -204,6 +205,33 @@ def _detect_app_identifier(app_path: Path, kind: str) -> str:
     if cache_key is not None:
         _APP_META_CACHE[cache_key] = ident
     return ident
+
+
+def env_for_app_file(env_cfg: Any, app_path: Path | None, platform: str) -> tuple[Any, str]:
+    """Use the app id inside the chosen app file when it differs from the environment's.
+
+    Picking an app file means "test this app". Opening the environment's app id instead installs
+    one app and launches another, which Appium reports as a long "Cannot start" error.
+    Returns the environment to use and a note for the run log (empty when nothing changed).
+    """
+    if app_path is None:
+        return env_cfg, ""
+    kind = "app" if app_path.is_dir() else app_path.suffix.lower().lstrip(".")
+    if (kind == "apk") != (platform == "android"):
+        return env_cfg, ""
+    file_id = _detect_app_identifier(app_path, kind)
+    field = "android_package" if platform == "android" else "ios_bundle_id"
+    current = (getattr(env_cfg, field, "") or "").strip()
+    if not file_id or file_id == current:
+        return env_cfg, ""
+    note = ""
+    if current:
+        note = (
+            f"{app_path.name} is {file_id}, but this environment opens {current}. "
+            f"Using {file_id} for this run. To make it permanent, change the app id in "
+            "Settings & setup > Apps & environments."
+        )
+    return env_cfg.model_copy(update={field: file_id}), note
 
 
 def _iter_app_entries(apps_dir: Path):
@@ -527,6 +555,7 @@ def inspect_live_screen(
 
     log_path = project_root / "results" / "workbench_inspect_appium.log"
     masker = val.env_ctx.masker if val.env_ctx else None
+    env_cfg, _ = env_for_app_file(env_cfg, resolved_app, platform)
     with AppiumManager(log_path=log_path, masker=masker) as mgr:
         driver = create_appium_driver(mgr.url, profile, env_cfg, app_path=resolved_app)
         try:
@@ -1353,6 +1382,7 @@ class RunJobManager:
             "report_url": "",
             "summary": None,
             "error": "",
+            "error_detail": "",
         }
 
     def status(self) -> dict[str, Any]:
@@ -1371,7 +1401,48 @@ class RunJobManager:
                 "report_url": self._state["report_url"],
                 "summary": self._state["summary"],
                 "error": self._state["error"],
+                "error_detail": self._state.get("error_detail", ""),
             }
+
+    def clear(self) -> dict[str, Any]:
+        """Hide a finished, stopped or failed run from the Workbench. A running job is left alone."""
+        with self._lock:
+            if self._state["running"]:
+                return {"ok": False, "running": True}
+            self._state = {
+                "running": False,
+                "run_id": "",
+                "status": "idle",
+                "phase": "Idle",
+                "progress_pct": 0,
+                "elapsed_sec": 0.0,
+                "logs": [],
+                "report_url": "",
+                "summary": None,
+                "error": "",
+                "error_detail": "",
+            }
+            self._started_monotonic = None
+        return {"ok": True, "running": False}
+
+    def log_text(self) -> tuple[str, str]:
+        """Return (file name, text) for the last run's log, with the full error detail at the end."""
+        st = self.status()
+        run_id = st["run_id"] or "run"
+        lines = [
+            "QAlprit run log",
+            f"Run: {st['run_id'] or '-'}",
+            f"Status: {st['status']}",
+            f"Elapsed: {st['elapsed_sec']} s",
+            "",
+            *st["logs"],
+        ]
+        if st["error"]:
+            lines += ["", "Error:", st["error"]]
+        if st["error_detail"]:
+            lines += ["", "Error details:", st["error_detail"]]
+        safe = re.sub(r"[^A-Za-z0-9_.-]", "_", run_id)
+        return f"qalprit-{safe}.log", "\n".join(lines) + "\n"
 
     def _append_log(self, line: str) -> None:
         with self._lock:
@@ -1500,6 +1571,10 @@ class RunJobManager:
             if problems:
                 raise ValueError("Cannot run without an app file. " + " ".join(problems))
 
+        app_note = ""
+        if not dry_run:
+            env_cfg, app_note = env_for_app_file(env_cfg, resolved_app, platform)
+
         dataset_bundle: DatasetBundle | None = None
         selected_rows: list[DatasetRow] = []
         if run_datasets or requested_dataset_names:
@@ -1564,10 +1639,11 @@ class RunJobManager:
                 "phase": "Starting Appium",
                 "progress_pct": 15,
                 "elapsed_sec": 0.0,
-                "logs": [init_msg],
+                "logs": [init_msg] + ([f"[{run_id}] {app_note}"] if app_note else []),
                 "report_url": "",
                 "summary": None,
                 "error": "",
+                "error_detail": "",
             }
 
         def _worker() -> None:
@@ -1765,8 +1841,11 @@ class RunJobManager:
             except Exception as exc:
                 was_stopped = self._cancel_event.is_set()
                 msg = masker.mask(str(exc)) if masker else str(exc)
+                # The banner and log get one readable line. The full driver text stays behind
+                # "Show details" in the Workbench and in appium.log.
+                short = friendly_error(msg)
                 self._append_log(
-                    f"[{run_id}] Stopped by user." if was_stopped else f"[{run_id}] ERROR: {msg}"
+                    f"[{run_id}] Stopped by user." if was_stopped else f"[{run_id}] ERROR: {short}"
                 )
                 with self._lock:
                     elapsed = round(time.monotonic() - (self._started_monotonic or time.monotonic()), 1)
@@ -1778,7 +1857,8 @@ class RunJobManager:
                     else:
                         self._state["status"] = "error"
                         self._state["phase"] = "Error"
-                        self._state["error"] = msg
+                        self._state["error"] = short
+                        self._state["error_detail"] = msg if short != msg else ""
             finally:
                 with self._lock:
                     self._active_mgr = None
