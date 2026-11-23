@@ -1030,6 +1030,7 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
                         redact_sensitive=None if raw_redact is None else bool(raw_redact),
                         fresh_start=bool(body.get("fresh_start", True)),
                         start_mode=str(body.get("start_mode") or ""),
+                        app_source=str(body.get("app_source") or ""),
                     )
                 )
                 return

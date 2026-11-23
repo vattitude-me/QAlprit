@@ -455,6 +455,9 @@ class RecorderManager:
         self._real_device = False
         self._start_mode = "clear_data"
         self._launch_app_id = ""
+        self._use_foreground = False
+        # App the recording is about, shown on the Record page.
+        self._recording_app = ""
         # App in front at the last capture, so switching apps on the device becomes a step.
         self._front_app = ""
         self._apps_seen: set[str] = set()
@@ -528,6 +531,8 @@ class RecorderManager:
                 "direct_tap_watch": self._direct_tap_watch,
                 "real_device": self._real_device,
                 "start_mode": self._start_mode,
+                "app_source": "foreground" if self._use_foreground else "",
+                "recording_app": self._recording_app,
                 "device_gestures": self._device_gestures,
                 "keyboard_up": self._keyboard_top is not None,
                 "redact_sensitive": self._redact_sensitive,
@@ -1103,6 +1108,7 @@ class RecorderManager:
         redact_sensitive: bool | None = None,
         fresh_start: bool = True,
         start_mode: str = "",
+        app_source: str = "",
     ) -> dict[str, Any]:
         """Attach a persistent Appium session to an emulator, simulator or USB phone and begin recording.
 
@@ -1110,6 +1116,9 @@ class RecorderManager:
         ``restart`` (close and reopen the installed app, keeping logins and data) or ``as_is``
         (record from whatever is on screen). Without it, ``fresh_start`` picks ``clear_data`` or
         ``as_is``. A USB phone never has its data wiped unless ``clear_data`` is asked for by name.
+
+        ``app_source="foreground"`` ignores the environment's app id and records the app open on
+        the device when recording starts. The saved workflow then opens that app first.
         """
         if self._active or self._starting:
             self.stop()
@@ -1120,8 +1129,9 @@ class RecorderManager:
         profile = _resolve_device_profile(val.devices, device_profile, platform)
         env_cfg = val.environments[env_name]
 
+        use_foreground = (app_source or "").strip().lower() == "foreground"
         resolved_app: Path | None = None
-        if app_path_str.strip():
+        if app_path_str.strip() and not use_foreground:
             cand = Path(app_path_str.strip())
             resolved_app = cand if cand.is_absolute() else (project_root / cand)
             resolved_app = resolved_app.resolve()
@@ -1171,6 +1181,8 @@ class RecorderManager:
             self._real_device = real_device
             self._start_mode = mode
             self._launch_app_id = ""
+            self._use_foreground = use_foreground
+            self._recording_app = ""
             self._front_app = ""
             self._apps_seen = set()
             self._step_shots = {}
@@ -1179,7 +1191,9 @@ class RecorderManager:
             self._keyboard_top = None
             self._device_gestures = 0
             self._gesture_queue = queue.Queue()
-        configured_app_id = env_cfg.android_package if platform == "android" else env_cfg.ios_bundle_id
+        configured_app_id = "" if use_foreground else (
+            env_cfg.android_package if platform == "android" else env_cfg.ios_bundle_id
+        )
 
         connect_phase = _connect_phase_text(platform, profile)
 
@@ -1209,14 +1223,18 @@ class RecorderManager:
                     self._front_app = app_id or front
                     if self._front_app and not is_home_app(self._front_app):
                         self._apps_seen.add(self._front_app)
-                if not app_id and mode != "clear_data":
-                    # No app named in the environment: use the one open on the device, so the
-                    # saved test can reopen it.
+                if not app_id and (mode != "clear_data" or use_foreground):
+                    # No app named in the environment, or the person asked for the open app: use
+                    # the one open on the device, so the saved test can reopen it.
                     app_id = _foreground_app_id(driver, platform)
                     with self._lock:
                         self._launch_app_id = app_id
                     if app_id:
                         self._log(f"Recording the app open on the device: {app_id}.")
+                    elif use_foreground:
+                        self._log("No app is open on the device. Recording from the home screen.")
+                with self._lock:
+                    self._recording_app = app_id
                 if mode == "clear_data":
                     # Test runs reset the app before each test. Do the same here so the first
                     # recorded screen is the one a replay starts from, not wherever the app was left.
@@ -1725,6 +1743,7 @@ class RecorderManager:
             locators = dict(self._locators)
             start_mode = self._start_mode
             launch_app_id = self._launch_app_id
+            use_foreground = self._use_foreground
             real_device = self._real_device
             shots = dict(self._step_shots)
         if project_root is None:
@@ -1761,8 +1780,11 @@ class RecorderManager:
         recorded_values: dict[str, str] = {}
         if parameterize:
             steps, variables, secret_vars, recorded_values = parameterize_typed_steps(steps)
-        if start_mode == "restart" and launch_app_id and not (steps and steps[0].get("action") == "launch"):
-            # The environment names no app, so the flow reopens the one it was recorded on.
+        if (start_mode == "restart" or use_foreground) and launch_app_id and not (
+            steps and steps[0].get("action") == "launch"
+        ):
+            # The flow reopens the app it was recorded on, because the environment names no app
+            # or names a different one.
             steps = [{"action": "launch", "target": "", "value": launch_app_id, "label": f"Open {launch_app_id}"}] + steps
         yaml_steps = [_step_to_yaml_dict(s) for s in steps]
         where = "USB device" if real_device else ("emulator" if platform == "android" else "simulator")
