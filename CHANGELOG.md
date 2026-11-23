@@ -12,6 +12,19 @@ Ideas planned for a later release. Nothing here ships yet.
 
 ---
 
+## [v0.1.44] - 2026-11-23
+
+### Added
+
+- **Record the app that is open.** The recorder takes `app_source: "foreground"` (`POST /api/recorder/start`). It ignores the environment's app id, records whatever is open on the device, and saves a `launch` step for it first. On the home screen it records without an app. No Workbench control yet.
+
+### Changed
+
+- **Website copy is shorter.** `web/index.html` now has one sentence per section instead of paragraphs, and the engineer details moved out of the first screens.
+
+---
+
+
 ## [v0.1.43] - 2026-11-22
 
 ### Added
