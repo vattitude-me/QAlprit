@@ -80,12 +80,13 @@
 
         <figure class="hero-shot">
           <div class="app-window">
-            <div class="app-window-bar" aria-hidden="true"><span></span><span></span><span></span><em>QAlprit Workbench · Record</em></div>
-            <a href="screenshots/record-ios.png" target="_blank" rel="noopener">
-              <img src="screenshots/record-ios.png" width="1600" height="1000" alt="QAlprit Workbench recording a login on a live iPhone simulator. Four steps are captured and the password field is blacked out." fetchpriority="high" />
-            </a>
+            <div class="app-window-bar" aria-hidden="true"><span></span><span></span><span></span><em>QAlprit Workbench · 1 minute tour</em></div>
+            <video class="hero-video" width="1280" height="800" poster="media/intro-poster.jpg" autoplay muted loop playsinline controls preload="metadata" aria-label="One minute tour of QAlprit: record a login on the iOS Simulator, record add to cart on an Android emulator, add data rows, and run the test with a report.">
+              <source src="media/intro.mp4" type="video/mp4" />
+              <img src="screenshots/record-ios.png" width="1600" height="1000" alt="QAlprit Workbench recording a login on a live iPhone simulator, with the password field blacked out." />
+            </video>
           </div>
-          <figcaption>Recording a login. The password is blacked out.</figcaption>
+          <figcaption>Record, add data, run. A one minute tour.</figcaption>
         </figure>
       </div>
     </section>
@@ -120,7 +121,7 @@
               <p>Click through your app. Every tap, entry and check becomes a step.</p>
             </div>
             <a class="app-window tour-shot" href="screenshots/record-android.png" target="_blank" rel="noopener">
-              <img src="screenshots/record-android.png" width="1600" height="1000" loading="lazy" alt="Recording an add to cart flow on a live Android emulator. Three steps are listed next to the phone mirror." />
+              <img src="screenshots/record-android.png" width="1600" height="1000" loading="lazy" alt="Recording an add to cart flow on a live Android emulator. Four steps are listed next to the phone mirror, each with a screenshot." />
             </a>
           </article>
 
@@ -131,7 +132,7 @@
               <p>Your clicks become a clean list of steps. Typed values become variables.</p>
             </div>
             <a class="app-window tour-shot" href="screenshots/workflow-steps.png" target="_blank" rel="noopener">
-              <img src="screenshots/workflow-steps.png" width="1600" height="1000" loading="lazy" alt="Workflow editor showing seven recorded steps with username and password variables." />
+              <img src="screenshots/workflow-steps.png" width="1600" height="1000" loading="lazy" alt="Workflow editor showing seven recorded login steps, with username and password variables and both typed values marked secret." />
             </a>
           </article>
 
@@ -142,7 +143,7 @@
               <p>Add rows or import a CSV. One recording runs once per row.</p>
             </div>
             <a class="app-window tour-shot" href="screenshots/datasets.png" target="_blank" rel="noopener">
-              <img src="screenshots/datasets.png" width="1600" height="1000" loading="lazy" alt="Dataset table with three rows, a masked password column and a run panel showing two selected datasets." />
+              <img src="screenshots/datasets.png" width="1600" height="1000" loading="lazy" alt="Dataset table with three rows, two of them selected, a masked password column and a run panel for the iOS Simulator." />
             </a>
           </article>
 
@@ -156,7 +157,7 @@
               </div>
             </div>
             <a class="app-window tour-shot" href="screenshots/runs.png" target="_blank" rel="noopener">
-              <img src="screenshots/runs.png" width="1600" height="1000" loading="lazy" alt="Runs and reports view with two dataset runs passed and links to HTML, Markdown and JUnit output." />
+              <img src="screenshots/runs.png" width="1600" height="1000" loading="lazy" alt="Runs and reports view with a batch of two data rows that both passed, links to HTML, Markdown and JUnit output, and the step list with a screenshot." />
             </a>
           </article>
         </div>
