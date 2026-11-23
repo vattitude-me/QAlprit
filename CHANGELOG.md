@@ -12,7 +12,13 @@ Ideas planned for a later release. Nothing here ships yet.
 
 ---
 
-## Unreleased (website only)
+## Unreleased
+
+### Fixed
+
+- **A chosen app file now decides which app opens.** If the app file in the Run page is a different app from the environment's app id (for example a Wikipedia APK with an environment set to another app), QAlprit used to install the file and then ask Appium to open the other app, which failed with a long "Cannot start ... application" error. The run now uses the package or bundle id read from the file and says so in the run log. The same applies to `qalprit run --app` and Inspect. Helper: `env_for_app_file()` in `workbench_api.py`.
+- **Run errors are one readable line.** When a run stops with an error, the banner and log show a short message with a next step (`friendly_error()`). The full Appium text and stack trace sit behind Show details, and stay in `appium.log`. Appium's "Consider checking the driver's troubleshooting documentation" boilerplate is cut, and a device missing from `adb devices` gets its own hint.
+- **Status banners show their colour again.** `showBanner()` added the colour class to a return value instead of the banner, so error, warning and success banners all looked the same.
 
 ### Added
 

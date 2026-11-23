@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-_NOISE_MARKERS = ("\nStacktrace:", "; For documentation on this error", "\n  (Session info", "\n    at ")
+_NOISE_MARKERS = (" Consider checking the driver's troubleshooting", " Stacktrace:", "\nStacktrace:", "; For documentation on this error", "\n  (Session info", "\n    at ")
 
 _SESSION_DEAD = re.compile(
     r"instrumentation process is not running|cannot be proxied to UiAutomator2"
@@ -15,6 +15,11 @@ _SESSION_DEAD = re.compile(
 )
 
 _HINTS: tuple[tuple[re.Pattern[str], str], ...] = (
+    (
+        re.compile(r"Activity name .{0,200}used to start the app doesn't exist|Cannot start the '[^']+' application", re.I),
+        "The app could not be opened. The app file and the environment's app id may be two different apps. "
+        "Pick the matching app file, or set the app id in Settings & setup > Apps & environments.",
+    ),
     (
         re.compile(r"instrumentation process is not running|cannot be proxied to UiAutomator2", re.I),
         "The UiAutomator2 helper on the phone stopped. Close any other recording or run on this phone, then run again.",
@@ -44,8 +49,8 @@ _HINTS: tuple[tuple[re.Pattern[str], str], ...] = (
         "WebDriverAgent could not start on the iOS Simulator. Open Settings & Setup, run the toolchain check, then retry.",
     ),
     (
-        re.compile(r"Could not find a connected Android device|device .* (offline|not found)|adb: no devices", re.I),
-        "No Android device is connected. Boot an emulator from the device menu first.",
+        re.compile(r"Could not find a connected Android device|device .* (offline|not found)|not in the list of connected devices|adb: no devices", re.I),
+        "That Android device is not connected. Plug in the phone or boot an emulator from the device menu, then run again.",
     ),
     (
         re.compile(r"not installed|Cannot find any (free|installed)|bundle .* (is not|was not) (found|installed)", re.I),
