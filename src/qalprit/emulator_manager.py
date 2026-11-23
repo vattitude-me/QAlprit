@@ -31,6 +31,7 @@ from qalprit.paths import (
     get_qalprit_avd_home,
     get_qalprit_data_dir,
     get_user_android_sdk_dir,
+    save_user_settings,
 )
 
 DEFAULT_AVD_NAME = "QAlprit_Pixel"
@@ -677,6 +678,46 @@ class EmulatorJobManager:
                     killed.append(d.identifier)
         background_devices.forget("android")
         return {"ok": True, "stopping": was_running, "killed_emulators": killed}
+
+    def restart_android_with_window(self, serial: str = "") -> dict[str, Any]:
+        """Restart a background Android emulator so its window shows.
+
+        An emulator started with -no-window cannot open a window later, so this
+        turns on the Show the device window setting, stops the emulator and boots
+        the same AVD again.
+        """
+        adb_bin = find_android_tool("adb")
+        if not adb_bin:
+            raise RuntimeError("adb was not found. Run Device setup and health check first.")
+        devs, _ = list_android_devices()
+        running = [d.identifier for d in devs if d.kind == "emulator" and d.state == "device" and not d.identifier.startswith("avd:")]
+        if serial and serial not in running:
+            raise RuntimeError(f"{serial} is not running. Start the emulator from the device menu.")
+        target = serial or (running[0] if running else "")
+        avd_name = ""
+        for e in background_devices.started_devices(prune=False):
+            if e["kind"] == "android" and e["identifier"] == target:
+                avd_name = str(e.get("name") or "")
+        if target and (not avd_name or avd_name == target):
+            try:
+                proc = subprocess.run(
+                    [adb_bin, "-s", target, "emu", "avd", "name"],
+                    capture_output=True, text=True, timeout=10, **win_subprocess_kwargs(),
+                )
+                avd_name = (proc.stdout or "").strip().splitlines()[0].strip() if proc.stdout.strip() else ""
+            except Exception:
+                avd_name = ""
+        save_user_settings({background_devices.SETTING_KEY: True})
+        if target:
+            self.shutdown("android", target)
+            deadline = time.monotonic() + 30
+            while time.monotonic() < deadline:
+                devs, _ = list_android_devices()
+                if not any(d.identifier == target for d in devs):
+                    break
+                time.sleep(1)
+        res = self.start_boot_android(avd_name or DEFAULT_AVD_NAME)
+        return {**res, "restarted": bool(target), "avd": avd_name or DEFAULT_AVD_NAME}
 
     def shutdown(self, target: str = "all", identifier: str = "") -> dict[str, Any]:
         """Shut down running Android emulators and/or booted macOS iOS simulators."""

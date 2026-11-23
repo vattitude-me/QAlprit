@@ -523,6 +523,14 @@
     .b-fail { background: var(--fail-soft); color: var(--fail); }
     .b-skip { background: var(--surface-2); color: var(--muted); border: 1px solid var(--border); }
 
+    .run-live-body { display: flex; gap: 12px; align-items: flex-start; }
+    .run-live-body > pre { flex: 1 1 auto; min-width: 0; }
+    .run-live-shot { margin: 0; flex: 0 0 auto; display: flex; flex-direction: column; gap: 4px; }
+    .run-live-shot img { display: block; max-height: 320px; max-width: 180px; border-radius: 8px; border: 1px solid var(--border); background: #000; }
+    .run-live-shot figcaption { font-size: 11px; color: var(--muted); }
+    @media (max-width: 760px) { .run-live-body { flex-direction: column; } }
+    .update-pill { border: 1px solid var(--accent); color: var(--accent); background: transparent; border-radius: 999px; padding: 0 8px; font: inherit; font-size: 11px; cursor: pointer; }
+    .update-pill:hover { background: var(--accent-soft); }
     .error-details { margin-top: 8px; color: var(--muted); }
     .error-details summary { cursor: pointer; font-size: 12px; }
     .error-details pre { margin: 6px 0 0; max-height: 220px; overflow: auto; white-space: pre-wrap; word-break: break-word; font-size: 11px; color: var(--muted); }
@@ -1890,6 +1898,7 @@
       <div class="menu-sep"></div>
       <button type="button" id="btnMoreDeviceSetup">Device setup and health check</button>
       <button type="button" id="btnOpenWelcome">Show the welcome guide</button>
+      <button type="button" id="btnCheckUpdates">Check for updates</button>
     </div>
 
     <div id="cardMenu" class="menu-popover" popover>
@@ -2458,7 +2467,13 @@
               <button type="button" class="btn btn-sm" id="btnRunHandoffSkip" hidden>Skip</button>
               <button type="button" class="btn btn-sm btn-danger" id="btnRunHandoffFail">Mark failed</button>
             </div>
-            <pre id="runLiveLog" class="console" hidden></pre>
+            <div class="run-live-body">
+              <figure id="runLiveShotBox" class="run-live-shot" hidden>
+                <img id="runLiveShot" alt="Screen after the latest step" />
+                <figcaption>Screen after the latest step</figcaption>
+              </figure>
+              <pre id="runLiveLog" class="console" hidden></pre>
+            </div>
           </div>
         </div>
 
@@ -2682,7 +2697,7 @@
               <p class="muted" id="emuStatusDesc" style="margin:0;font-size:12px;">Install the default Android Virtual Device (~1.8 GB) or boot, switch, and shut down Android &amp; iOS targets.</p>
               <div style="padding:8px 10px;border-radius:8px;background:var(--surface);border:1px solid var(--border);">
                 <label class="chk-inline" style="font-weight:600;"><input type="checkbox" id="prefShowDeviceWindow" /> Show the device window</label>
-                <p class="muted" style="margin:4px 0 0;font-size:12px;">Off by default. Devices run in the background and you use them through the mirror in Record a test, so the emulator window doesn't cover QAlprit. Turn it on to see the emulator or simulator window too. QAlprit shuts down the background devices it started when you quit. It applies the next time a device starts.</p>
+                <p class="muted" style="margin:4px 0 0;font-size:12px;">Off by default. Devices run in the background and you use them through the mirror in Record a test, so the emulator window doesn't cover QAlprit. Turn it on to see the emulator or simulator window too. QAlprit shuts down the background devices it started when you quit. A device that is already running in the background has to restart to show its window. QAlprit offers to do that when you turn this on.</p>
               </div>
               <div class="btn-row" style="flex-wrap:wrap;gap:8px;">
                 <button type="button" class="btn btn-primary" id="btnEmuSetup" hidden>Setup Android Emulator (~1.8 GB)</button>
@@ -2802,6 +2817,14 @@
 
         <!-- TAB 3: STORAGE & CLEANUP -->
         <div id="settings-pane-storage" hidden style="display:flex;flex-direction:column;gap:14px;">
+          <div class="panel">
+            <div class="panel-head"><span class="panel-kicker">Updates</span></div>
+            <div class="panel-body" style="display:flex;flex-direction:column;gap:8px;">
+              <label class="chk-inline" style="font-weight:600;"><input type="checkbox" id="prefUpdateCheck" checked /> Check for updates once a day</label>
+              <p class="muted" style="margin:0;font-size:12px;">QAlprit asks PyPI for the latest version number, at most once a day, and shows Update available in the status bar when there is one. Nothing about you or your tests is sent. It never updates without you pressing Update.</p>
+              <div class="btn-row"><button type="button" class="btn btn-sm" id="btnCheckUpdatesNow">Check now</button><span class="muted" id="updateCheckText" style="font-size:12px;"></span></div>
+            </div>
+          </div>
           <div class="panel" id="storagePreflightCard">
             <div class="panel-head">
               <span class="panel-kicker">OS Storage Folders &amp; System Software</span>
@@ -2874,6 +2897,7 @@
       </div>
       <div class="sb-group">
         <span id="verPill">v0.1.34</span>
+        <button type="button" id="btnUpdatePill" class="update-pill" hidden title="A newer QAlprit is on PyPI">Update available</button>
         <span>&middot; all data stays on this machine &middot;</span>
         <span>Managed by <a href="https://vattitude.ca" target="_blank" rel="noopener">vattitude.ca</a></span>
       </div>
@@ -3765,12 +3789,12 @@
         const busy = Boolean(emu.busy) && emu.action === "boot";
         const showBtn = $("btnTopShowWindow");
         const bgNote = $("topDevBgNote");
-        if (showBtn) { showBtn.hidden = !(bgEntry && plat === "ios"); showBtn.dataset.udid = mineId; }
+        if (showBtn) { showBtn.hidden = !bgEntry; showBtn.dataset.udid = mineId; showBtn.dataset.kind = plat; }
         if (bgNote) {
           bgNote.hidden = !bgEntry;
           bgNote.textContent = plat === "ios"
             ? "Running in the background. Use the mirror in Record a test, or Show window to open Simulator."
-            : "Running in the background with no window. Use the mirror in Record a test. To see the emulator window, turn on Show the device window in Settings, then stop and start the device.";
+            : "Running in the background with no window. Use the mirror in Record a test, or Show window to restart the emulator with its window.";
         }
         if ($("topDevProgressBox")) {
           $("topDevProgressBox").hidden = !busy;
@@ -5802,10 +5826,30 @@
           }
         });
       }
+      async function showAndroidWindow(serial) {
+        const ok = await uiConfirm(
+          `An emulator running in the background cannot open a window, so QAlprit restarts ${serial || "it"} with its window. This takes about a minute. Apps and data on the emulator stay.`,
+          { title: "Restart the emulator with its window", okLabel: "Restart" }
+        );
+        if (!ok) return;
+        try {
+          await apiJson("/api/emulator/show_window", { target: "android", identifier: serial || "" });
+          if ($("prefShowDeviceWindow")) $("prefShowDeviceWindow").checked = true;
+          toast("Restarting the emulator with its window. Progress shows in the device menu.", "ok");
+          STATE.emuWasBusy = true;
+          startEmulatorPolling();
+        } catch (err) { toastError(err, "Could not restart the emulator"); }
+      }
       if ($("btnTopShowWindow")) {
         $("btnTopShowWindow").addEventListener("click", async () => {
+          const btn = $("btnTopShowWindow");
+          if (btn.dataset.kind === "android") {
+            if ($("devicePopoverMenu") && $("devicePopoverMenu").hidePopover) try { $("devicePopoverMenu").hidePopover(); } catch (_) {}
+            await showAndroidWindow(btn.dataset.udid || "");
+            return;
+          }
           try {
-            await apiJson("/api/emulator/show_window", { target: "ios", identifier: $("btnTopShowWindow").dataset.udid || "" });
+            await apiJson("/api/emulator/show_window", { target: "ios", identifier: btn.dataset.udid || "" });
             await pollEmulatorStatus();
           } catch (err) { toastError(err, "Could not show the simulator"); }
         });
@@ -5815,7 +5859,16 @@
           const on = e.target.checked;
           try {
             await apiJson("/api/system/preferences", { show_device_window: on });
-            toast(on ? "Device windows will show the next time a device starts." : "Devices will run in the background the next time one starts.", "ok");
+            const hiddenAndroid = on && ((STATE.emuStatus && STATE.emuStatus.started_devices) || []).find((d) => d.kind === "android" && d.hidden);
+            const hiddenIos = on && ((STATE.emuStatus && STATE.emuStatus.started_devices) || []).find((d) => d.kind === "ios" && d.hidden);
+            if (hiddenAndroid) {
+              await showAndroidWindow(hiddenAndroid.identifier);
+            } else if (hiddenIos) {
+              await apiJson("/api/emulator/show_window", { target: "ios", identifier: hiddenIos.identifier }).catch(() => {});
+              toast("Opened the Simulator window.", "ok");
+            } else {
+              toast(on ? "Device windows will show the next time a device starts." : "Devices will run in the background the next time one starts.", "ok");
+            }
           } catch (err) {
             e.target.checked = !on;
             toastError(err, "Could not save the setting");
@@ -6750,6 +6803,19 @@
         refreshRunSpecDropdown(preferredTarget);
       }
 
+      async function refreshRunShot() {
+        const box = $("runLiveShotBox");
+        try {
+          const r = await fetch("/api/runs/screen", { cache: "no-store" });
+          if (r.status !== 200) { box.hidden = true; return; }
+          const blob = await r.blob();
+          const img = $("runLiveShot");
+          if (img.dataset.url) URL.revokeObjectURL(img.dataset.url);
+          img.dataset.url = URL.createObjectURL(blob);
+          img.src = img.dataset.url;
+          box.hidden = false;
+        } catch (_) { box.hidden = true; }
+      }
       async function pollRunStatus() {
         try {
           const st = await apiJson("/api/runs/status");
@@ -6767,6 +6833,9 @@
           }
           $("btnStopLiveRun").hidden = !st.running;
           $("btnDismissRun").hidden = Boolean(st.running);
+          // Step screenshots land on disk as the run goes, so show the newest one every couple of seconds.
+          STATE.runShotTick = (STATE.runShotTick || 0) + 1;
+          if (st.status !== "idle" && (!st.running || STATE.runShotTick % 2 === 0)) refreshRunShot();
           $("runSaveLogLink").hidden = Boolean(st.running) || st.status === "idle";
           const otp = st.handoff_pending || st.otp_pending;
           const otpBox = $("runOtpBox");
@@ -6855,9 +6924,91 @@
         $("runLiveCard").hidden = true;
         $("runLiveLog").textContent = "";
         $("runLiveLog").hidden = true;
+        $("runLiveShotBox").hidden = true;
         $("openFinishedReportLink").hidden = true;
         showBanner("runStatusBanner", "");
       });
+
+      function renderUpdateInfo(info) {
+        STATE.updateInfo = info;
+        const pill = $("btnUpdatePill");
+        if (pill) {
+          pill.hidden = !info.update_available;
+          pill.textContent = `Update available: v${info.latest}`;
+        }
+        if ($("prefUpdateCheck") && document.activeElement !== $("prefUpdateCheck")) $("prefUpdateCheck").checked = Boolean(info.enabled);
+        if ($("updateCheckText")) {
+          const when = info.checked_at ? new Date(info.checked_at * 1000).toLocaleString() : "never";
+          $("updateCheckText").textContent = info.error
+            ? info.error
+            : info.update_available
+              ? `v${info.latest} is available. You have v${info.current}.`
+              : `You have the latest version (v${info.current}). Last checked ${when}.`;
+        }
+      }
+      async function checkForUpdates(force) {
+        try {
+          const info = await apiJson("/api/system/update" + (force ? "?force=1" : ""));
+          renderUpdateInfo(info);
+          return info;
+        } catch (_) { return null; }
+      }
+      async function watchSelfUpdate() {
+        for (let i = 0; i < 300; i++) {
+          await new Promise((r) => setTimeout(r, 2000));
+          const info = await checkForUpdates(false);
+          const inst = info && info.install;
+          if (!inst || inst.running) continue;
+          if (inst.status === "done") toast(inst.message, "ok", 20000);
+          else toast(inst.message || "The update failed.", "error", 20000);
+          return;
+        }
+      }
+      async function openUpdateDialog(force) {
+        const info = await checkForUpdates(force);
+        if (!info) { toast("Could not check for updates.", "error"); return; }
+        if (info.error) { toast(info.error, "error"); return; }
+        if (!info.update_available) { toast(`You have the latest version (v${info.current}).`, "ok"); return; }
+        if (info.install && info.install.running) { toast("The update is already installing.", "ok"); return; }
+        if (info.can_self_update) {
+          const ok = await uiConfirm(
+            `QAlprit v${info.latest} is available. You have v${info.current}. Update now? QAlprit runs "${info.command}" in the background. Close and start QAlprit again when it says it is done.`,
+            { title: "Update QAlprit", okLabel: "Update" }
+          );
+          if (!ok) return;
+          try {
+            await apiJson("/api/system/update/install", { version: info.latest });
+            toast(`Installing v${info.latest}...`, "ok");
+            watchSelfUpdate();
+          } catch (err) { toastError(err, "Could not start the update"); }
+          return;
+        }
+        const how = info.install_kind === "editable"
+          ? "This copy runs from a source folder. Pull the latest code and reinstall it."
+          : "Download the new version from the releases page.";
+        const ok = await uiConfirm(`QAlprit v${info.latest} is available. You have v${info.current}. ${how}`, { title: "Update QAlprit", okLabel: "Open releases" });
+        if (ok) {
+          // A real link click, so the desktop app hands it to the system browser.
+          const a = document.createElement("a");
+          a.href = info.releases_url; a.target = "_blank"; a.rel = "noopener";
+          document.body.appendChild(a); a.click(); a.remove();
+        }
+      }
+      $("btnUpdatePill").addEventListener("click", () => openUpdateDialog(false));
+      $("btnCheckUpdates").addEventListener("click", () => {
+        if ($("topMoreMenu") && $("topMoreMenu").hidePopover) try { $("topMoreMenu").hidePopover(); } catch (_) {}
+        openUpdateDialog(true);
+      });
+      $("btnCheckUpdatesNow").addEventListener("click", () => openUpdateDialog(true));
+      $("prefUpdateCheck").addEventListener("change", async (e) => {
+        try {
+          await apiJson("/api/system/update/settings", { enabled: e.target.checked });
+          checkForUpdates(false);
+        } catch (err) { e.target.checked = !e.target.checked; toastError(err, "Could not save the setting"); }
+      });
+      // Quiet check: once a few seconds after start, then every 6 hours. The server only asks PyPI once a day.
+      setTimeout(() => checkForUpdates(false), 5000);
+      setInterval(() => checkForUpdates(false), 6 * 60 * 60 * 1000);
 
       async function launchRunFromModal(dryRun) {
         $("openFinishedReportLink").hidden = true;
