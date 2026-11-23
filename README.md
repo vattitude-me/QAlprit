@@ -17,7 +17,8 @@
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/vattitude-me/QAlprit/main/web/screenshots/record-ios.png" alt="QAlprit Workbench recording a login on a live iPhone simulator, with the password field blacked out" width="900" />
+  <a href="https://qalprit.vattitude.ca"><img src="https://raw.githubusercontent.com/vattitude-me/QAlprit/main/web/media/intro.gif" alt="A one minute tour of QAlprit: record a login on the iOS Simulator, record add to cart on an Android emulator, add data rows and run the test" width="900" /></a><br />
+  <sub>One minute tour. <a href="https://raw.githubusercontent.com/vattitude-me/QAlprit/main/web/media/intro.mp4">Watch the full video</a>.</sub>
 </p>
 
 QAlprit is a desktop app for testing Android and iOS apps. You do not write test scripts. You open your app on an emulator or simulator inside the Workbench, click through it once, and QAlprit saves those clicks as a test you can run again whenever the app changes.
@@ -77,7 +78,7 @@ Click **Save workflow**. QAlprit names the elements you touched, stores how to f
 Open the workflow and go to **Variables & datasets**. The values you typed while recording are already there as the first row. Click **Add row** for more cases, or **Import CSV** to bring in a spreadsheet. Secret columns show as dots.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/vattitude-me/QAlprit/main/web/screenshots/datasets.png" alt="Dataset table with three rows, a masked password column and a run panel" width="900" />
+  <img src="https://raw.githubusercontent.com/vattitude-me/QAlprit/main/web/screenshots/datasets.png" alt="Dataset table with three rows, two selected, a masked password column and a run panel" width="900" />
 </p>
 
 ### 5. Run and read the report
@@ -85,7 +86,7 @@ Open the workflow and go to **Variables & datasets**. The values you typed while
 Tick the rows you want, choose Android or iOS, and click **Run**. Each row runs from a clean app state. **Runs & reports** shows a result per row with the final screen, and links to the full HTML report, a Markdown summary and JUnit XML for CI.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/vattitude-me/QAlprit/main/web/screenshots/runs.png" alt="Runs and reports view showing two dataset runs passed with report links" width="900" />
+  <img src="https://raw.githubusercontent.com/vattitude-me/QAlprit/main/web/screenshots/runs.png" alt="Runs and reports view with a batch of two data rows that both passed, with report links" width="900" />
 </p>
 
 ### 6. Check the screenshots against Jira or Confluence

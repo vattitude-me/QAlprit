@@ -1069,6 +1069,7 @@ dialog#proofLightbox::backdrop {
   box-shadow: 6px 6px 0 var(--frame-shadow);
 }
 .app-window img { display: block; width: 100%; height: auto; }
+.app-window video { display: block; width: 100%; height: auto; aspect-ratio: 16 / 10; background: #090e1a; }
 .app-window-bar {
   display: flex;
   align-items: center;

@@ -12,6 +12,22 @@ Ideas planned for a later release. Nothing here ships yet.
 
 ---
 
+## Unreleased (website only)
+
+### Added
+
+- **Intro video.** A one minute tour (`web/media/intro.mp4`, with a poster) plays in the website hero: record a login on the iOS Simulator, record add to cart on an Android emulator, add data rows, and run the test. The README, and so the PyPI page, shows the same tour as a GIF (`web/media/intro.gif`) that links to the website.
+
+### Changed
+
+- **Screenshots match v0.1.44.** The six images in `web/screenshots/` were taken again from the current Workbench with the MDA sample app, and their alt texts on the website and in the README describe what they now show.
+
+### Lessons learned
+
+- **A freshly booted emulator can fail the first step of a replay** with "waiting for the root AccessibilityNodeInfo". The same run passed on the next try. Let the emulator settle, or run once to warm it up, before recording demo footage or judging a locator.
+
+---
+
 ## [v0.1.44] - 2026-11-23
 
 ### Added
