@@ -2442,6 +2442,8 @@
                 <span class="muted" id="runProgressMeta">0% &middot; 0.0s</span>
                 <button type="button" class="btn btn-sm btn-danger" id="btnStopLiveRun" hidden>Stop run</button>
                 <a id="openFinishedReportLink" class="btn btn-sm btn-primary" href="#" target="_blank" rel="noopener" hidden>Open report &rarr;</a>
+                <a id="runSaveLogLink" class="btn btn-sm" href="/api/runs/log" download title="Save the run log and full error text as a file to share or investigate" hidden>Save log</a>
+                <button type="button" class="btn btn-sm" id="btnDismissRun" title="Hide this run's status and log" hidden>Dismiss</button>
               </div>
             </div>
             <div class="progress-track"><div class="progress-fill" id="runProgressFill"></div></div>
@@ -6764,6 +6766,8 @@
             $("runLiveLog").scrollTop = $("runLiveLog").scrollHeight;
           }
           $("btnStopLiveRun").hidden = !st.running;
+          $("btnDismissRun").hidden = Boolean(st.running);
+          $("runSaveLogLink").hidden = Boolean(st.running) || st.status === "idle";
           const otp = st.handoff_pending || st.otp_pending;
           const otpBox = $("runOtpBox");
           if (otp && otpBox.dataset.otpId !== String(otp.id)) {
@@ -6845,6 +6849,15 @@
       $("btnRunHandoffFail").addEventListener("click", () => answerHandoff("fail"));
       $("runOtpInput").addEventListener("keydown", (e) => { if (e.key === "Enter") answerHandoff("done"); });
       $("btnStopLiveRun").addEventListener("click", async () => { await apiJson("/api/runs/stop", {}); pollRunStatus(); });
+      $("btnDismissRun").addEventListener("click", async () => {
+        // Clears the last run on the server too, so the card stays gone after a reload.
+        try { await apiJson("/api/runs/clear", {}); } catch (_) {}
+        $("runLiveCard").hidden = true;
+        $("runLiveLog").textContent = "";
+        $("runLiveLog").hidden = true;
+        $("openFinishedReportLink").hidden = true;
+        showBanner("runStatusBanner", "");
+      });
 
       async function launchRunFromModal(dryRun) {
         $("openFinishedReportLink").hidden = true;
@@ -6884,6 +6897,8 @@
             $("runProgressFill").style.width = "100%";
             $("runLiveLog").hidden = false;
             $("runLiveLog").textContent = res.specs.map((s) => `• ${s.id}: ${s.title} (${s.steps} steps)`).join("\n");
+            $("btnDismissRun").hidden = false;
+            $("runSaveLogLink").hidden = true;
             showBanner("runStatusBanner", `Dry run OK: ${res.specs.length} journey(s) matched.`, "ok");
           } else {
             startRunPolling();

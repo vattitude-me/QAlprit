@@ -72,6 +72,7 @@ These project rules and architecture notes govern git workflow, codebase navigat
 
 - **Single Shared Source Across Targets**: All Workbench UI (`src/qalprit/ui/index.html`) and backend (`src/qalprit/*.py`) changes feed PyPI, Windows `.exe`, and macOS `.dmg` simultaneously. Keep PyInstaller specs (`packaging/windows/qalprit.spec`, `packaging/macos/qalprit.spec`) and runtime wrappers in sync whenever adding new Python dependencies or package data.
 - **Automated Multi-Platform Release Flow**: Publishing a GitHub Release (`vX.Y.Z`) triggers `.github/workflows/publish.yml`:
+  - Desktop installer jobs (steps 2 and 3) are paused by default since v0.1.45. They run only when the repo variable `BUILD_DESKTOP` is `true` or a manual `workflow_dispatch` run sets `desktop: true`. Until the user turns them back on, a release ships to PyPI only, and the post-publish check should not expect `.exe` or `.dmg` files.
   1. `build-and-publish` (`ubuntu-latest`): builds `.whl`/`.tar.gz` and publishes to PyPI via Trusted Publishing (`pypa/gh-action-pypi-publish`).
   2. `build-windows-exe` (`windows-latest`): runs `packaging\windows\build_win.ps1 -Version <X.Y.Z>` + Inno Setup (`packaging/windows/installer.iss`) and attaches `QAlprit-Setup-<X.Y.Z>-win64.exe` + `SHA256SUMS.txt` to the GitHub Release.
   3. `build-macos-dmg` (`macos-latest`): runs `packaging/macos/build_mac.sh <X.Y.Z>` and attaches `QAlprit-<X.Y.Z>-macos-arm64.dmg` + `SHA256SUMS-mac.txt` to the GitHub Release.

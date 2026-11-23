@@ -540,6 +540,18 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
             self._send_json({**self.job_manager.status(), "handoff_pending": pending, "otp_pending": pending})
             return
 
+        if req_path == "/api/runs/log":
+            name, text = self.job_manager.log_text()
+            body = text.encode("utf-8")
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Disposition", f'attachment; filename="{name}"')
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
         if req_path == "/api/emulator/status":
             self._send_json(self.emulator_manager.status())
             return
@@ -966,6 +978,10 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
 
             if req_path == "/api/runs/stop":
                 self._send_json(self.job_manager.stop())
+                return
+
+            if req_path == "/api/runs/clear":
+                self._send_json(self.job_manager.clear())
                 return
 
             if req_path == "/api/emulator/setup":

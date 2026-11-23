@@ -4,6 +4,11 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      desktop:
+        description: "Build the Windows .exe and macOS .dmg installers"
+        type: boolean
+        default: false
 
 permissions:
   id-token: write
@@ -33,6 +38,9 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
 
   build-windows-exe:
+    # Desktop installers are paused by default. Turn them on for one run with the
+    # "desktop" input, or for every release with the repo variable BUILD_DESKTOP=true.
+    if: vars.BUILD_DESKTOP == 'true' || inputs.desktop == true
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -66,6 +74,9 @@ jobs:
           gh release upload "${{ github.ref_name }}" dist-win\QAlprit-Setup-*.exe dist-win\SHA256SUMS.txt --clobber
 
   build-macos-dmg:
+    # Desktop installers are paused by default. Turn them on for one run with the
+    # "desktop" input, or for every release with the repo variable BUILD_DESKTOP=true.
+    if: vars.BUILD_DESKTOP == 'true' || inputs.desktop == true
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4

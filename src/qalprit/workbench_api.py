@@ -1382,6 +1382,7 @@ class RunJobManager:
             "report_url": "",
             "summary": None,
             "error": "",
+            "error_detail": "",
         }
 
     def status(self) -> dict[str, Any]:
@@ -1402,6 +1403,46 @@ class RunJobManager:
                 "error": self._state["error"],
                 "error_detail": self._state.get("error_detail", ""),
             }
+
+    def clear(self) -> dict[str, Any]:
+        """Hide a finished, stopped or failed run from the Workbench. A running job is left alone."""
+        with self._lock:
+            if self._state["running"]:
+                return {"ok": False, "running": True}
+            self._state = {
+                "running": False,
+                "run_id": "",
+                "status": "idle",
+                "phase": "Idle",
+                "progress_pct": 0,
+                "elapsed_sec": 0.0,
+                "logs": [],
+                "report_url": "",
+                "summary": None,
+                "error": "",
+                "error_detail": "",
+            }
+            self._started_monotonic = None
+        return {"ok": True, "running": False}
+
+    def log_text(self) -> tuple[str, str]:
+        """Return (file name, text) for the last run's log, with the full error detail at the end."""
+        st = self.status()
+        run_id = st["run_id"] or "run"
+        lines = [
+            "QAlprit run log",
+            f"Run: {st['run_id'] or '-'}",
+            f"Status: {st['status']}",
+            f"Elapsed: {st['elapsed_sec']} s",
+            "",
+            *st["logs"],
+        ]
+        if st["error"]:
+            lines += ["", "Error:", st["error"]]
+        if st["error_detail"]:
+            lines += ["", "Error details:", st["error_detail"]]
+        safe = re.sub(r"[^A-Za-z0-9_.-]", "_", run_id)
+        return f"qalprit-{safe}.log", "\n".join(lines) + "\n"
 
     def _append_log(self, line: str) -> None:
         with self._lock:

@@ -12,12 +12,13 @@ Ideas planned for a later release. Nothing here ships yet.
 
 ---
 
-## Unreleased
+## [v0.1.45] - 2026-11-23
 
 ### Fixed
 
 - **A chosen app file now decides which app opens.** If the app file in the Run page is a different app from the environment's app id (for example a Wikipedia APK with an environment set to another app), QAlprit used to install the file and then ask Appium to open the other app, which failed with a long "Cannot start ... application" error. The run now uses the package or bundle id read from the file and says so in the run log. The same applies to `qalprit run --app` and Inspect. Helper: `env_for_app_file()` in `workbench_api.py`.
 - **Run errors are one readable line.** When a run stops with an error, the banner and log show a short message with a next step (`friendly_error()`). The full Appium text and stack trace sit behind Show details, and stay in `appium.log`. Appium's "Consider checking the driver's troubleshooting documentation" boilerplate is cut, and a device missing from `adb devices` gets its own hint.
+- **A failed run's status no longer sticks around.** The run card on Runs & reports stayed up with the error and log until the next run, even after a reload. It now has Dismiss, which clears the last run on the server too (`POST /api/runs/clear`, ignored while a run is going), and Save log, which downloads the run log with the full error text as `qalprit-<run id>.log` for investigation or a bug report (`GET /api/runs/log`).
 - **Status banners show their colour again.** `showBanner()` added the colour class to a return value instead of the banner, so error, warning and success banners all looked the same.
 
 ### Added
@@ -27,6 +28,10 @@ Ideas planned for a later release. Nothing here ships yet.
 ### Changed
 
 - **Screenshots match v0.1.44.** The six images in `web/screenshots/` were taken again from the current Workbench with the MDA sample app, and their alt texts on the website and in the README describe what they now show.
+
+### Packaging
+
+- **Desktop installers are paused.** Releases now publish to PyPI only. The Windows `.exe` and macOS `.dmg` jobs in `publish.yml` are skipped unless the repo variable `BUILD_DESKTOP` is `true` or a manual run ticks the `desktop` input. Use `pip install qalprit` and `qalprit ui` in the meantime. The last installers are on the v0.1.44 release.
 
 ### Lessons learned
 
