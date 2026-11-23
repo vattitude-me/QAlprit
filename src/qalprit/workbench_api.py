@@ -13,6 +13,7 @@ import threading
 import time
 import zipfile
 from datetime import datetime, timezone
+from glob import escape as glob_escape
 from pathlib import Path
 from typing import Any
 
@@ -1371,6 +1372,7 @@ class RunJobManager:
         self._cancel_event = threading.Event()
         self._active_mgr: AppiumManager | None = None
         self._started_monotonic: float | None = None
+        self._results_dir: Path | None = None
         self._state: dict[str, Any] = {
             "running": False,
             "run_id": "",
@@ -1403,6 +1405,30 @@ class RunJobManager:
                 "error": self._state["error"],
                 "error_detail": self._state.get("error_detail", ""),
             }
+
+    def latest_screenshot(self) -> Path | None:
+        """Newest step screenshot of the current or last run, for the live view on the run card."""
+        with self._lock:
+            run_id = self._state["run_id"]
+            root = self._results_dir
+        if not run_id or root is None or not root.is_dir():
+            return None
+        newest: tuple[float, Path] | None = None
+        # A dataset batch writes each row into <run id>_<nn>_<row>, so look at those folders too.
+        for run_dir in root.glob(f"{glob_escape(run_id)}*"):
+            shots = run_dir / "screenshots"
+            if not shots.is_dir():
+                continue
+            for png in shots.rglob("*.png"):
+                if png.name.endswith("_REF.png"):
+                    continue
+                try:
+                    mtime = png.stat().st_mtime
+                except OSError:
+                    continue
+                if newest is None or mtime > newest[0]:
+                    newest = (mtime, png)
+        return newest[1] if newest else None
 
     def clear(self) -> dict[str, Any]:
         """Hide a finished, stopped or failed run from the Workbench. A running job is left alone."""
@@ -1627,6 +1653,7 @@ class RunJobManager:
             self._cancel_event.clear()
             self._active_mgr = None
             self._started_monotonic = time.monotonic()
+            self._results_dir = results_dir
             init_msg = (
                 f"[{run_id}] Validated {len(selected_rows)} dataset(s) for {flow_name or spec_id or suite}. Starting Appium session..."
                 if is_batch

@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse
 
-from qalprit import __version__, background_devices
+from qalprit import __version__, background_devices, update_check
 from qalprit.handoff import BROKER
 from qalprit.cleanup import execute_selective_cleanup, inspect_cleanup_targets
 from qalprit.config_loader import load_screens
@@ -552,6 +552,21 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
             self.wfile.write(body)
             return
 
+        if req_path == "/api/runs/screen":
+            shot = self.job_manager.latest_screenshot()
+            if shot is None:
+                self.send_response(HTTPStatus.NO_CONTENT)
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                return
+            self._send_bytes(shot.read_bytes(), "image/png")
+            return
+
+        if req_path == "/api/system/update":
+            force = (parse_qs(parsed.query).get("force") or ["0"])[0] == "1"
+            self._send_json(update_check.check_for_update(force=force))
+            return
+
         if req_path == "/api/emulator/status":
             self._send_json(self.emulator_manager.status())
             return
@@ -980,6 +995,14 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
                 self._send_json(self.job_manager.stop())
                 return
 
+            if req_path == "/api/system/update/settings":
+                self._send_json(update_check.set_enabled(bool(body.get("enabled", True))))
+                return
+
+            if req_path == "/api/system/update/install":
+                self._send_json(update_check.start_self_update(str(body.get("version") or "")))
+                return
+
             if req_path == "/api/runs/clear":
                 self._send_json(self.job_manager.clear())
                 return
@@ -1013,6 +1036,13 @@ class _WorkbenchHandler(BaseHTTPRequestHandler):
                 return
 
             if req_path == "/api/emulator/show_window":
+                if str(body.get("target") or "ios").lower() == "android":
+                    if self.job_manager.status().get("running"):
+                        raise ValueError("A test is running on this emulator. Stop it or wait for it to finish, then show the window.")
+                    if self.recorder_manager.status().get("active"):
+                        raise ValueError("Recording is using this emulator. Stop recording first, then show the window.")
+                    self._send_json(self.emulator_manager.restart_android_with_window(str(body.get("identifier") or "")))
+                    return
                 self._send_json(
                     background_devices.show_window(
                         str(body.get("target") or "ios").lower(),

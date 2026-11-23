@@ -12,7 +12,18 @@ Ideas planned for a later release. Nothing here ships yet.
 
 ---
 
-## [v0.1.45] - 2026-11-23
+## [v0.1.46] - 2026-11-23
+
+### Added
+
+- **See the device during a run.** The run card on Runs & reports shows the screen after the latest step next to the log, refreshed every two seconds while the run goes (`GET /api/runs/screen`, newest step screenshot of the run, dataset rows included). It works with background emulators, simulators and phones.
+- **Show window for a background Android emulator.** An emulator started with `-no-window` cannot open a window later, so Show window in the device menu, and turning on Show the device window in Settings, now offer to restart it with its window (`EmulatorJobManager.restart_android_with_window()`, through `POST /api/emulator/show_window` with `target: android`). It turns the setting on, stops the emulator and boots the same AVD. It refuses while a run or recording uses the device.
+- **Update check.** The Workbench asks PyPI for the latest version at most once a day (cached in settings.json, sends only a `qalprit-update-check/<version>` user agent) and shows Update available in the status bar. Update runs `pip install --upgrade qalprit==<latest>` in the background for pip installs, and points to the releases page for the desktop app or a source checkout. Check for updates is in the top `...` menu, and Settings > Storage & cleanup has Check now and a switch to turn the daily check off (`QALPRIT_NO_UPDATE_CHECK=1` also turns it off). Module: `update_check.py`.
+
+### Lessons learned
+
+- **Show the device window only applied at boot.** The setting was saved, but a run reuses the emulator that is already running, which was started with `-no-window`. The checkbox looked broken. Settings that only take effect at boot need to say so and offer the restart.
+
 
 ### Fixed
 
