@@ -285,7 +285,7 @@ FLOWS: list[tuple[str, str, list[tuple[str, str, str, str]]]] = [
         ("316_conversation_detail", F, "Transcript", "Date \"27e novembre 2026\" (French uses an ordinal only for \"1er\"). Raw code \"FR_ERR_EA_4828\". Bot messages are in reverse order."),
         ("310_send_message", F, "New message", "Envoyer is disabled while empty."),
         ("311_message_subject_only", F, "Subject only", "Envoyer stays disabled with no message. Not sent."),
-        ("312_message_left_no_warning", F, "Leave a draft", "Back discards the draft with no warning."),
+        ("312_message_left_no_warning", F, "Leave a draft", "Back leaves with no warning. The subject came back in a later session."),
         ("313_call_us", H, "Call us", "Hands off to the system dialer chooser. No call made."),
         ("314_feedback", H, "Feedback", "Not submitted."),
     ]),

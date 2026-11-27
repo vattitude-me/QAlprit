@@ -163,7 +163,7 @@ FLOWS: list[tuple[str, str, list[tuple[str, str, str, str]]]] = [
         ("137_bill_cancelled", H, "Payment cancelled", ""),
         ("138_bill_list_after_cancel", H, "List empty again", ""),
     ]),
-    ("Cheque deposit", "Move Money > Deposit cheque. The photo needs a real cheque, so it stops at the camera.", [
+    ("Cheque deposit", "Move Money > Deposit cheque. No real cheque was used. The pending deposit was resubmitted with blank photos and rejected again.", [
         ("313_cheque_hub", H, "Deposit cheque", "Button \"Deposit Cheque\" vs title \"Deposit cheque\"."),
         ("314_cheque_action_required", F, "Deposit needs action", "\"Your cheque photos were invalid\", Edit and Resubmit."),
         ("315_cheque_form", H, "Before depositing", ""),
@@ -173,6 +173,15 @@ FLOWS: list[tuple[str, str, list[tuple[str, str, str, str]]]] = [
         ("320_cheque_filled", H, "Details filled", ""),
         ("321_cheque_take_photos", H, "Photo tips", ""),
         ("322_cheque_camera", H, "Camera, front of cheque", ""),
+        ("422_cheque_resubmit", F, "Resubmit rejected", "\"There's an unknown problem with the image.\" Try Again or Cancel."),
+        ("423_cheque_retry", H, "Photo tips on retry", ""),
+        ("424_cheque_camera_front", H, "Camera, front", "Landscape."),
+        ("425_cheque_front_review", F, "Review front photo", "A black photo is accepted with no check on the phone."),
+        ("426_cheque_back_camera", H, "Camera, back", ""),
+        ("427_cheque_back_review", H, "Review back photo", ""),
+        ("428_cheque_after_photos", H, "Review details", ""),
+        ("429_cheque_submitted", F, "Deposit rejected", "\"Photos not accepted\" again. Back is blocked."),
+        ("430_cheque_after_cancel", H, "After Cancel", "Deposit still shows Action required."),
     ]),
     ("Spaces", "Savings Account > Spaces: create, move money, rename, goal, archive.", [
         ("141_spaces", H, "Spaces empty state", ""),
@@ -256,7 +265,7 @@ FLOWS: list[tuple[str, str, list[tuple[str, str, str, str]]]] = [
         ("310_open_savings_intro", F, "Savings Account greyed out", "Cannot be tapped and no reason is shown."),
         ("311_open_spending", H, "Spending Account intro", ""),
     ]),
-    ("Help and support", "Profile menu > Help and Support. No chat was started.", [
+    ("Help and support", "Profile menu > Help and Support.", [
         ("325_help", H, "How can we help?", ""),
         ("326_help_topics", H, "All help topics", "Topics cover Spaces only."),
         ("327_help_topic", H, "Help topic", ""),
@@ -266,6 +275,23 @@ FLOWS: list[tuple[str, str, list[tuple[str, str, str, str]]]] = [
         ("333_support", H, "Support", ""),
         ("334_call_status", H, "Call status", ""),
     ]),
+    ("Live chat and contact", "Support > + > Contact us. One test chat was sent and ended. No message was sent, no call was made and no feedback was submitted.", [
+        ("400_support", H, "Support", ""),
+        ("401_chat_new", H, "New conversation", ""),
+        ("402_contact_options", H, "Contact options", ""),
+        ("403_send_message", H, "New message", "A subject typed in an earlier session is still there. Send stays disabled with no message."),
+        ("404_message_left_no_warning", F, "Leave a draft", "Back goes straight to Support with no warning."),
+        ("405_conversation_detail", F, "Archived conversation", "Bot messages in reverse order. The top timestamp is clipped under the header."),
+        ("406_chat_started", F, "Live chat started", "Consent message shows raw <a href> HTML, and the link points to a business PDF."),
+        ("407_chat_typed", H, "Message typed", ""),
+        ("408_chat_sent", F, "Message sent", "Raw code \"EN_ERR_EA_4819\" shows after the message."),
+        ("409_chat_wait", F, "Waiting for an agent", "Nobody joined after 30 seconds."),
+        ("410_chat_attach", H, "Attach a file", "\"Take Photo\", \"Choose Photo\", \"Choose File\" in title case."),
+        ("411_chat_close", H, "End the chat?", ""),
+        ("412_chat_ended", H, "Chat ended", "The error code is gone."),
+        ("414_call_us", H, "Call us", "System chooser. No call was made."),
+        ("415_feedback", F, "Feedback", "\"We're listening\" with no full stop."),
+    ]),
     ("Cards", "Cards tab.", [
         ("305_cards_wait", F, "Cards never loads", "Spinner still showing after 40 seconds."),
     ]),
@@ -273,8 +299,8 @@ FLOWS: list[tuple[str, str, list[tuple[str, str, str, str]]]] = [
 
 NOT_CAPTURED = [
     "Request money: the app has no Request money option.",
-    "Cheque photos and submit: needs a real cheque in front of the camera.",
-    "Live support chat: starting a conversation reaches the support team.",
+    "A successful cheque deposit: needs a real cheque. Blank photos were rejected.",
+    "A live chat answered by an agent: nobody joined the test chat.",
     "Linking an external account: needs a sign-in at another bank.",
     "Saving a new email or phone number: starts verification and changes the profile.",
     "Close Account, wrong passcode attempts in settings, logging out: never done.",
@@ -412,7 +438,7 @@ This report contains the test customer's details. Keep it private.</footer>
 
 def main(argv: list[str]) -> int:
     dest = Path(argv[0]).expanduser() if argv else REPO / "results" / "tng-screen-catalog"
-    return build(dest, SRC, FLOWS, NOT_CAPTURED)
+    return build(dest, SRC, FLOWS, NOT_CAPTURED, captured="2026-11-26 and 2026-11-27")
 
 
 if __name__ == "__main__":
