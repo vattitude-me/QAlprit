@@ -348,6 +348,7 @@ def validate(
 @click.option("--appium-url", default=None, help="Attach to existing Appium 2 server instead of spawning.")
 @click.option("--external-assets", is_flag=True, help="Link screenshots externally in report.html instead of embedding.")
 @click.option("--redact/--no-redact", "redact_screenshots", default=None, help="Enable or disable black-marker PII redaction on screenshots (defaults to environment setting: off for dev, on for pre-prod/prod/qa).")
+@click.option("--screenshots", "screenshot_mode", type=click.Choice(["all", "actions", "failures"]), default="all", show_default=True, help="Which passing steps get a screenshot: every step, steps that act on the app (skips asserts and waits), or none. Failed steps and screenshot steps are always captured. Fewer screenshots make runs faster.")
 @click.option("--data", "data_csv", type=click.Path(exists=True, path_type=Path), default=None, help="CSV file of dynamic variable datasets to execute sequentially.")
 @click.option("--dataset", "dataset_filter", multiple=True, help="Run specific dataset row name(s) from --data CSV.")
 @click.option("--ai-review", is_flag=True, help="After the run, check each step's screenshot against the test's Jira/Confluence references with an AI model (see --ai-provider).")
@@ -370,6 +371,7 @@ def run(
     appium_url: str | None,
     external_assets: bool,
     redact_screenshots: bool | None,
+    screenshot_mode: str,
     data_csv: Path | None,
     dataset_filter: tuple[str, ...],
     ai_review: bool,
@@ -529,6 +531,7 @@ def run(
                         retries=retries,
                         update_baselines=update_baselines,
                         redact_screenshots=redact_screenshots,
+                        screenshots=screenshot_mode,
                         dataset_vars=resolved_vars,
                         batch_id=batch_id,
                         dataset_name=row.name,
@@ -625,6 +628,7 @@ def run(
             retries=retries,
             update_baselines=update_baselines,
             redact_screenshots=redact_screenshots,
+            screenshots=screenshot_mode,
         )
         run_result = runner.run(
             selected_specs,

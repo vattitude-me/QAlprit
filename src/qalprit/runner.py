@@ -50,6 +50,47 @@ from qalprit.steps.flow_control import (
 # Steps that only hold other steps. They take no screenshot of their own when they pass.
 _CONTAINER_STEPS = frozenset({*BLOCK_STEP_KEYS, REPEAT_NEXT})
 
+# Which passing steps get a screenshot. A failed step always gets one (unless the step
+# says capture: off), and so do explicit screenshot and visual_compare steps.
+SCREENSHOT_MODES = ("all", "actions", "failures")
+# Steps that only look at the screen. "actions" mode skips their screenshot, because the
+# step before them already shows the same screen.
+_CHECK_STEPS = frozenset(
+    {
+        "assert_visible",
+        "assert_not_visible",
+        "assert_text",
+        "assert_enabled",
+        "assert_disabled",
+        "assert_toggle",
+        "wait",
+        "wait_for_visible",
+        "wait_for_enabled",
+        "wait_for_text",
+        "wait_for_keyboard",
+    }
+)
+_EXPLICIT_SHOT_STEPS = frozenset({"screenshot", "visual_compare"})
+
+
+def normalize_screenshot_mode(value: str | None) -> str:
+    """Return a valid screenshot mode. Blank means "all"."""
+    mode = str(value or "all").strip().lower()
+    if mode not in SCREENSHOT_MODES:
+        raise ValueError(f"Unknown screenshot mode '{value}'. Use one of: {', '.join(SCREENSHOT_MODES)}.")
+    return mode
+
+
+def wants_step_screenshot(mode: str, step_type: str) -> bool:
+    """True when a passing step of this type should be captured in this mode."""
+    if step_type in _CONTAINER_STEPS:
+        return False
+    if mode == "all" or step_type in _EXPLICIT_SHOT_STEPS:
+        return True
+    if mode == "actions":
+        return step_type not in _CHECK_STEPS
+    return False
+
 
 def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -246,8 +287,10 @@ class TestRunner:
         dataset_expected: str = "",
         reset_override: str | None = None,
         project_root: Path | None = None,
+        screenshots: str | None = None,
     ) -> None:
         self.driver_factory = driver_factory
+        self.screenshot_mode = normalize_screenshot_mode(screenshots)
         # Results live in <workspace>/results/<run-id> unless --results-dir moved them.
         self.project_root = project_root or run_dir.parent.parent
         self.references = ReferenceLibrary(self.project_root)
@@ -421,7 +464,7 @@ class TestRunner:
                 step_diag = dict(outcome.diagnostics or {})
                 if outcome.status == "skipped":
                     step_status = "skipped"
-                if step.capture != "off" and step.type not in _CONTAINER_STEPS:
+                if step.capture != "off" and wants_step_screenshot(self.screenshot_mode, step.type):
                     stem_name = outcome.screenshot_name or f"{step_idx:02d}_{step.type}"
                     rel_stem = f"{_slug(spec_id)}/attempt_{attempt_num}/{phase}_{_slug(stem_name)}"
                     shot_res = self.evidence.capture_screenshot_detailed(

@@ -2386,6 +2386,17 @@
             </div>
             <div class="run-opt">
               <div>
+                <label for="runScreenshotsSel" style="margin:0;">Screenshots</label>
+                <p class="muted">Fewer screenshots make a run faster. Failed steps and screenshot steps always get one.</p>
+              </div>
+              <select id="runScreenshotsSel" style="width:130px;">
+                <option value="all">Every step</option>
+                <option value="actions">Actions only</option>
+                <option value="failures">Failures only</option>
+              </select>
+            </div>
+            <div class="run-opt">
+              <div>
                 <label for="runRedactChk" style="margin:0;">Hide sensitive fields in screenshots</label>
                 <p class="muted" id="runRedactEnvHint">Set by the environment.</p>
               </div>
@@ -6822,7 +6833,9 @@
         syncRunDatasetsChk();
         const retries = Number($("runRetriesInput").value) || 0;
         const retryText = retries ? `retry ${retries === 1 ? "once" : retries === 2 ? "twice" : retries + " times"}` : "no retries";
-        const parts = [retryText, $("runRedactChk").checked ? "screenshots redacted" : "screenshots not redacted"];
+        const shotMode = $("runScreenshotsSel").value;
+        const shotText = shotMode === "actions" ? "screenshots of actions" : shotMode === "failures" ? "screenshots of failures" : "screenshots of every step";
+        const parts = [retryText, shotText, $("runRedactChk").checked ? "screenshots redacted" : "screenshots not redacted"];
         if ($("runUseDatasetsChk").checked) parts.push("each data row");
         parts.push($("runShowDeviceChk").checked ? "device window shown" : "device in background");
         $("runMoreSummary").textContent = "· " + parts.join(", ");
@@ -6856,15 +6869,20 @@
         $("runPlatformSelect").value = b.dataset.runPlat;
         $("runPlatformSelect").dispatchEvent(new Event("change", { bubbles: true }));
       }));
-      ["runTargetSelect", "runSuiteSelect", "runEnvSelect", "runDeviceSelect", "runAppSelect", "runRetriesInput", "runRedactChk", "runUseDatasetsChk"].forEach((id) => {
+      ["runTargetSelect", "runSuiteSelect", "runEnvSelect", "runDeviceSelect", "runAppSelect", "runRetriesInput", "runScreenshotsSel", "runRedactChk", "runUseDatasetsChk"].forEach((id) => {
         if ($(id)) $(id).addEventListener("change", () => {
           showBanner("runStartBanner", "");
+          if (id === "runScreenshotsSel") { try { localStorage.setItem("qalprit.runScreenshots", $(id).value); } catch (_) {} }
           if (id === "runEnvSelect") syncRedactForEnv($("runEnvSelect").value);
           if (id === "runTargetSelect" || id === "runSuiteSelect" || id === "runEnvSelect") refreshRunSpecDropdown();
           else updateRunSummary();
         });
       });
       if ($("runAppSelect")) $("runAppSelect").addEventListener("change", () => { $("runAppSelect").dataset.userPicked = "1"; });
+      try {
+        const savedShots = localStorage.getItem("qalprit.runScreenshots");
+        if (savedShots && ["all", "actions", "failures"].includes(savedShots)) $("runScreenshotsSel").value = savedShots;
+      } catch (_) {}
       function openRunDialog(preferredTarget) {
         if (preferredTarget) STATE.runMode = "one";
         navigateTo("run");
@@ -7118,6 +7136,7 @@
             app_path: $("runAppSelect").value,
             retries: Number($("runRetriesInput").value) || 0,
             redact_screenshots: $("runRedactChk").checked,
+            screenshots: $("runScreenshotsSel").value,
             run_datasets: $("runUseDatasetsChk").checked,
             ai_review: $("runAiReviewChk").checked,
             ai_provider: $("runAiProviderSel").value,

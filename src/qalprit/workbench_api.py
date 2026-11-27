@@ -37,7 +37,7 @@ from qalprit.error_text import friendly_error
 from qalprit.inspector import extract_interactive_elements, format_inspect_output
 from qalprit.report.generator import generate_batch_report, generate_reports
 from qalprit.results import write_results_json
-from qalprit.runner import TestRunner, installed_app_problems
+from qalprit.runner import TestRunner, installed_app_problems, normalize_screenshot_mode
 from qalprit.spec_loader import TestSpec, load_flows, load_specs
 from qalprit.validator import validate_project
 
@@ -1511,6 +1511,7 @@ class RunJobManager:
         dry_run = bool(payload.get("dry_run", False))
         raw_redact = payload.get("redact_screenshots")
         redact_override: bool | None = None if raw_redact is None else bool(raw_redact)
+        screenshot_mode = normalize_screenshot_mode(payload.get("screenshots"))
         reset_override = str(payload.get("reset_mode") or "").strip() or None
         ai_review_after = bool(payload.get("ai_review"))
         ai_provider = str(payload.get("ai_provider") or "").strip() or None
@@ -1733,6 +1734,7 @@ class RunJobManager:
                                 tags=[],
                                 retries=retries,
                                 redact_screenshots=redact_override,
+                                screenshots=screenshot_mode,
                                 dataset_vars=resolved_ds_vars,
                                 batch_id=run_id,
                                 dataset_name=row.name,
@@ -1830,6 +1832,7 @@ class RunJobManager:
                             tags=[],
                             retries=retries,
                             redact_screenshots=redact_override,
+                            screenshots=screenshot_mode,
                             reset_override=reset_override,
                         )
                         run_result = runner.run(
