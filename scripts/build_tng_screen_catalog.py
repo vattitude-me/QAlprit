@@ -341,12 +341,23 @@ def to_jpeg(src: Path, dst: Path) -> None:
     shutil.copy2(src, dst.with_suffix(".png"))
 
 
-def main(argv: list[str]) -> int:
-    dest = Path(argv[0]).expanduser() if argv else REPO / "results" / "tng-screen-catalog"
+def build(
+    dest: Path,
+    src: Path,
+    flows: list[tuple[str, str, list[tuple[str, str, str, str]]]],
+    not_captured: list[str],
+    *,
+    lang: str = "en",
+    title: str = "TNG screen catalog",
+    heading: str = "Tangerine non-prod: every screen",
+    captured: str = "2026-11-26",
+    notes_file: str = "results/tng-exploration/notes.md",
+) -> int:
+    """Write dest/index.html and dest/img/ from the screenshots in src."""
     img = dest / "img"
     img.mkdir(parents=True, exist_ok=True)
 
-    missing = [s for _, _, shots in FLOWS for s, *_ in shots if not (SRC / f"{s}.png").is_file()]
+    missing = [s for _, _, shots in flows for s, *_ in shots if not (src / f"{s}.png").is_file()]
     if missing:
         print("Missing screenshots:", ", ".join(missing))
         return 1
@@ -354,14 +365,14 @@ def main(argv: list[str]) -> int:
     total = happy = 0
     sections = []
     options = ['<option value="all">All flows</option>']
-    for i, (title, intro, shots) in enumerate(FLOWS, 1):
+    for i, (flow_title, intro, shots) in enumerate(flows, 1):
         fid = f"f{i}"
-        options.append(f'<option value="{fid}">{i}. {html.escape(title)}</option>')
+        options.append(f'<option value="{fid}">{i}. {html.escape(flow_title)}</option>')
         cards = []
         for j, (stem, kind, name, note) in enumerate(shots, 1):
             target = img / f"{stem}.jpg"
             if not target.exists() and not target.with_suffix(".png").exists():
-                to_jpeg(SRC / f"{stem}.png", target)
+                to_jpeg(src / f"{stem}.png", target)
             rel = f"img/{target.name}" if target.exists() else f"img/{stem}.png"
             total += 1
             happy += kind == H
@@ -373,30 +384,35 @@ def main(argv: list[str]) -> int:
                 f'<div class="n">{html.escape(name)}</div>{note_html}</div></div>'
             )
         sections.append(
-            f'<section id="{fid}" data-flow="{fid}"><h2>{i}. {html.escape(title)}</h2>'
+            f'<section id="{fid}" data-flow="{fid}"><h2>{i}. {html.escape(flow_title)}</h2>'
             f'<p>{html.escape(intro)} {len(shots)} screens.</p><div class="grid">{"".join(cards)}</div></section>'
         )
 
-    nc = "".join(f"<li>{html.escape(x)}</li>" for x in NOT_CAPTURED)
-    page = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>TNG screen catalog</title>
+    nc = "".join(f"<li>{html.escape(x)}</li>" for x in not_captured)
+    page = f"""<!doctype html><html lang="{lang}"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>{html.escape(title)}</title>
 <style>{CSS}</style></head><body>
-<header><h1>Tangerine non-prod: every screen</h1>
+<header><h1>{html.escape(heading)}</h1>
 <p class="sub">ca.tangerine.mobile.banking.app.nonProd on a Pixel 9 Pro (Android). One screenshot per screen, grouped by flow.
-Captured on 2026-11-26. Built {date.today().isoformat()}. Tap a screenshot to enlarge it.</p></header>
+Captured on {captured}. Built {date.today().isoformat()}. Tap a screenshot to enlarge it.</p></header>
 <div class="bar"><div class="in">
 <button data-kind="all" class="on">All</button><button data-kind="happy">Happy path</button>
 <button data-kind="failure">Failure path</button><select id="flow">{"".join(options)}</select></div></div>
-<main><div class="stats"><div class="stat"><b>{total}</b>screens</div><div class="stat"><b>{len(FLOWS)}</b>flows</div>
+<main><div class="stats"><div class="stat"><b>{total}</b>screens</div><div class="stat"><b>{len(flows)}</b>flows</div>
 <div class="stat"><b>{happy}</b>happy path</div><div class="stat"><b>{total - happy}</b>failure path</div></div>
 {"".join(sections)}
 <section><h2>Not captured, and why</h2><ul class="nc">{nc}</ul></section></main>
-<footer>The notes repeat findings from results/tng-exploration/notes.md. "MP-t-" prefixes are dev copy labels and are not findings.
+<footer>The notes repeat findings from {html.escape(notes_file)}. "MP-t-" prefixes are dev copy labels and are not findings.
 This report contains the test customer's details. Keep it private.</footer>
 <div id="lb"><img alt=""></div><script>{JS}</script></body></html>"""
     (dest / "index.html").write_text(page, encoding="utf-8")
-    print(f"{dest / 'index.html'}: {total} screens in {len(FLOWS)} flows ({happy} happy, {total - happy} failure)")
+    print(f"{dest / 'index.html'}: {total} screens in {len(flows)} flows ({happy} happy, {total - happy} failure)")
     return 0
+
+
+def main(argv: list[str]) -> int:
+    dest = Path(argv[0]).expanduser() if argv else REPO / "results" / "tng-screen-catalog"
+    return build(dest, SRC, FLOWS, NOT_CAPTURED)
 
 
 if __name__ == "__main__":
