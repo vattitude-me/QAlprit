@@ -12,7 +12,7 @@ Ideas planned for a later release. Nothing here ships yet.
 
 ---
 
-## Unreleased
+## [v0.1.50] - 2026-11-27
 
 ### Faster steps
 - Screenshot redaction on Android reads the page source once and finds the `sensitive: true` fields in it, instead of searching the device once per sensitive locator. With 22 sensitive locators that was about 21 searches (close to 1 s) after every step. Locators that cannot be matched offline (xpath, UiAutomator) still get a device search, and an unreadable page source falls back to the old searches. iOS keeps one search per locator, because XCUITest page sources are slow.
