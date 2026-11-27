@@ -529,6 +529,12 @@ def _ensure_ios_simulator_ready(profile: DeviceProfile) -> tuple[str, str, str]:
                     device_hub = xcode_dev.parent / "Applications" / "DeviceHub.app"
                     if device_hub.exists():
                         subprocess.run(["open", "-a", str(device_hub)], capture_output=True, text=True, timeout=10)
+    elif background_devices.device_window_visible() and background_devices.is_hidden("ios", udid):
+        # The user turned on "Show the device window" after this simulator started in the background.
+        try:
+            background_devices.show_window("ios", udid)
+        except Exception:
+            pass
 
     return udid, plat_ver, dev_name
 

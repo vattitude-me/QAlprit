@@ -400,7 +400,19 @@ class EmulatorJobManager:
                 "error": self._state["error"],
             }
         snap["env_status"] = get_emulator_status()
-        snap["started_devices"] = background_devices.started_devices()
+        started = background_devices.started_devices()
+        known = {(d["kind"], d["identifier"]) for d in started}
+        try:
+            windowless = background_devices.windowless_android_emulators()
+        except Exception:
+            windowless = []
+        # Emulators running with no window that QAlprit did not record, such as ones left from an earlier session.
+        started += [d for d in windowless if ("android", d["identifier"]) not in known]
+        windowless_ids = {d["identifier"] for d in windowless}
+        for d in started:
+            if d["kind"] == "android" and d["identifier"] in windowless_ids:
+                d["hidden"] = True
+        snap["started_devices"] = started
         snap["show_device_window"] = background_devices.device_window_visible()
         return snap
 
@@ -699,14 +711,7 @@ class EmulatorJobManager:
             if e["kind"] == "android" and e["identifier"] == target:
                 avd_name = str(e.get("name") or "")
         if target and (not avd_name or avd_name == target):
-            try:
-                proc = subprocess.run(
-                    [adb_bin, "-s", target, "emu", "avd", "name"],
-                    capture_output=True, text=True, timeout=10, **win_subprocess_kwargs(),
-                )
-                avd_name = (proc.stdout or "").strip().splitlines()[0].strip() if proc.stdout.strip() else ""
-            except Exception:
-                avd_name = ""
+            avd_name = background_devices.android_avd_name(adb_bin, target)
         save_user_settings({background_devices.SETTING_KEY: True})
         if target:
             self.shutdown("android", target)
@@ -748,6 +753,13 @@ class EmulatorJobManager:
                         )
                         killed_android.append(d.identifier)
                         background_devices.forget("android", d.identifier)
+                # Wait for the emulators to exit, so a restart of the same AVD does not hit its lock.
+                deadline = time.time() + 20
+                while killed_android and time.time() < deadline:
+                    still, _ = list_android_devices()
+                    if not any(x.identifier in killed_android and x.state == "device" for x in still):
+                        break
+                    time.sleep(1.0)
             if emu_proc is not None and emu_proc.poll() is None:
                 try:
                     emu_proc.terminate()
