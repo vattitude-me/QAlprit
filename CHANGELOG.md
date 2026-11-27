@@ -12,6 +12,22 @@ Ideas planned for a later release. Nothing here ships yet.
 
 ---
 
+## [v0.1.51] - 2026-11-27
+
+### Screen capture for AI-driven catalogs (`scripts/screen_capture.py`)
+- New standalone script for capturing an Android app screen by screen while an AI agent drives the phone. It lives in `scripts/`, so the PyPI package, the Workbench and the desktop installers do not change.
+- `serve` keeps one Appium UiAutomator2 session open (`waitForIdleTimeout: 0`, so animated screens read fine) and takes commands from a small local client: `tap`, `long_press`, `type`, `keypad`, `swipe`, `back`, `wait_for`, `snap`, or a YAML batch with `do`. Each call answers with the new screen as one line per element (label, id, centre), in about 0.2 s for a read and 1 to 3 s for a tap that changes the screen.
+- Every action is appended to a path file (`paths/<name>.yaml`) with all the selectors the element offers (id, content-desc, text, index, position), so a path recorded in English replays in French by id.
+- When the agent is stuck, a person can tap on the phone. Their taps, swipes, Back presses and typing are read from `getevent`, recorded into the same path with `by: person`, and reported to the agent on its next call. The script's own `adb input` events never show up there.
+- Passcode keys become one `keypad` step with `${PIN}` and password fields become `${SECRET}`, so no secret is written to a path file.
+- `run` replays paths on a new build. A step whose element is gone saves the screen as `NNN_<step>_MISSING.png` and `.xml`, stops that path and goes on to the next. Results get a `run.json` and an `index.html`.
+
+### Lessons learned
+- In a live test a tab label lived in `content-desc` ("Move Money") while the screen title used `text` ("Move money"). A target now matches text or content-desc, and case-insensitively, before a step gives up.
+- A path opened on the lock screen recorded `com.android.systemui` as its app. The app field now moves to the first real app the path reaches.
+
+---
+
 ## [v0.1.50] - 2026-11-27
 
 ### Faster steps
