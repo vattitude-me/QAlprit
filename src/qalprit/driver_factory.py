@@ -79,6 +79,16 @@ class DriverProtocol(Protocol):
 class AppiumDriverAdapter:
     """Adapts Appium-Python-Client Remote WebDriver to qalprit's DriverProtocol."""
 
+    @property
+    def prefer_page_source_lookup(self) -> bool:
+        """True when one page source read is cheaper than a device search per locator.
+
+        UiAutomator2 returns the hierarchy in well under 100 ms, so evidence redaction
+        matches sensitive locators in it. XCUITest page sources often take a second or
+        more, so iOS keeps one search per locator.
+        """
+        return self.platform == "android"
+
     def __init__(self, raw_driver: Any, platform: str, simulator_udid: str = "") -> None:
         self._driver = raw_driver
         self.platform = platform

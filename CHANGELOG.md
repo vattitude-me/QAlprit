@@ -12,6 +12,17 @@ Ideas planned for a later release. Nothing here ships yet.
 
 ---
 
+## [v0.1.50] - 2026-11-27
+
+### Faster steps
+- Screenshot redaction on Android reads the page source once and finds the `sensitive: true` fields in it, instead of searching the device once per sensitive locator. With 22 sensitive locators that was about 21 searches (close to 1 s) after every step. Locators that cannot be matched offline (xpath, UiAutomator) still get a device search, and an unreadable page source falls back to the old searches. iOS keeps one search per locator, because XCUITest page sources are slow.
+- New run setting for screenshots: every step (the default, as before), actions only (skips asserts and waits) or failures only. Failed steps and `screenshot` and `visual_compare` steps are always captured. CLI: `qalprit run --screenshots actions`. Workbench: Run > Options > Screenshots, remembered per browser. API: `screenshots` on `POST /api/runs/start`.
+
+### Lessons learned
+- A TNG run spent 158 s on element searches and 65 s on screenshots against 7 s of clicks. Per-step evidence, not the device, set the pace. Check `appium.log` call counts before tuning waits or Appium settings.
+
+---
+
 ## [v0.1.49] - 2026-11-27
 
 ### QAlprit Web Capture (`tools/web-capture/`)

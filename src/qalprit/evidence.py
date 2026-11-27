@@ -166,6 +166,65 @@ def compress_image_for_html(
         return mime, b64
 
 
+_ANDROID_BOUNDS_RE = re.compile(r"\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]")
+
+
+def _can_match_offline(platform: str, strategy: str, value: str) -> bool:
+    """True when a locator can be matched against the page source the way Appium would."""
+    if strategy in ("accessibility_id", "class_name", "text"):
+        return True
+    if strategy == "id":
+        # A bare id or a full "<package>:id/<name>" is clear. Anything else goes to the device.
+        return platform == "ios" or ":" in value or "/" not in value
+    return False
+
+
+def _node_matches(platform: str, node: ET.Element, strategy: str, value: str) -> bool:
+    """Match one page source node the same way the driver adapter's locator would."""
+    a = node.attrib
+    if platform == "android":
+        if strategy == "id":
+            rid = a.get("resource-id", "")
+            if ":" in value:
+                return rid == value
+            return rid == value or rid.endswith(f":id/{value}")
+        if strategy == "accessibility_id":
+            return a.get("content-desc") == value
+        if strategy == "class_name":
+            return a.get("class", node.tag) == value
+        if strategy == "text":
+            return a.get("text") == value
+        return False
+    if strategy in ("id", "accessibility_id"):
+        return a.get("name") == value
+    if strategy == "class_name":
+        return a.get("type", node.tag) == value
+    if strategy == "text":
+        return value in (a.get("label"), a.get("name"), a.get("value"))
+    return False
+
+
+def _node_displayed(platform: str, node: ET.Element) -> bool:
+    """Skip only nodes the page source says are hidden. A missing flag still gets redacted."""
+    flag = node.attrib.get("displayed" if platform == "android" else "visible")
+    return str(flag).lower() != "false"
+
+
+def _node_rect(platform: str, node: ET.Element) -> dict[str, float] | None:
+    """Element bounds from the page source, in the same units as an element's rect."""
+    a = node.attrib
+    if platform == "android":
+        m = _ANDROID_BOUNDS_RE.fullmatch(a.get("bounds", "").strip())
+        if not m:
+            return None
+        x1, y1, x2, y2 = (int(v) for v in m.groups())
+        return {"x": x1, "y": y1, "width": x2 - x1, "height": y2 - y1}
+    try:
+        return {k: float(a[k]) for k in ("x", "y", "width", "height")}
+    except (KeyError, ValueError):
+        return None
+
+
 class EvidenceCollector:
     """Collects redacted step screenshots and masked failure page sources."""
 
@@ -206,30 +265,33 @@ class EvidenceCollector:
         invalid_count = 0
         warnings: list[str] = []
 
+        def _add_rect(rect: Any, *, source_label: str) -> None:
+            nonlocal invalid_count
+            if not isinstance(rect, dict):
+                invalid_count += 1
+                warnings.append(f"Sensitive element '{source_label}' missing dict rect bounds")
+                return
+            x = int(round(float(rect.get("x", 0))))
+            y = int(round(float(rect.get("y", 0))))
+            w = int(round(float(rect.get("width", 0))))
+            h = int(round(float(rect.get("height", 0))))
+            if w <= 0 or h <= 0:
+                invalid_count += 1
+                warnings.append(
+                    f"Sensitive element '{source_label}' has invalid geometry ({w}x{h})"
+                )
+                return
+            key = (x, y, w, h)
+            if key not in seen_rects:
+                seen_rects.add(key)
+                boxes.append({"x": x, "y": y, "width": w, "height": h})
+
         def _add_elem(el: Any, *, source_label: str) -> None:
             nonlocal invalid_count
             try:
                 if hasattr(el, "is_displayed") and not el.is_displayed():
                     return
-                rect = el.rect
-                if not isinstance(rect, dict):
-                    invalid_count += 1
-                    warnings.append(f"Sensitive element '{source_label}' missing dict rect bounds")
-                    return
-                x = int(round(float(rect.get("x", 0))))
-                y = int(round(float(rect.get("y", 0))))
-                w = int(round(float(rect.get("width", 0))))
-                h = int(round(float(rect.get("height", 0))))
-                if w <= 0 or h <= 0:
-                    invalid_count += 1
-                    warnings.append(
-                        f"Sensitive element '{source_label}' has invalid geometry ({w}x{h})"
-                    )
-                    return
-                key = (x, y, w, h)
-                if key not in seen_rects:
-                    seen_rects.add(key)
-                    boxes.append({"x": x, "y": y, "width": w, "height": h})
+                _add_rect(el.rect, source_label=source_label)
             except Exception as exc:
                 invalid_count += 1
                 warnings.append(f"Failed inspecting sensitive element '{source_label}': {exc}")
@@ -238,18 +300,54 @@ class EvidenceCollector:
         for idx, elem in enumerate(extra_secret_elements or []):
             _add_elem(elem, source_label=f"step_secret[{idx}]")
 
+        resolved_targets: list[tuple[str, Any]] = []
         for target in self.screens.sensitive_targets(self.platform):
             try:
-                resolved = self.screens.resolve(
-                    target,
-                    self.platform,
-                    env_ctx=self.env_ctx,
-                    extra_vars=self.extra_env_vars,
+                resolved_targets.append(
+                    (
+                        target,
+                        self.screens.resolve(
+                            target,
+                            self.platform,
+                            env_ctx=self.env_ctx,
+                            extra_vars=self.extra_env_vars,
+                        ),
+                    )
                 )
-                for elem in driver.find_elements(resolved.strategy, resolved.value):
-                    _add_elem(elem, source_label=target)
             except KeyError:
                 continue
+            except Exception as exc:
+                invalid_count += 1
+                warnings.append(f"Sensitive locator query failed for '{target}': {exc}")
+
+        # One page source read replaces a device search per sensitive locator (about 40 ms
+        # each on a phone, so 20 locators cost close to a second per screenshot). Only
+        # drivers that ask for it (the Appium adapter on Android) take this path, and any
+        # locator that cannot be matched offline still gets a device search.
+        remaining = resolved_targets
+        if resolved_targets and getattr(driver, "prefer_page_source_lookup", False):
+            local = [(t, r) for t, r in resolved_targets if _can_match_offline(self.platform, r.strategy, r.value)]
+            if local:
+                try:
+                    root = ET.fromstring(driver.page_source)
+                    nodes = list(root.iter())
+                except Exception:
+                    nodes = None
+                if nodes is not None:
+                    for target, resolved in local:
+                        for node in nodes:
+                            if not _node_matches(self.platform, node, resolved.strategy, resolved.value):
+                                continue
+                            if not _node_displayed(self.platform, node):
+                                continue
+                            _add_rect(_node_rect(self.platform, node), source_label=target)
+                    done = {t for t, _ in local}
+                    remaining = [(t, r) for t, r in resolved_targets if t not in done]
+
+        for target, resolved in remaining:
+            try:
+                for elem in driver.find_elements(resolved.strategy, resolved.value):
+                    _add_elem(elem, source_label=target)
             except Exception as exc:
                 invalid_count += 1
                 warnings.append(f"Sensitive locator query failed for '{target}': {exc}")
