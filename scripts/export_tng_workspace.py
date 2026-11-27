@@ -39,6 +39,8 @@ This folder is a ready QAlprit workspace for the Tangerine non-prod Android app
 - `results/<run-id>/`: earlier runs, listed in the Workbench under Runs & reports.
   `results/RUNS.md` sorts them by journey and result. Each `report.html` holds its own images.
 - `results/tng-exploration/`: screenshots and XML from mapping the app, with `notes.md`.
+- `results/tng-screen-catalog/index.html`: one screenshot of every screen, grouped by flow and
+  marked happy path or failure path. Open it in any browser.
 - `.env`: the QA PIN, password and alias email, if they were exported. Keep this folder private.
 
 ## Set up on a new machine
@@ -154,6 +156,9 @@ def main(argv: list[str]) -> int:
     exploration = REPO / "results" / "tng-exploration"
     if exploration.is_dir():
         copy_tree(exploration, dest / "results" / "tng-exploration")
+    catalog = REPO / "results" / "tng-screen-catalog"
+    if (catalog / "index.html").is_file():
+        copy_tree(catalog, dest / "results" / "tng-screen-catalog")
 
     secrets = write_env(dest, with_secrets)
     (dest / "README.md").write_text(README, encoding="utf-8")
