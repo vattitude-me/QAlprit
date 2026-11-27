@@ -12,6 +12,18 @@ Ideas planned for a later release. Nothing here ships yet.
 
 ---
 
+## [v0.1.49] - 2026-11-27
+
+### QAlprit Web Capture (`tools/web-capture/`)
+- New standalone script that signs in to a web portal, repeats a list of YAML steps once per CSV row, and saves screenshots at the points you mark. It lives outside `src/qalprit/`, so the PyPI package, the Workbench and the desktop installers do not change.
+- Sign-in tries SSO first: it types `SSO_EMAIL` from `.env` into each email field in the sign-in chain. If the identity provider asks for a password or MFA, the browser stays open for a manual sign-in and the run starts once the portal's signed-in page shows. The session is saved to `auth/session.json` and reused until it expires.
+- Steps: `goto`, `click`, `fill`, `type`, `press`, `select`, `check`, `hover`, `scroll`, `wait_for`, `wait_for_url`, `screenshot` (with `mask:`), `extract` and `if_visible`, with `optional:` and `timeout:` on any step. `${column}` reads from the CSV, so a search field gets a new value on each pass.
+- Each run writes per-row screenshots, `index.html`, `extracted.csv`, `manifest.json` and a masked log to `captures/<run-id>/`. `--check` validates the config and every CSV row without a browser.
+- `tools/web-capture/samples/` holds a sample config, CSV and `.env` template, plus `sample-run/`, the report and screenshots from running that config against a test portal. The GitHub release attaches the tool and its samples as `qalprit-web-capture-0.1.49.zip`.
+- Tests in `tests/test_web_capture.py`. The browser tests run against a fake portal and skip when Playwright is not installed, so CI needs no new dependency.
+
+---
+
 ## [v0.1.48] - 2026-11-26
 
 ### Typing on an on-screen keypad (`steps/interaction_steps.py`, `validator.py`)

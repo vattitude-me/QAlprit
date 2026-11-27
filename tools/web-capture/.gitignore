@@ -1,0 +1,10 @@
+# Saved login session (cookies). Treat it like a password.
+auth/
+# Screenshots and extracted data from your own runs.
+captures/
+# Local virtualenv.
+.venv/
+# The samples/ folder is tracked and shared with the team. Put your own copy
+# of the config and data next to this file; those stay on your machine.
+/capture.yaml
+/data.csv
