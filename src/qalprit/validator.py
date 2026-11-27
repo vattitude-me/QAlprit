@@ -536,6 +536,9 @@ def _validate_locator_and_env(
                 ValidationIssue("error", file_path, loc, "'params' must be a mapping")
             )
             step_tpl_params = {}
+        if step.type == "type" and step.params.get("keypad"):
+            # The keypad fills {key} with each character at run time.
+            step_tpl_params = {**step_tpl_params, "key": ""}
 
         for plat in platforms:
             if not screens.has_target(target, platform=plat):

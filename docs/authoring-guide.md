@@ -43,7 +43,7 @@ Every test lives in a `.md` file under `specs/`. The YAML front matter between `
 | `tap` | `target` (or `{target, params?}`) | Auto-waits up to `default_timeout`; retries once on stale element reference |
 | `tap_if_visible` | `target`, `timeout?`, `params?` | Short wait (default 2s); no-op if absent |
 | `long_press` | `target` (or `{target, duration?, params?}`) | Press and hold the element's centre, `duration` in ms (default 1000) |
-| `type` | `target`, `value`, `secret?`, `params?` | `secret: true` masks logs/reports and redacts screenshot bounds |
+| `type` | `target`, `value`, `secret?`, `params?`, `keypad?` | `secret: true` masks logs/reports and redacts screenshot bounds. `keypad: true` is for on-screen PIN pads with no text field: it taps one key per character, and the locator names the key with `{key}` (for example `keyboard_key_{key}`) |
 | `clear` | `target`, `params?` | Auto-waits and clears input |
 | `swipe` | `direction` (`up\|down\|left\|right`), `target?`, `duration?`, `distance?` | Finger drag on screen or element (`distance` fraction `0 < d < 1`) |
 | `scroll_until_visible` | `target`, `direction?`, `max_swipes?` | Scrolls content (`down` default, `max_swipes: 8`) |

@@ -413,8 +413,8 @@ def format_step_description(step: StepItem, masker: SecretMasker | None = None) 
         verb = "Assert" if t == "assert_text" else "Wait for"
         if "equals" in p:
             desc = f"{verb} {p.get('target')} text equals '{p['equals']}'"
-        elif "regex" in p:
-            desc = f"{verb} {p.get('target')} text matches /{p['regex']}/"
+        elif "regex" in p or "matches" in p:
+            desc = f"{verb} {p.get('target')} text matches /{p.get('regex', p.get('matches'))}/"
         else:
             desc = f"{verb} {p.get('target')} text contains '{p.get('contains')}'"
     elif t == "wait_for_keyboard":

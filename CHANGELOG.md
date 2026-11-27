@@ -12,6 +12,25 @@ Ideas planned for a later release. Nothing here ships yet.
 
 ---
 
+## [v0.1.48] - 2026-11-26
+
+### Typing on an on-screen keypad (`steps/interaction_steps.py`, `validator.py`)
+- `type` takes `keypad: true` for PIN pads and passcode screens that have no text field. It taps one key per character, filling `{key}` in the target's locator, for example `keyboard_key_{key}`. Secret values stay masked.
+- The validator fills `{key}` for keypad steps, so their locators check out before a run.
+
+### Step descriptions (`steps/base.py`)
+- `assert_text` and `wait_for_text` with `matches:` now read "text matches /.../" in logs and reports. Before, they fell through to "contains 'None'".
+
+### Tangerine non-prod suite (`flows/tng-nonprod/`, `specs/tng/`, `screens/screens.yaml`)
+- 11 workflows and 8 journeys for the Tangerine non-prod Android app: home and accounts, transfers, transfer checks and limits, scheduled transfers, bill pay, scheduled bill payments, Spaces and settings. Each journey unlocks with the PIN, keeps the app's data (`reset: none`) and ends on Home. `docs/tng-nonprod-next-steps.md` tracks what is left.
+- `scripts/export_tng_workspace.py` builds a portable workspace with the suite, its runs at `results/<run-id>/` and the exploration screenshots. `--with-secrets` copies only the `TNG_*` keys.
+- `scripts/build_tng_screen_catalog.py` builds a one-file-per-screen catalog report from the exploration screenshots, grouped by flow and marked happy or failure path.
+
+### Lessons learned
+- The Workbench lists a run only at `results/<run-id>/results.json`. An export that sorted runs into subfolders made them disappear from Runs & reports.
+
+---
+
 ## [v0.1.47] - 2026-11-26
 
 ### Show the device during a run (`ui/index.html`, `background_devices.py`, `driver_factory.py`, `emulator_manager.py`)

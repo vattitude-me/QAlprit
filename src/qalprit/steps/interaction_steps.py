@@ -157,9 +157,25 @@ def exec_type(ctx: StepContext, step: StepItem) -> StepOutcome:
     resolved_text = ctx.substitute_text(raw_value, secret=is_secret)
 
     # Ensure sensitive text is registered BEFORE any interaction can fail
-    resolved_loc = ctx.resolve_locator(target, params=tpl_params)
+    keypad = bool(step.params.get("keypad"))
+    probe_params = {**(tpl_params or {}), "key": "0"} if keypad else tpl_params
+    resolved_loc = ctx.resolve_locator(target, params=probe_params)
     if is_secret or resolved_loc.sensitive:
         ctx.masker.add(resolved_text)
+
+    if keypad:
+        # An on-screen keypad (PIN pads, passcode screens) has no text field.
+        # Tap one key per character; the locator names the key with {key}.
+        for char in resolved_text:
+            key_params = {**(tpl_params or {}), "key": char}
+            perform_with_stale_retry(
+                ctx,
+                target,
+                lambda el, _r: _tap_element(ctx, el),
+                params=key_params,
+                timeout=timeout,
+            )
+        return StepOutcome(secret_elements=[], note="typed on keypad")
 
     def _type_action(el: Any, _res: Any) -> None:
         el.click()
