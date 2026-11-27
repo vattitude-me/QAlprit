@@ -4,8 +4,8 @@ Usage:
     .venv/bin/python scripts/export_tng_workspace.py [DEST] [--with-secrets]
 
 DEST defaults to ~/Documents/QAlprit-TNG-workspace. The folder gets the config,
-locators, workflows, journeys, datasets, every TNG run sorted by journey and
-result, the exploration screenshots, and a README.
+locators, workflows, journeys, datasets, every TNG run with an index by journey
+and result, the exploration screenshots, and a README.
 
 --with-secrets copies only the TNG_* keys from the repo .env into DEST/.env
 (owner-only). Other keys, such as PYPI_TOKEN, are never copied. Without the flag,
@@ -36,8 +36,8 @@ This folder is a ready QAlprit workspace for the Tangerine non-prod Android app
 - `config/`: the device profile (`android_device`) and the `tng` environment.
 - `screens/screens.yaml`: locators. The TNG groups start with `tng_`.
 - `flows/tng-nonprod/`: workflows. `specs/tng/`: journeys. `datasets/flows/tng-nonprod/`: data rows.
-- `results/passed/<journey>/<run>/` and `results/failed/<journey>/<run>/`: earlier runs.
-  Open `report.html` in a browser. Each report holds its own images.
+- `results/<run-id>/`: earlier runs, listed in the Workbench under Runs & reports.
+  `results/RUNS.md` sorts them by journey and result. Each `report.html` holds its own images.
 - `results/tng-exploration/`: screenshots and XML from mapping the app, with `notes.md`.
 - `.env`: the QA PIN, password and alias email, if they were exported. Keep this folder private.
 
@@ -77,6 +77,7 @@ def copy_tree(src: Path, dst: Path) -> None:
 
 
 def sort_runs(dest: Path) -> list[tuple[str, str, str]]:
+    """Copy each TNG run to results/<run-id>/, where the Workbench finds it."""
     sorted_runs = []
     for run in sorted((REPO / "results").glob("*_android_tng")):
         data_file = run / "results.json"
@@ -89,9 +90,21 @@ def sort_runs(dest: Path) -> list[tuple[str, str, str]]:
         journey = tests[0].get("id", "unknown")
         failed = data.get("summary", {}).get("failed", 0) or data.get("interrupted")
         status = "failed" if failed else "passed"
-        copy_tree(run, dest / "results" / status / journey / run.name)
+        copy_tree(run, dest / "results" / run.name)
         sorted_runs.append((journey, status, run.name))
+    write_index(dest, sorted_runs)
     return sorted_runs
+
+
+def write_index(dest: Path, runs: list[tuple[str, str, str]]) -> None:
+    lines = ["# TNG runs by journey", ""]
+    for journey in sorted({j for j, _, _ in runs}):
+        lines += [f"## {journey}", "", "| Run | Result |", "| --- | --- |"]
+        for j, status, name in runs:
+            if j == journey:
+                lines.append(f"| [{name}]({name}/report.html) | {status} |")
+        lines.append("")
+    (dest / "results" / "RUNS.md").write_text("\n".join(lines), encoding="utf-8")
 
 
 def write_env(dest: Path, with_secrets: bool) -> int:

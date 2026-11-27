@@ -130,7 +130,7 @@ Work through these in order. If one is blocked, skip to the next.
 
 Run `.venv/bin/python scripts/export_tng_workspace.py --with-secrets` to build `~/Documents/QAlprit-TNG-workspace`. It holds:
 - the config, screens, workflows, journeys and datasets;
-- every TNG run, sorted into `results/passed/<journey>/` and `results/failed/<journey>/`;
+- every TNG run at `results/<run-id>/`, the only place the Workbench looks, plus `results/RUNS.md` listing them by journey and result;
 - the exploration screenshots and a README with the setup steps.
 
 `--with-secrets` copies only the `TNG_*` keys from `.env` into the workspace `.env`, owner-only. Run the script again after new runs to refresh the folder, then copy the whole folder to the other machine.
