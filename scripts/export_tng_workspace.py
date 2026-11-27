@@ -144,8 +144,6 @@ def main(argv: list[str]) -> int:
     copy_tree(REPO / "datasets" / "flows" / "tng-nonprod", dest / "datasets" / "flows" / "tng-nonprod")
     (dest / "specs" / "tng").mkdir(parents=True, exist_ok=True)
     for spec in sorted((REPO / "specs" / "tng").glob("TNG-*.md")):
-        if spec.stem[4:5].isdigit():  # TNG-001 and TNG-002 are the older onboarding journeys.
-            continue
         shutil.copy2(spec, dest / "specs" / "tng" / spec.name)
     for doc in ("tng-nonprod-next-steps.md", "tng-nonprod-coverage.md", "tng-nonprod-findings.md"):
         if (REPO / "docs" / doc).is_file():

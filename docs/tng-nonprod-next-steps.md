@@ -119,11 +119,8 @@ Work through these in order. If one is blocked, skip to the next.
 
 - A `TNG-copy-defects` journey that asserts the expected copy for each finding, so it fails until the app is fixed.
 - `docs/tng-nonprod-coverage.md` (each flow's status and why) and `docs/tng-nonprod-findings.md` (screen, expected, actual, screenshot path).
-- Notes in `docs/authoring-guide.md` and `CHANGELOG.md` for `keypad: true`.
-- Ask the user about:
-  - the three deleted old flows (`flows/tng-non-prod-acc-open-2.md`, `-3.md`, `tng-onboarding.md`);
-  - the `clear_data` reset in `TNG-002`.
-- Open the PR, merge it, then release v0.1.47 under the AGENTS.md rules.
+- A new onboarding workflow. The old onboarding flows and `TNG-002` were removed because they cleared the app's data. See the TNG onboarding item in `AGENTS.md` for what was learned on the device, and ask the user how to get a fresh app first.
+- Open a PR for the rest of the work, merge it, then release under the AGENTS.md rules.
 - Play music on the Mac when all flows are done.
 
 ## Moving to another machine
