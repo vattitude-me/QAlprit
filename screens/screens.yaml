@@ -386,3 +386,538 @@ tng_onboarding:
   id_rejected:
     android:
       xpath: //*[contains(@text,'verify you')]
+# Tangerine non-prod app (ca.tangerine.mobile.banking.app.nonProd), logged-in areas.
+# Compose test tags have no package prefix, so they use resourceId() selectors.
+tng_debug:
+  title:
+    android: {text: Debug Menu}
+  apply_and_continue_btn:
+    android: {text: Apply and Continue}
+tng_pin:
+  title:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/passcode_info_title"}
+  key:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/keyboard_key_{key}"}
+  delete_key:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/keyboard_key_back"}
+  reset_passcode_btn:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/resetPasscodeButton"}
+  error_text:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/passcode_error_view"}
+tng_home:
+  greeting:
+    android: {android_uiautomator: 'new UiSelector().textMatches("Good (morning|afternoon|evening)")'}
+  personal_accounts_title:
+    android: {text: Personal accounts}
+  account_card:
+    android: {android_uiautomator: 'new UiSelector().textStartsWith("{name}")'}
+  open_account_btn:
+    android: {android_uiautomator: 'new UiSelector().resourceId("open_account_btn")'}
+  open_account_label:
+    android: {text: Open Account}
+  cdic_disclaimer:
+    android: {android_uiautomator: 'new UiSelector().textStartsWith("Tangerine Bank is a wholly-owned")'}
+  cdic_logo:
+    android: {android_uiautomator: 'new UiSelector().resourceId("logo_image")'}
+  cdic_info_link:
+    android: {android_uiautomator: 'new UiSelector().resourceId("action_button")'}
+  profile_btn:
+    android: {android_uiautomator: 'new UiSelector().resourceId("account_management_topbar_profile_button")'}
+  nav_home:
+    android: {accessibility_id: Home}
+  nav_move_money:
+    android: {accessibility_id: Move Money}
+  nav_cards:
+    android: {accessibility_id: Cards}
+tng_common:
+  # Exact on-screen copy. Use for static text that has no test tag.
+  copy:
+    android: {android_uiautomator: 'new UiSelector().text("{text}")'}
+  # Copy that may carry a non-prod dev label ("MP-t-xxxxxxxx "). Assert it with
+  # matches: '^(MP-t-[0-9a-f]{8} )?<exact copy>$' so only that label is optional.
+  labelled_copy:
+    android: {android_uiautomator: 'new UiSelector().textContains("{text}")'}
+  app_bar_title:
+    android: {android_uiautomator: 'new UiSelector().resourceId("StarlingAppBarTitle")'}
+  app_bar_back:
+    android: {android_uiautomator: 'new UiSelector().resourceId("StarlingAppBarBackButton")'}
+  toolbar_up:
+    android: {accessibility_id: Navigate up}
+  error_title:
+    android: {android_uiautomator: 'new UiSelector().resourceId("StatusViewTitle")'}
+  error_message:
+    android: {android_uiautomator: 'new UiSelector().resourceId("StatusViewMessage")'}
+  error_retry_btn:
+    android: {android_uiautomator: 'new UiSelector().resourceId("StatusViewActionButton")'}
+  list_label:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ListItemLabel").text("{text}")'}
+  list_value:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ListItemValue").text("{text}")'}
+  primary_btn:
+    android: {android_uiautomator: 'new UiSelector().resourceId("Button")'}
+tng_move_money:
+  from_account:
+    android: {android_uiautomator: 'new UiSelector().resourceId("MoveMoneySetupScreenPayingAccountItem")'}
+  to_account:
+    android: {android_uiautomator: 'new UiSelector().resourceId("MoveMoneySetupScreenPayeeAccountItem")'}
+  from_account_name:
+    android: {android_uiautomator: 'new UiSelector().resourceId("MoveMoneySetupScreenPayingAccountItem").childSelector(new UiSelector().text("{name}"))'}
+  to_account_name:
+    android: {android_uiautomator: 'new UiSelector().resourceId("MoveMoneySetupScreenPayeeAccountItem").childSelector(new UiSelector().text("{name}"))'}
+  swap_accounts_btn:
+    android: {android_uiautomator: 'new UiSelector().resourceId("MoveMoneySetupScreenSwapAccountsButton")'}
+  amount_field:
+    android: {android_uiautomator: 'new UiSelector().resourceId("MoveMoneySetupScreenSourceAmountInput").childSelector(new UiSelector().className("android.widget.EditText"))'}
+  amount_label:
+    android: {text: Amount (CAD)}
+  description_field:
+    android: {android_uiautomator: 'new UiSelector().resourceIdMatches("MoveMoneySetupScreen(Description|Reference)Input").childSelector(new UiSelector().className("android.widget.EditText"))'}
+  schedule_toggle:
+    android: {android_uiautomator: 'new UiSelector().resourceId("MoveMoneySetupScreenScheduleToggle")'}
+  submit_btn:
+    android: {android_uiautomator: 'new UiSelector().resourceId("MoveMoneySetupScreenSubmitButton")'}
+  account_picker_item:
+    android: {android_uiautomator: 'new UiSelector().resourceIdMatches("AccountSelectionScreenAccountItem_.*").childSelector(new UiSelector().text("{name}"))'}
+  account_picker_confirm_btn:
+    android: {android_uiautomator: 'new UiSelector().resourceId("AccountSelectionScreenConfirmButton")'}
+  security_question_field:
+    android: {android_uiautomator: 'new UiSelector().resourceId("FieldGroupInputScreenFieldInput_QUESTION").childSelector(new UiSelector().className("android.widget.EditText"))'}
+  security_answer_field:
+    android: {android_uiautomator: 'new UiSelector().resourceId("FieldGroupInputScreenFieldInput_ANSWER").childSelector(new UiSelector().className("android.widget.EditText"))'}
+    sensitive: true
+  security_next_btn:
+    android: {android_uiautomator: 'new UiSelector().resourceId("FieldGroupInputScreenNextButton")'}
+  schedule_when:
+    android: {android_uiautomator: 'new UiSelector().resourceId("MoveMoneySetupScreenScheduleStartCondition")'}
+  schedule_frequency:
+    android: {android_uiautomator: 'new UiSelector().resourceId("MoveMoneySetupScreenScheduleFrequency")'}
+  schedule_ending:
+    android: {android_uiautomator: 'new UiSelector().resourceId("MoveMoneySetupScreenScheduleEndCondition")'}
+tng_payment_review:
+  key_label:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/key_label").text("{label}")'}
+  value:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/first_value_text").text("{text}")'}
+  account_numbers:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/second_value_text"}
+    sensitive: true
+  call_status_title:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/call_status_card").childSelector(new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/listItemTitleView"))'}
+  call_status_message:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/call_status_card").childSelector(new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/listItemSubtitleView"))'}
+  submit_btn:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/submitPaymentButton"}
+  payee_name:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/payeeName"}
+  payee_account:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/payeeAccountTextView"}
+    sensitive: true
+  transaction_id:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/transaction_id"}
+  share_btn:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/share_payment"}
+  done_btn:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/unary_button"}
+tng_payee:
+  search_field:
+    android: {android_uiautomator: 'new UiSelector().className("android.widget.EditText")'}
+  account_number_field:
+    android: {android_uiautomator: 'new UiSelector().className("android.widget.EditText")'}
+  continue_btn:
+    android: {android_uiautomator: 'new UiSelector().resourceId("RegisteredPayeeAccountSetupScreenCtaButton")'}
+  scam_title:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/warning_caption"}
+  scam_message:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/warning_content"}
+  scam_confirm_btn:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/confirmButton"}
+  password_title:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/passwordBottomSheetTitle"}
+  password_field:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/passwordBottomSheetEditText"}
+    sensitive: true
+  password_forgot_link:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/passwordBottomSheetForgotPassword"}
+  password_submit_btn:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/passwordBottomSheetSubmitButton"}
+  contact_menu_btn:
+    android: {accessibility_id: More options}
+  edit_display_name_field:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/payee_display_name_edit_text"}
+  edit_display_name_help:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/payee_edit_display_name_message"}
+  edit_name_help:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/engine_payee_edit_name_cop_message"}
+  edit_save_btn:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/payee_edit_save"}
+tng_autodeposit:
+  list_title:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/alias_manage_list_title"}
+  list_description:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/alias_manage_list_description"}
+  alias_value:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/alias_value").text("{value}")'}
+    sensitive: true
+  add_btn:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/alias_add_new_btn"}
+  method_title:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/alias_identifier_list_title"}
+  method_description:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/alias_identifier_list_description"}
+  method_item:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/listItemTitleView").text("{text}")'}
+  details_title:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/alias_details_title"}
+  input_field:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/generic_input_field_edit_text"}
+    sensitive: true
+  input_error:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/textinput_error"}
+  register_btn:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/btn_register"}
+  review_cta_btn:
+    android: {android_uiautomator: 'new UiSelector().resourceId("AliasReviewDetailsScreenCtaButton")'}
+  checkpoint_title:
+    android: {android_uiautomator: 'new UiSelector().resourceId("CheckpointScreenTitle")'}
+  checkpoint_message:
+    android: {android_uiautomator: 'new UiSelector().resourceId("CheckpointScreenMessage")'}
+tng_custom_frequency:
+  repeats_heading:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/repeatsHeading")'}
+  every_label:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/repeatsEvery")'}
+  interval_field:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/frequencyIntervalEditText")'}
+  period_text:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/frequencySelectedSpinnerText")'}
+  ends_heading:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/endsHeading")'}
+  until_cancelled_radio:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/untilCancelledRadio")'}
+  until_cancelled_label:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/untilCancelledLabel")'}
+  date_radio:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/dateRadio")'}
+  date_label:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/dateLabel")'}
+  date_text:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/dateText")'}
+  num_payments_radio:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/numPaymentsRadio")'}
+  num_payments_pre_label:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/numPaymentsPreLabel")'}
+  num_payments_field:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/numPaymentsEditText")'}
+  num_payments_post_label:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/numPaymentsPostLabel")'}
+  done_btn:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/confirmButton")'}
+  frequency_option:
+    android: {android_uiautomator: 'new UiSelector().className("android.widget.TextView").text("{option}")'}
+tng_scheduled:
+  sort_az_chip:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/sortAlphabeticallyChip")'}
+  sort_type_chip:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/sortByTypeChip")'}
+  section_header:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/header")'}
+  item_amount:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/transactionValueView")'}
+  item_date:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/transactionDetailView")'}
+  item_type:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/transactionInfoView")'}
+  payee_header:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/payee_header")'}
+  card_title:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/item_info_card_title")'}
+  card_description:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/item_info_card_description")'}
+  details_header:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/order_details_header")'}
+  cancel_btn:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/cancelButton")'}
+  next_header:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/next_payment_header")'}
+  next_date:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/listItemTitleView")'}
+  next_badge:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/badge_text")'}
+  history_header:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/history_header")'}
+  screen_title:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/title")'}
+  continue_header:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/continueHeader")'}
+  result_btn:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/actionButton2")'}
+  empty_title:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/emptyStateViewTitle")'}
+  empty_text:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/emptyStateViewText")'}
+  item_name_contains:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/merchantNameView").textContains("{text}")'}
+  field_label:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/invertedListItemTitleView").text("{label}")'}
+  field_value:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/invertedListItemSubtitleView").text("{text}")'}
+  bullet:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/bulletTextView").text("{text}")'}
+  edit_btn:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/actionEdit"}
+  item_name:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/merchantNameView").text("{text}")'}
+  error_message:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/message"}
+  error_ok_btn:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/actionButton"}
+tng_account:
+  back_btn:
+    android: {android_uiautomator: 'new UiSelector().resourceId("home_back_button")'}
+  spaces_btn:
+    android: {accessibility_id: Spaces}
+  insights_btn:
+    android: {accessibility_id: Open Spending Insights}
+  more_btn:
+    android: {android_uiautomator: 'new UiSelector().resourceId("home_overflow_button")'}
+  balance:
+    android: {android_uiautomator: 'new UiSelector().resourceId("HomeHeaderBalanceText")'}
+  available_balance:
+    android: {android_uiautomator: 'new UiSelector().resourceId("HomeHeaderSpacesBalanceText")'}
+tng_spaces:
+  new_space_title:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/newSpaceTitle"}
+  new_space_subtitle:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/newSpaceSubtitle"}
+  lets_begin:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/letsBegin"}
+  name_field:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/goalEdit"}
+  goal_field:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/targetEdit"}
+  input_error:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/textinput_error"}
+  continue_btn:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/actionButton"}
+  switch:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/switchView"}
+  control_title:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/controlTitle"}
+  amount_label:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/label"}
+  amount_field:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/currency_edit_text"}
+  space_name:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/spaceName"}
+  space_description:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/spaceDescription"}
+  space_balance:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/spaceBalance"}
+  manage_btn:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/manageSpace"}
+  empty_title:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/emptyStateViewTitle"}
+  transfer_in_btn:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/addMoneyButton"}
+  transfer_out_btn:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/withdrawMoneyButton"}
+  goal_title:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/targetTitle"}
+  goal_subtitle:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/targetSubtitle"}
+  transactions_header:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/transactionsHeader"}
+  search_btn:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/searchTransactions"}
+  see_all_btn:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/seeAllTransactionsCta"}
+  item_amount:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/transactionValueView"}
+  item_name:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/merchantNameView"}
+  from_label:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/fromLabel"}
+  to_label:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/toLabel"}
+  transfer_submit_btn:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/continueButton"}
+  photo_tile:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/replace_image"}
+  rename_field:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/editText"}
+  save_btn:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/saveButton"}
+  status_label:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/statusLabel"}
+  alert_title:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/alertTitle"}
+  alert_message:
+    android: {id: "android:id/message"}
+  archived_description:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/description"}
+  archived_item_name:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/spaceItemName"}
+  archived_item_category:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/spaceItemCategoryText"}
+  transfer_account_name:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/accountName").text("{name}")'}
+  transfer_balance:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/balance").text("{text}")'}
+  section_header:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/recyclerHeader").text("{text}")'}
+  setting_row:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/listItemTitleView").text("{text}")'}
+  setting_value:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/listItemSubtitleView").text("{text}")'}
+  option_value:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/listItemValueView").text("{text}")'}
+  archived_item:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/spaceItemName").text("{name}")'}
+android_dialog:
+  ok_btn:
+    android: {id: "android:id/button1"}
+  cancel_btn:
+    android: {id: "android:id/button2"}
+  list_option:
+    android: {android_uiautomator: 'new UiSelector().resourceId("android:id/text1").text("{text}")'}
+tng_password_sheet:
+  title:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/passwordBottomSheetTitle"}
+  password_field:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/passwordBottomSheetEditText"}
+    sensitive: true
+  forgot_btn:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/passwordBottomSheetForgotPassword"}
+  continue_btn:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/passwordBottomSheetSubmitButton"}
+android_autofill:
+  # Android's own "Use your saved password" popup. Dismissed, never accepted.
+  dismiss_btn:
+    android: {id: "android:id/autofill_dialog_no"}
+tng_settings:
+  # Profile menu (top right on Home) and User Settings. The holder's details are PII:
+  # value locators are sensitive and flows assert labels only.
+  user_name:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/baseNameText"}
+    sensitive: true
+  avatar_camera_btn:
+    android: {accessibility_id: Take Photo}
+  detail_label:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/invertedListItemTitleView").text("{text}")'}
+  detail_value:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/invertedListItemSubtitleView"}
+    sensitive: true
+  row:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/listItemTitleView").text("{text}")'}
+  row_subtitle:
+    android: {android_uiautomator: 'new UiSelector().resourceId("ca.tangerine.mobile.banking.app.nonProd:id/listItemSubtitleView").text("{text}")'}
+  screen_title:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/title"}
+  screen_description:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/description"}
+  input_error:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/textinput_error"}
+  # Mobile number
+  mobile_message:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/message"}
+  country_label:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/phoneNumberCountryLabel"}
+  country_field:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/phoneNumberCountryField"}
+  phone_field:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/phoneNumberEdit"}
+    sensitive: true
+  mobile_continue_btn:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/nextButton"}
+  # Verified email
+  email_field:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/editEmailEditText"}
+    sensitive: true
+  email_save_btn:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/saveButton"}
+  # Address lookup (Compose, no test tags). A manual address field is the EditText
+  # that holds its label.
+  address_field:
+    android: {xpath: '//android.widget.EditText[android.widget.TextView[@text="{label}"]]'}
+  # Personal income
+  income_continue_btn:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/submitButton"}
+  # Login and security
+  biometric_title:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/controlTitle"}
+  biometric_switch:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/switchView"}
+  biometric_description:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/controlDescription"}
+  password_title:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/textTitle"}
+  password_field:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/editPassword"}
+    sensitive: true
+  password_forgot_btn:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/buttonForgotPassword"}
+  password_continue_btn:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/buttonNext"}
+  devices_title:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/devicesNowConnectedText"}
+  device_name:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/loggedInDeviceNameText"}
+  device_last_login:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/lastLoginTimeText"}
+  devices_help_btn:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/whatAreTheseText"}
+  devices_help_text:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/bulletTextView"}
+  # Manage notifications (Compose)
+  low_balance_row:
+    android: {android_uiautomator: 'new UiSelector().resourceId("NotificationsLowBalanceNavigation")'}
+  mobile_wallet_switch:
+    android: {android_uiautomator: 'new UiSelector().resourceId("NotificationsMobileWalletSwitch")'}
+  scheduled_payments_switch:
+    android: {android_uiautomator: 'new UiSelector().resourceId("NotificationsScheduledPaymentsSwitch")'}
+  flexidraft_switch:
+    android: {android_uiautomator: 'new UiSelector().resourceId("NotificationsArrangedOverdraftSwitch")'}
+  marketing_email_switch:
+    android: {android_uiautomator: 'new UiSelector().resourceId("NotificationsMarketingEmailSwitch")'}
+  marketing_app_switch:
+    android: {android_uiautomator: 'new UiSelector().resourceId("NotificationsMarketingAppSwitch")'}
+  low_balance_switch:
+    android: {android_uiautomator: 'new UiSelector().resourceId("LowBalanceNotificationsScreenNotificationSwitch_{index}")'}
+  low_balance_input:
+    android: {android_uiautomator: 'new UiSelector().resourceId("LowBalanceNotificationsScreenThresholdInput_{index}")'}
+  low_balance_field:
+    android: {xpath: '//*[@resource-id="LowBalanceNotificationsScreenThresholdInput_{index}"]//android.widget.EditText'}
+  # App theme
+  theme_intro:
+    android: {android_uiautomator: 'new UiSelector().resourceId("UserSettingsChangeAppThemeTitle")'}
+  theme_option:
+    android: {android_uiautomator: 'new UiSelector().resourceId("AppThemeItem_{theme}")'}
+  # Notification History (profile menu > Notifications)
+  history_item:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/listItemTitleView"}
+    sensitive: true
+tng_help:
+  avatar:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/help_account_avatar"}
+  message:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/help_account_message"}
+  search_field:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/help_search"}
+  all_topics_btn:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/help_main_option_all_topics"}
+  support_btn:
+    android: {accessibility_id: Support}
+  call_status_label:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/call_status_label"}
+  call_status_card:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/call_status_card"}
+  service_code_title:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/oneTimePasscodeTitle"}
+  # A one-time code the agent asks for on a call. Never logged in reports.
+  service_code:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/oneTimePasscodeText"}
+    sensitive: true
+  service_code_progress:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/oneTimePasscodeProgress"}
+  service_code_description:
+    android: {id: "ca.tangerine.mobile.banking.app.nonProd:id/oneTimePasscodeDescription"}

@@ -375,3 +375,85 @@ def test_tap_with_relative_offset_uses_click_gesture(tmp_path: Path) -> None:
     step = normalize_step({"tap": {"target": "picker.select_id", "offset_x": 0.92, "offset_y": 0.5}})
     execute_step(ctx, step)
     assert recorded_scripts == [("mobile: clickGesture", {"x": 923, "y": 871})]
+
+
+def test_type_on_keypad_taps_one_key_per_character_and_masks_value(tmp_path: Path) -> None:
+    from qalprit.evidence import EvidenceCollector
+    from qalprit.steps import execute_step
+    from qalprit.steps.base import StepContext
+
+    tapped: list[str] = []
+
+    class _Key:
+        rect = {"x": 0, "y": 0, "width": 10, "height": 10}
+
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+        def is_displayed(self) -> bool:
+            return True
+
+        def click(self) -> None:
+            tapped.append(self.name)
+
+        def send_keys(self, _text: str) -> None:
+            raise AssertionError("A keypad has no text field to send keys to")
+
+    class _Driver:
+        def find_elements(self, _strategy: str, value: str) -> list:
+            return [_Key(value)]
+
+    screens = ScreensCatalog({"pin": {"key": {"android": {"id": "app:id/keyboard_key_{key}"}}}})
+    env_cfg = EnvironmentConfig(default_timeout=1.0, poll_interval=0.01)
+    env_ctx = EnvContext(variables={"APP_PIN": "4598"})
+    ctx = StepContext(
+        driver=_Driver(),
+        platform="android",
+        target_type="device",
+        profile=DeviceProfile(platform="android", target_type="device", device_name="phone"),
+        env_cfg=env_cfg,
+        env_ctx=env_ctx,
+        screens=screens,
+        evidence=EvidenceCollector(
+            run_dir=tmp_path,
+            screens=screens,
+            platform="android",
+            env_ctx=env_ctx,
+            extra_env_vars={},
+            masker=env_ctx.masker,
+        ),
+        masker=env_ctx.masker,
+        app_id="com.example.app",
+        app_path=None,
+        reset_mode="none",
+        reset_fn=lambda _m: (True, ""),
+    )
+    step = normalize_step({"type": {"target": "pin.key", "value": "${APP_PIN}", "secret": True, "keypad": True}})
+    execute_step(ctx, step)
+    assert tapped == [f"app:id/keyboard_key_{d}" for d in "4598"]
+    assert env_ctx.masker.mask("pin is 4598") == "pin is ***REDACTED***"
+
+
+def test_validator_fills_key_param_for_keypad_type(tmp_path: Path) -> None:
+    from qalprit.validator import _validate_locator_and_env
+
+    screens = ScreensCatalog({"pin": {"key": {"android": {"id": "app:id/keyboard_key_{key}"}}}})
+
+    def _errors(raw: dict) -> list[str]:
+        issues: list = []
+        _validate_locator_and_env(
+            normalize_step(raw), ["android"], screens, None, {}, set(), tmp_path / "f.md", "steps[0]", issues
+        )
+        return [i.message for i in issues if i.level == "error"]
+
+    assert _errors({"type": {"target": "pin.key", "value": "1234", "keypad": True}}) == []
+    assert any("missing template param" in m for m in _errors({"type": {"target": "pin.key", "value": "1234"}}))
+
+
+def test_assert_text_matches_description_shows_pattern() -> None:
+    from qalprit.steps import format_step_description
+
+    step = normalize_step({"assert_text": {"target": "s.title", "matches": "^Payment sent$"}})
+    desc = format_step_description(step)
+    assert "matches /^Payment sent$/" in desc
+    assert "None" not in desc
