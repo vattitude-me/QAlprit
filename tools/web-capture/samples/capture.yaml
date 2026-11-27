@@ -1,0 +1,71 @@
+# QAlprit Web Capture sample steps. Copy to ../capture.yaml and change the selectors to
+# match your portal. ${NAME} reads from .env or from a CSV column.
+
+base_url: ${PORTAL_URL}
+browser: chromium          # chromium, firefox or webkit
+# channel: msedge          # use installed Edge or Chrome (helps with device-based SSO)
+headless: false            # true hides the browser. Manual sign-in still opens a window.
+viewport: {width: 1440, height: 900}
+timeout: 15                # seconds per step
+stop_on_error: false       # false moves on to the next CSV row after a failure
+output_dir: captures
+
+login:
+  mode: auto               # auto: try SSO, then ask you to sign in. sso, manual or none.
+  url: /login
+  # How the tool knows you are signed in. Use something only the signed-in
+  # portal shows. Both checks must pass when both are set.
+  logged_in_when:
+    selector: "nav[aria-label='Main']"
+    # url_contains: /dashboard
+  # check_url: /dashboard   # page opened to test a saved session (default base_url)
+  sso_timeout: 45          # seconds to let SSO finish on its own
+  manual_timeout: 300      # seconds to wait for you to sign in by hand
+  # sso_button: "text=Sign in with SSO"    # click this first, if the portal has one
+  # email_field: "input[name=loginfmt]"    # default covers Microsoft, Okta, Google and plain forms
+  # confirm_buttons:                       # clicked when they show, e.g. "Stay signed in?"
+  #   - "input[type=submit][value=Yes]"
+  # Or replace the built-in SSO with your own steps:
+  # sso_steps:
+  #   - click: {role: button, name: Sign in with SSO}
+  #   - fill: {label: Work email}
+  #     value: ${SSO_EMAIL}
+  #   - press: Enter
+
+session:
+  file: auth/session.json  # saved cookies, reused until they expire
+  max_age_hours: 8
+
+data:
+  csv: data.csv            # one pass through the steps per row
+  label: "${customer_id}"  # folder name for each row's screenshots
+  # secret_columns: [account_number]   # masked in logs and the report
+
+steps:
+  - goto: /customers
+  - screenshot: customer-list
+
+  - fill: {placeholder: Search customers}
+    value: "${customer_name}"
+  - press: Enter
+  - wait_for: {text: "${customer_name}"}
+  - screenshot: search-results
+
+  - click: {role: link, name: "${customer_name}"}
+  - wait_for: "h1"
+  - extract: status
+    selector: ".status-badge"
+  - screenshot: customer-detail
+    full_page: true
+    mask: [".ssn", "[data-sensitive]"]
+
+  # A banner that only shows sometimes.
+  - if_visible: {role: button, name: Dismiss}
+    then:
+      - click: {role: button, name: Dismiss}
+
+  # Only some customers have a billing tab.
+  - if_visible: {role: tab, name: Billing}
+    then:
+      - click: {role: tab, name: Billing}
+      - screenshot: billing

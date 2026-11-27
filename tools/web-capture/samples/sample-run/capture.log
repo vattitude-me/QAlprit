@@ -1,0 +1,49 @@
+Signing in at https://portal.example.com/login
+  Trying SSO.
+  Entered the SSO email on https://portal.example.com/login
+  Signed in.
+  Session saved to ./auth/session.json (reused for 8 h).
+Row 1: C-1
+    goto https://portal.example.com/customers
+    saved 01_customer-list.png
+    fill placeholder=Search customers = Ada Lovelace
+    press Enter
+    wait for text=Ada Lovelace
+    saved 02_search-results.png
+    click role=link, name=Ada Lovelace
+    wait for h1
+    extract status = Active
+    saved 03_customer-detail.png
+    if visible role=button, name=Dismiss: yes
+    click role=button, name=Dismiss
+    if visible role=tab, name=Billing: no
+Row 2: C-2
+    goto https://portal.example.com/customers
+    saved 01_customer-list.png
+    fill placeholder=Search customers = Grace Hopper
+    press Enter
+    wait for text=Grace Hopper
+    saved 02_search-results.png
+    click role=link, name=Grace Hopper
+    wait for h1
+    extract status = Suspended
+    saved 03_customer-detail.png
+    if visible role=button, name=Dismiss: yes
+    click role=button, name=Dismiss
+    if visible role=tab, name=Billing: no
+Row 3: C-3
+    goto https://portal.example.com/customers
+    saved 01_customer-list.png
+    fill placeholder=Search customers = Alan Turing
+    press Enter
+    wait for text=Alan Turing
+    saved 02_search-results.png
+    click role=link, name=Alan Turing
+    wait for h1
+    extract status = Active
+    saved 03_customer-detail.png
+    if visible role=button, name=Dismiss: yes
+    click role=button, name=Dismiss
+    if visible role=tab, name=Billing: no
+Done. 3 passed, 0 failed.
+Open captures/20261127-082135/index.html

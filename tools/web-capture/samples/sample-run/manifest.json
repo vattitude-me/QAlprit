@@ -1,0 +1,98 @@
+{
+  "run_id": "20261127-082135",
+  "config": "./capture.yaml",
+  "base_url": "https://portal.example.com/",
+  "started": "2026-11-27T08:21:35",
+  "rows": [
+    {
+      "row": 1,
+      "label": "C-1",
+      "status": "passed",
+      "error": "",
+      "screenshots": [
+        {
+          "name": "customer-list",
+          "file": "01_customer-list.png",
+          "url": "https://portal.example.com/customers",
+          "title": "Portal"
+        },
+        {
+          "name": "search-results",
+          "file": "02_search-results.png",
+          "url": "https://portal.example.com/customers?q=Ada+Lovelace",
+          "title": "Portal"
+        },
+        {
+          "name": "customer-detail",
+          "file": "03_customer-detail.png",
+          "url": "https://portal.example.com/customers/C-1",
+          "title": "Portal"
+        }
+      ],
+      "extracted": {
+        "status": "Active"
+      }
+    },
+    {
+      "row": 2,
+      "label": "C-2",
+      "status": "passed",
+      "error": "",
+      "screenshots": [
+        {
+          "name": "customer-list",
+          "file": "01_customer-list.png",
+          "url": "https://portal.example.com/customers",
+          "title": "Portal"
+        },
+        {
+          "name": "search-results",
+          "file": "02_search-results.png",
+          "url": "https://portal.example.com/customers?q=Grace+Hopper",
+          "title": "Portal"
+        },
+        {
+          "name": "customer-detail",
+          "file": "03_customer-detail.png",
+          "url": "https://portal.example.com/customers/C-2",
+          "title": "Portal"
+        }
+      ],
+      "extracted": {
+        "status": "Suspended"
+      }
+    },
+    {
+      "row": 3,
+      "label": "C-3",
+      "status": "passed",
+      "error": "",
+      "screenshots": [
+        {
+          "name": "customer-list",
+          "file": "01_customer-list.png",
+          "url": "https://portal.example.com/customers",
+          "title": "Portal"
+        },
+        {
+          "name": "search-results",
+          "file": "02_search-results.png",
+          "url": "https://portal.example.com/customers?q=Alan+Turing",
+          "title": "Portal"
+        },
+        {
+          "name": "customer-detail",
+          "file": "03_customer-detail.png",
+          "url": "https://portal.example.com/customers/C-3",
+          "title": "Portal"
+        }
+      ],
+      "extracted": {
+        "status": "Active"
+      }
+    }
+  ],
+  "finished": "2026-11-27T08:21:55",
+  "passed": 3,
+  "failed": 0
+}
